@@ -1,5 +1,5 @@
 --============================================================
--- MM2 V8.5 SPLIT BUILD - UI.lua
+-- MM2 V8.6 UI FIX - V8.5 VISUAL STYLE
 -- Dashboard, tabs, toolbar, builders.
 --============================================================
 
@@ -122,6 +122,10 @@ VersionLabel.TextSize = 10
 VersionLabel.Font = Enum.Font.GothamBold
 VersionLabel.Parent = Header
 
+local VersionCorner = Instance.new("UICorner")
+VersionCorner.CornerRadius = UDim.new(0,7)
+VersionCorner.Parent = VersionLabel
+
 local CloseButton = Instance.new("TextButton")
 CloseButton.Size = UDim2.fromOffset(30,30)
 CloseButton.Position = UDim2.new(1,-42,0,12)
@@ -133,6 +137,10 @@ CloseButton.TextSize = 20
 CloseButton.Font = Enum.Font.GothamMedium
 CloseButton.AutoButtonColor = false
 CloseButton.Parent = Header
+
+local CloseCorner = Instance.new("UICorner")
+CloseCorner.CornerRadius = UDim.new(0,8)
+CloseCorner.Parent = CloseButton
 
 local Divider = Instance.new("Frame")
 Divider.Size = UDim2.new(1,-24,0,1)
@@ -148,6 +156,10 @@ Sidebar.Position = UDim2.fromOffset(12,62)
 Sidebar.BackgroundColor3 = COLORS.Sidebar
 Sidebar.BorderSizePixel = 0
 Sidebar.Parent = MainFrame
+
+local SidebarCorner = Instance.new("UICorner")
+SidebarCorner.CornerRadius = UDim.new(0,12)
+SidebarCorner.Parent = Sidebar
 
 local Content = Instance.new("Frame")
 Content.Size = UDim2.new(1,-150,1,-68)
@@ -197,6 +209,10 @@ Floating.BorderSizePixel = 0
 Floating.Active = true
 Floating.Parent = ToolbarGui
 
+local FloatingCorner = Instance.new("UICorner")
+FloatingCorner.CornerRadius = UDim.new(1,0)
+FloatingCorner.Parent = Floating
+
 local RGBStroke = Instance.new("UIStroke")
 RGBStroke.Thickness = 1.5
 RGBStroke.Transparency = 0.08
@@ -229,6 +245,13 @@ DragHandle.TextColor3 = COLORS.Muted
 DragHandle.TextSize = 17
 DragHandle.Font = Enum.Font.GothamBold
 DragHandle.Parent = Floating
+
+local FloatDivider = Instance.new("Frame")
+FloatDivider.Size = UDim2.fromOffset(1,22)
+FloatDivider.Position = UDim2.fromOffset(34,8)
+FloatDivider.BackgroundColor3 = COLORS.Stroke
+FloatDivider.BorderSizePixel = 0
+FloatDivider.Parent = Floating
 
 local OpenButton = Instance.new("TextButton")
 OpenButton.Size = UDim2.new(1,-38,1,0)
@@ -324,6 +347,15 @@ local function AddSidebarButton(name,label,order)
 	btn.Font = Enum.Font.GothamBold
 	btn.AutoButtonColor = false
 	btn.Parent = Sidebar
+
+	local padding = Instance.new("UIPadding")
+	padding.PaddingLeft = UDim.new(0,9)
+	padding.Parent = btn
+
+	local c = Instance.new("UICorner")
+	c.CornerRadius = UDim.new(0,9)
+	c.Parent = btn
+
 	TabButtons[name] = btn
 	Track(btn.MouseButton1Click:Connect(function() MM2.UI.ShowPage(name) end))
 end
@@ -369,6 +401,17 @@ function MM2.UI.CreateToggle(parent,titleText,description,flagName,callback)
 	card.BackgroundColor3 = COLORS.Card
 	card.BorderSizePixel = 0
 	card.Parent = parent
+
+	local cardCorner = Instance.new("UICorner")
+	cardCorner.CornerRadius = UDim.new(0,11)
+	cardCorner.Parent = card
+
+	local cardStroke = Instance.new("UIStroke")
+	cardStroke.Color = COLORS.Stroke
+	cardStroke.Transparency = 0.45
+	cardStroke.Thickness = 1
+	cardStroke.Parent = card
+
 	local label = Instance.new("TextLabel")
 	label.Size = UDim2.new(1,-104,0,22)
 	label.Position = UDim2.fromOffset(14,10)
@@ -397,12 +440,22 @@ function MM2.UI.CreateToggle(parent,titleText,description,flagName,callback)
 	track.Text = ""
 	track.AutoButtonColor = false
 	track.Parent = card
+
+	local trackCorner = Instance.new("UICorner")
+	trackCorner.CornerRadius = UDim.new(1,0)
+	trackCorner.Parent = track
+
 	local knob = Instance.new("Frame")
 	knob.Size = UDim2.fromOffset(18,18)
 	knob.Position = UDim2.fromOffset(3,3)
 	knob.BackgroundColor3 = COLORS.Knob
 	knob.BorderSizePixel = 0
 	knob.Parent = track
+
+	local knobCorner = Instance.new("UICorner")
+	knobCorner.CornerRadius = UDim.new(1,0)
+	knobCorner.Parent = knob
+
 	local function Render(value,instant)
 		local d = instant and 0 or 0.14
 		TweenService:Create(knob,TweenInfo.new(d,Enum.EasingStyle.Quad,Enum.EasingDirection.Out),{
@@ -430,7 +483,13 @@ function MM2.UI.CreateActionButton(parent,text,callback,style)
 	button.TextColor3 = COLORS.Text
 	button.TextSize = 11
 	button.Font = Enum.Font.GothamBold
+	button.AutoButtonColor = false
 	button.Parent = parent
+
+	local corner = Instance.new("UICorner")
+	corner.CornerRadius = UDim.new(0,10)
+	corner.Parent = button
+
 	Track(button.MouseButton1Click:Connect(callback))
 	return button
 end
@@ -441,6 +500,16 @@ function MM2.UI.CreateValueControl(parent,labelText,getter,setter,minValue,maxVa
 	card.BackgroundColor3 = COLORS.Card
 	card.BorderSizePixel = 0
 	card.Parent = parent
+
+	local corner = Instance.new("UICorner")
+	corner.CornerRadius = UDim.new(0,11)
+	corner.Parent = card
+
+	local stroke = Instance.new("UIStroke")
+	stroke.Color = COLORS.Stroke
+	stroke.Transparency = 0.45
+	stroke.Parent = card
+
 	local label = Instance.new("TextLabel")
 	label.Size = UDim2.new(1,-140,1,0)
 	label.Position = UDim2.fromOffset(14,0)
@@ -461,6 +530,11 @@ function MM2.UI.CreateValueControl(parent,labelText,getter,setter,minValue,maxVa
 	value.TextSize = 11
 	value.Font = Enum.Font.GothamBold
 	value.Parent = card
+
+	local vc = Instance.new("UICorner")
+	vc.CornerRadius = UDim.new(0,8)
+	vc.Parent = value
+
 	local minus = Instance.new("TextButton")
 	minus.Size = UDim2.fromOffset(26,28)
 	minus.Position = UDim2.new(1,-138,0.5,-14)
@@ -468,7 +542,14 @@ function MM2.UI.CreateValueControl(parent,labelText,getter,setter,minValue,maxVa
 	minus.BorderSizePixel = 0
 	minus.Text = "−"
 	minus.TextColor3 = COLORS.Text
+	minus.TextSize = 14
+	minus.Font = Enum.Font.GothamBold
 	minus.Parent = card
+
+	local mc = Instance.new("UICorner")
+	mc.CornerRadius = UDim.new(0,8)
+	mc.Parent = minus
+
 	local plus = Instance.new("TextButton")
 	plus.Size = UDim2.fromOffset(26,28)
 	plus.Position = UDim2.new(1,-30,0.5,-14)
@@ -476,7 +557,14 @@ function MM2.UI.CreateValueControl(parent,labelText,getter,setter,minValue,maxVa
 	plus.BorderSizePixel = 0
 	plus.Text = "+"
 	plus.TextColor3 = COLORS.Text
+	plus.TextSize = 14
+	plus.Font = Enum.Font.GothamBold
 	plus.Parent = card
+
+	local pc = Instance.new("UICorner")
+	pc.CornerRadius = UDim.new(0,8)
+	pc.Parent = plus
+
 	local function update(v)
 		v = math.clamp(v,minValue,maxValue)
 		setter(v)
@@ -493,6 +581,16 @@ function MM2.UI.CreateSlider(parent,labelText,description,getter,setter,minValue
 	card.BackgroundColor3 = COLORS.Card
 	card.BorderSizePixel = 0
 	card.Parent = parent
+
+	local corner = Instance.new("UICorner")
+	corner.CornerRadius = UDim.new(0,11)
+	corner.Parent = card
+
+	local stroke = Instance.new("UIStroke")
+	stroke.Color = COLORS.Stroke
+	stroke.Transparency = 0.45
+	stroke.Parent = card
+
 	local label = Instance.new("TextLabel")
 	label.Size = UDim2.new(1,-80,0,20)
 	label.Position = UDim2.fromOffset(14,9)
@@ -530,12 +628,23 @@ function MM2.UI.CreateSlider(parent,labelText,description,getter,setter,minValue
 	bar.BorderSizePixel = 0
 	bar.Text = ""
 	bar.AutoButtonColor = false
+	bar.Active = true
 	bar.Parent = card
+
+	local barCorner = Instance.new("UICorner")
+	barCorner.CornerRadius = UDim.new(1,0)
+	barCorner.Parent = bar
+
 	local fill = Instance.new("Frame")
 	fill.Size = UDim2.fromScale(0,1)
 	fill.BackgroundColor3 = COLORS.Accent
 	fill.BorderSizePixel = 0
 	fill.Parent = bar
+
+	local fillCorner = Instance.new("UICorner")
+	fillCorner.CornerRadius = UDim.new(1,0)
+	fillCorner.Parent = fill
+
 	local knob = Instance.new("Frame")
 	knob.AnchorPoint = Vector2.new(0.5,0.5)
 	knob.Size = UDim2.fromOffset(16,16)
@@ -544,6 +653,11 @@ function MM2.UI.CreateSlider(parent,labelText,description,getter,setter,minValue
 	knob.BorderSizePixel = 0
 	knob.ZIndex = 3
 	knob.Parent = bar
+
+	local knobCorner = Instance.new("UICorner")
+	knobCorner.CornerRadius = UDim.new(1,0)
+	knobCorner.Parent = knob
+
 	local dragging = false
 	local function snap(v)
 		return math.clamp(math.floor(((v-minValue)/step)+0.5)*step+minValue,minValue,maxValue)
