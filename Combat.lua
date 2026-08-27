@@ -1,393 +1,696 @@
 --============================================================
--- MM2 V8.6 REPLACEMENT - Combat.lua
--- TriggerBot, Aim Lock, Shoot Murderer, Auto Grab.
+-- MM2 V8.6 UI FIX - V8.5 VISUAL STYLE
+-- Dashboard, tabs, toolbar, builders.
 --============================================================
 
 local MM2 = getgenv and getgenv().MM2_V85_SPLIT or _G.MM2_V85_SPLIT
-assert(MM2 and MM2.UI and MM2.UI.CombatPage and MM2.UI.TracerGui, "Load Shared.lua + UI.lua + Visuals.lua first")
+assert(MM2, "Shared.lua must load first")
 
-local Players = MM2.Services.Players
-local RunService = MM2.Services.RunService
-local UIS = MM2.Services.UserInputService
-local LocalPlayer = MM2.LocalPlayer
+local S = MM2.Services
 local Flags = MM2.Flags
-local UI = MM2.UI
 local Track = MM2.Track
+local PlayerGui = MM2.PlayerGui
+local CoreGui = S.CoreGui
+local UIS = S.UserInputService
+local TweenService = S.TweenService
 
-UI.AddSection(UI.CombatPage, "Combat", "Aim, pickup and weapon features")
-UI.CreateToggle(UI.CombatPage, "TriggerBot", "Fire when the crosshair is on the murderer", "TriggerBot")
-UI.CreateToggle(UI.CombatPage, "Aim Lock", "Torso aim lock in first-person / lock-center", "AimLock")
-UI.CreateToggle(UI.CombatPage, "Auto Grab Gun", "Automatically grabs the gun without moving your body", "AutoGrab")
-UI.CreateToggle(UI.CombatPage, "Floating Shoot Button", "Show a draggable Shoot Murderer button", "ShowShootButton",
-	function(on)
-		if MM2.UI.FloatingShootButton then
-			MM2.UI.FloatingShootButton.Visible = on
-		end
-	end
-)
-
-local CrosshairDot = Instance.new("Frame")
-CrosshairDot.Name = "CrosshairDot"
-CrosshairDot.AnchorPoint = Vector2.new(0.5,0.5)
-CrosshairDot.Position = UDim2.new(0.5,0,0.5,0)
-CrosshairDot.Size = UDim2.fromOffset(4,4)
-CrosshairDot.BackgroundColor3 = Color3.fromRGB(255,255,255)
-CrosshairDot.BorderSizePixel = 0
-CrosshairDot.Visible = false
-CrosshairDot.ZIndex = 100
-CrosshairDot.Parent = UI.TracerGui
-
-local AIMLOCK_FOV = 150
-local COMBAT_MAX_DISTANCE = 2000
-local SHOT_COOLDOWN = 1.5
-local LastTriggerShot = 0
-local LastManualShot = 0
-
-local function GetCombatTorso(character)
-	if not character then return nil end
-	return character:FindFirstChild("UpperTorso")
-		or character:FindFirstChild("Torso")
-		or character:FindFirstChild("HumanoidRootPart")
+for _, guiName in ipairs({"MM2_UTILITY_V8","MM2_V8_TracerGui","MM2_V8_PlayerESP_Gui","MM2_V8_ToolbarGui"}) do
+	local old = PlayerGui:FindFirstChild(guiName)
+	if old then old:Destroy() end
 end
+pcall(function()
+	local old = CoreGui:FindFirstChild("MM2_UTILITY_V8")
+	if old then old:Destroy() end
+	local oldToolbar = CoreGui:FindFirstChild("MM2_V8_ToolbarGui")
+	if oldToolbar then oldToolbar:Destroy() end
+end)
 
-local function IsAimLockAllowed()
-	local camera = workspace.CurrentCamera
-	local character = LocalPlayer.Character
-	if not camera or not character then return false end
-	local head = character:FindFirstChild("Head")
-	if head and (camera.CFrame.Position-head.Position).Magnitude < 1 then return true end
-	return UIS.MouseBehavior == Enum.MouseBehavior.LockCenter
-end
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "MM2_UTILITY_V8"
+ScreenGui.ResetOnSpawn = false
+ScreenGui.IgnoreGuiInset = false
+ScreenGui.DisplayOrder = 10
+pcall(function() ScreenGui.Parent = CoreGui end)
+if not ScreenGui.Parent then ScreenGui.Parent = PlayerGui end
 
-local function GetBestCombatTarget()
-	local camera = workspace.CurrentCamera
-	if not camera then return nil,nil end
-	local viewport = camera.ViewportSize
-	local center = Vector2.new(viewport.X/2,viewport.Y/2)
-	local bestPlayer,bestPart,bestDistance = nil,nil,AIMLOCK_FOV
+local COLORS = {
+	Background = Color3.fromRGB(15,16,21),
+	Panel = Color3.fromRGB(20,22,28),
+	Sidebar = Color3.fromRGB(18,20,26),
+	Card = Color3.fromRGB(26,29,36),
+	CardHover = Color3.fromRGB(31,34,42),
+	Stroke = Color3.fromRGB(52,57,70),
+	Text = Color3.fromRGB(238,241,248),
+	Muted = Color3.fromRGB(150,157,171),
+	Accent = Color3.fromRGB(103,126,255),
+	Accent2 = Color3.fromRGB(160,92,255),
+	TrackOff = Color3.fromRGB(58,62,72),
+	Knob = Color3.fromRGB(244,246,251),
+	Danger = Color3.fromRGB(225,83,93),
+}
+MM2.UI.ScreenGui = ScreenGui
+MM2.UI.COLORS = COLORS
 
-	for _,player in ipairs(Players:GetPlayers()) do
-		if player ~= LocalPlayer and MM2.GetPlayerRole(player) == "Murderer" then
-			local character = player.Character
-			local humanoid = character and character:FindFirstChildOfClass("Humanoid")
-			local torso = GetCombatTorso(character)
-			if humanoid and humanoid.Health > 0 and torso
-				and MM2.IsPositionWithinESPDistance(torso.Position)
-			then
-				local screenPosition,onScreen = camera:WorldToViewportPoint(torso.Position)
-				if onScreen and screenPosition.Z > 0 then
-					local d = (Vector2.new(screenPosition.X,screenPosition.Y)-center).Magnitude
-					if d < bestDistance then
-						bestDistance,bestPlayer,bestPart = d,player,torso
-					end
-				end
-			end
-		end
-	end
-	return bestPlayer,bestPart
-end
+local MainFrame = Instance.new("Frame")
+MainFrame.Name = "Dashboard"
+MainFrame.Size = UDim2.fromOffset(518,345)
+MainFrame.Position = UDim2.new(0.5,-242,0.5,-198)
+MainFrame.BackgroundColor3 = COLORS.Background
+MainFrame.BackgroundTransparency = 0.04
+MainFrame.BorderSizePixel = 0
+MainFrame.Active = true
+MainFrame.Parent = ScreenGui
+MM2.UI.MainFrame = MainFrame
+local MainCorner = Instance.new("UICorner")
+MainCorner.CornerRadius = UDim.new(0,16)
+MainCorner.Parent = MainFrame
+local MainStroke = Instance.new("UIStroke")
+MainStroke.Color = COLORS.Stroke
+MainStroke.Thickness = 1
+MainStroke.Transparency = 0.15
+MainStroke.Parent = MainFrame
 
-local function GetCombatCrosshairHit()
-	local camera = workspace.CurrentCamera
-	local character = LocalPlayer.Character
-	if not camera or not character then return nil end
-	local viewport = camera.ViewportSize
-	local ray = camera:ViewportPointToRay(viewport.X/2,viewport.Y/2)
-	local params = RaycastParams.new()
-	params.FilterType = Enum.RaycastFilterType.Exclude
-	params.FilterDescendantsInstances = {character}
-	params.IgnoreWater = true
-	return workspace:Raycast(ray.Origin,ray.Direction*COMBAT_MAX_DISTANCE,params)
-end
+local Header = Instance.new("Frame")
+Header.Size = UDim2.new(1,0,0,54)
+Header.BackgroundTransparency = 1
+Header.Parent = MainFrame
 
-local function ResolveCombatPlayer(instance)
-	if not instance then return nil end
-	local current = instance
-	while current and current ~= workspace do
-		if current:IsA("Model") then
-			local player = Players:GetPlayerFromCharacter(current)
-			if player then return player end
-		end
-		current = current.Parent
-	end
-	return nil
-end
+local Logo = Instance.new("TextLabel")
+Logo.Size = UDim2.new(0,36,0,36)
+Logo.Position = UDim2.fromOffset(16,9)
+Logo.BackgroundColor3 = COLORS.Card
+Logo.BorderSizePixel = 0
+Logo.Text = "❄"
+Logo.TextColor3 = COLORS.Text
+Logo.TextSize = 19
+Logo.Font = Enum.Font.GothamBold
+Logo.Parent = Header
+local lc = Instance.new("UICorner")
+lc.CornerRadius = UDim.new(0,10)
+lc.Parent = Logo
 
-local function GetCombatGun()
-	local character = LocalPlayer.Character
-	if not character then return nil end
-	local gun = character:FindFirstChild("Gun") or character:FindFirstChild("Revolver")
-	if gun and gun:IsA("Tool") then return gun end
-	return nil
-end
+local Title = Instance.new("TextLabel")
+Title.Size = UDim2.new(0,250,0,24)
+Title.Position = UDim2.fromOffset(62,8)
+Title.BackgroundTransparency = 1
+Title.TextXAlignment = Enum.TextXAlignment.Left
+Title.Text = "MURDER MYSTERY 2 SCRIPT"
+Title.TextColor3 = COLORS.Text
+Title.TextSize = 13
+Title.Font = Enum.Font.GothamBold
+Title.Parent = Header
 
-local function FireCombatGun(gun,targetPosition)
-	if not gun or typeof(targetPosition) ~= "Vector3" then return false end
-	local character = LocalPlayer.Character
-	if not character or gun.Parent ~= character then return false end
-	local hrp = character:FindFirstChild("HumanoidRootPart")
-	if not hrp then return false end
-	local shoot = gun:FindFirstChild("Shoot")
-	if not shoot or not shoot:IsA("RemoteEvent") then return false end
-	local direction = targetPosition - hrp.Position
-	if direction.Magnitude <= 0.1 then return false end
-	local unitDirection = direction.Unit
-	local originCFrame = CFrame.new(targetPosition-unitDirection*2,targetPosition)
-	local destinationCFrame = CFrame.new(targetPosition)
-	shoot:FireServer(originCFrame,destinationCFrame)
-	return true
-end
+local Subtitle = Instance.new("TextLabel")
+Subtitle.Size = UDim2.new(0,280,0,18)
+Subtitle.Position = UDim2.fromOffset(62,29)
+Subtitle.BackgroundTransparency = 1
+Subtitle.TextXAlignment = Enum.TextXAlignment.Left
+Subtitle.Text = "Personal utility dashboard"
+Subtitle.TextColor3 = COLORS.Muted
+Subtitle.TextSize = 10
+Subtitle.Font = Enum.Font.Gotham
+Subtitle.Parent = Header
 
-MM2.Functions.ShootMurderer = function()
-	local now = os.clock()
-	if now-LastManualShot < SHOT_COOLDOWN then
-		return false,"Cooldown"
-	end
+local VersionLabel = Instance.new("TextLabel")
+VersionLabel.Size = UDim2.fromOffset(52,24)
+VersionLabel.Position = UDim2.new(1,-100,0,15)
+VersionLabel.BackgroundColor3 = COLORS.Card
+VersionLabel.BorderSizePixel = 0
+VersionLabel.Text = "V8.5"
+VersionLabel.TextColor3 = COLORS.Muted
+VersionLabel.TextSize = 10
+VersionLabel.Font = Enum.Font.GothamBold
+VersionLabel.Parent = Header
 
-	-- Find the live murderer first.
-	local murderer = nil
-	for _,player in ipairs(Players:GetPlayers()) do
-		if player ~= LocalPlayer and MM2.GetPlayerRole(player) == "Murderer" then
-			local character = player.Character
-			local humanoid = character and character:FindFirstChildOfClass("Humanoid")
-			if humanoid and humanoid.Health > 0 then
-				murderer = player
-				break
-			end
-		end
-	end
+local VersionCorner = Instance.new("UICorner")
+VersionCorner.CornerRadius = UDim.new(0,7)
+VersionCorner.Parent = VersionLabel
 
-	if not murderer then
-		return false,"No Murderer"
-	end
+local CloseButton = Instance.new("TextButton")
+CloseButton.Size = UDim2.fromOffset(30,30)
+CloseButton.Position = UDim2.new(1,-42,0,12)
+CloseButton.BackgroundColor3 = COLORS.Card
+CloseButton.BorderSizePixel = 0
+CloseButton.Text = "×"
+CloseButton.TextColor3 = COLORS.Text
+CloseButton.TextSize = 20
+CloseButton.Font = Enum.Font.GothamMedium
+CloseButton.AutoButtonColor = false
+CloseButton.Parent = Header
 
-	local torso = GetCombatTorso(murderer.Character)
-	if not torso then
-		return false,"No Target"
-	end
+local CloseCorner = Instance.new("UICorner")
+CloseCorner.CornerRadius = UDim.new(0,8)
+CloseCorner.Parent = CloseButton
 
-	-- V8.6 fix: if the gun is in Backpack, equip it automatically.
-	local gun = GetCombatGun()
+local Divider = Instance.new("Frame")
+Divider.Size = UDim2.new(1,-24,0,1)
+Divider.Position = UDim2.fromOffset(12,54)
+Divider.BackgroundColor3 = COLORS.Stroke
+Divider.BackgroundTransparency = 0.35
+Divider.BorderSizePixel = 0
+Divider.Parent = MainFrame
 
-	if not gun then
-		local character = LocalPlayer.Character
-		local humanoid = character and character:FindFirstChildOfClass("Humanoid")
-		local backpack = LocalPlayer:FindFirstChild("Backpack")
-		local backpackGun = backpack and (
-			backpack:FindFirstChild("Gun")
-			or backpack:FindFirstChild("Revolver")
-		)
+local Sidebar = Instance.new("Frame")
+Sidebar.Size = UDim2.new(0,126,1,-68)
+Sidebar.Position = UDim2.fromOffset(12,62)
+Sidebar.BackgroundColor3 = COLORS.Sidebar
+Sidebar.BorderSizePixel = 0
+Sidebar.Parent = MainFrame
 
-		if not humanoid
-			or humanoid.Health <= 0
-			or not backpackGun
-			or not backpackGun:IsA("Tool")
-		then
-			return false,"No Gun"
-		end
+local SidebarCorner = Instance.new("UICorner")
+SidebarCorner.CornerRadius = UDim.new(0,12)
+SidebarCorner.Parent = Sidebar
 
-		local equipped = pcall(function()
-			humanoid:EquipTool(backpackGun)
-		end)
+local Content = Instance.new("Frame")
+Content.Size = UDim2.new(1,-150,1,-68)
+Content.Position = UDim2.fromOffset(138,62)
+Content.BackgroundTransparency = 1
+Content.Parent = MainFrame
 
-		if not equipped then
-			return false,"Equip Failed"
-		end
-
-		local deadline = os.clock()+0.75
-
-		repeat
-			task.wait(0.03)
-			gun = GetCombatGun()
-		until gun or os.clock() >= deadline
-
-		if not gun then
-			return false,"Equip Failed"
-		end
-	end
-
-	-- The working standalone diagnostic used a short settle delay.
-	task.wait(0.12)
-
-	-- Refresh the target part in case the murderer moved / character changed.
-	if not torso.Parent then
-		torso = GetCombatTorso(murderer.Character)
-	end
-
-	if not torso then
-		return false,"No Target"
-	end
-
-	local ok,fired = pcall(function()
-		return FireCombatGun(gun,torso.Position)
-	end)
-
-	if ok and fired then
-		LastManualShot = os.clock()
-		return true,"Shot Fired"
-	end
-
-	return false,"Shot Failed"
-end
-
-local function UpdateCombatFeatures()
-	local camera = workspace.CurrentCamera
-	if not camera then return end
-	local active = Flags.TriggerBot or Flags.AimLock
-	CrosshairDot.Visible = active
-	if not active then return end
-
-	if Flags.AimLock and IsAimLockAllowed() then
-		local _,targetPart = GetBestCombatTarget()
-		if targetPart then camera.CFrame = CFrame.new(camera.CFrame.Position,targetPart.Position) end
-	end
-
-	if not Flags.TriggerBot then return end
-	local now = os.clock()
-	if now-LastTriggerShot < SHOT_COOLDOWN then return end
-
-	local gun = GetCombatGun()
-	if not gun then return end
-	local rayResult = GetCombatCrosshairHit()
-	if not rayResult then return end
-	local targetPlayer = ResolveCombatPlayer(rayResult.Instance)
-	if not targetPlayer or MM2.GetPlayerRole(targetPlayer) ~= "Murderer" then return end
-	local torso = GetCombatTorso(targetPlayer.Character)
-	if not torso then return end
-
-	if FireCombatGun(gun,torso.Position) then LastTriggerShot = os.clock() end
-end
-
-RunService:BindToRenderStep(
-	"MM2_V8_CombatFeatures",
-	Enum.RenderPriority.Camera.Value+1,
-	UpdateCombatFeatures
-)
-
-local FloatingShootButton = Instance.new("TextButton")
-FloatingShootButton.Name = "FloatingShootMurderer"
-FloatingShootButton.AnchorPoint = Vector2.new(0.5,0.5)
-FloatingShootButton.Position = UDim2.new(0.78,0,0.72,0)
-FloatingShootButton.Size = UDim2.fromOffset(190,60)
-FloatingShootButton.BackgroundColor3 = UI.COLORS.Card
-FloatingShootButton.BackgroundTransparency = 0.12
-FloatingShootButton.BorderSizePixel = 0
-FloatingShootButton.Text = "Shoot Murderer"
-FloatingShootButton.TextColor3 = UI.COLORS.Text
-FloatingShootButton.Font = Enum.Font.GothamBold
-FloatingShootButton.TextSize = 15
-FloatingShootButton.AutoButtonColor = false
-FloatingShootButton.Active = true
-FloatingShootButton.Draggable = true
-FloatingShootButton.Visible = false
-FloatingShootButton.ZIndex = 300
-FloatingShootButton.Parent = UI.ScreenGui
-MM2.UI.FloatingShootButton = FloatingShootButton
-
-local c = Instance.new("UICorner")
-c.CornerRadius = UDim.new(0,18)
-c.Parent = FloatingShootButton
-local s = Instance.new("UIStroke")
-s.Color = UI.COLORS.Accent
-s.Thickness = 1.4
-s.Transparency = 0.2
-s.Parent = FloatingShootButton
-
-Track(FloatingShootButton.Activated:Connect(function()
-	local _,message = MM2.Functions.ShootMurderer()
-	FloatingShootButton.Text = tostring(message)
-	task.delay(0.55,function()
-		if FloatingShootButton and FloatingShootButton.Parent then
-			FloatingShootButton.Text = "Shoot Murderer"
+do
+	local dragging, dragStart, startPos = false,nil,nil
+	Header.InputBegan:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+			dragging = true
+			dragStart = input.Position
+			startPos = MainFrame.Position
 		end
 	end)
-end))
-
-local MAX_GRAB_DISTANCE = 150
-local AUTO_GRAB_TOUCH_BURST = 2
-
-local function GetPickupPart(gun)
-	if not gun then return nil end
-	if gun:IsA("BasePart") and gun:FindFirstChildOfClass("TouchTransmitter") then return gun end
-	for _,obj in ipairs(gun:GetDescendants()) do
-		if obj:IsA("BasePart") and obj:FindFirstChildOfClass("TouchTransmitter") then return obj end
-	end
-	if gun:IsA("BasePart") then return gun end
-	return gun:FindFirstChildWhichIsA("BasePart",true)
-end
-
-function MM2.IsPreRoundActive()
-	for _,obj in ipairs(MM2.PlayerGui:GetDescendants()) do
-		if obj:IsA("TextLabel") or obj:IsA("TextButton") then
-			local text = string.lower(tostring(obj.Text or ""))
-			if string.find(text,"intermission",1,true) and MM2.IsActuallyVisible(obj) then return true end
+	UIS.InputChanged:Connect(function(input)
+		if not dragging then return end
+		if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
+			local delta = input.Position - dragStart
+			MainFrame.Position = UDim2.new(startPos.X.Scale,startPos.X.Offset+delta.X,startPos.Y.Scale,startPos.Y.Offset+delta.Y)
 		end
-	end
-	return false
-end
-
-local function IsGunWithinAutoGrabDistance(position)
-	local hrp = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
-	return hrp and position and (hrp.Position-position).Magnitude < MAX_GRAB_DISTANCE or false
-end
-
-local function IsLocalMurderer()
-	local char = LocalPlayer.Character
-	local backpack = LocalPlayer:FindFirstChild("Backpack")
-	return MM2.HasTool(char,MM2.Config.KnifeNames)
-		or MM2.HasTool(backpack,MM2.Config.KnifeNames)
-		or MM2.State.ServerRolesCache[LocalPlayer.Name] == "Murderer"
-end
-
-local function TouchAutoGrabPart(localPart,pickupPart)
-	if not localPart or not pickupPart or not pickupPart.Parent then return false end
-	if not firetouchinterest then return false end
-	return pcall(function()
-		firetouchinterest(localPart,pickupPart,0)
-		RunService.Heartbeat:Wait()
-		firetouchinterest(localPart,pickupPart,1)
+	end)
+	UIS.InputEnded:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+			dragging = false
+		end
 	end)
 end
 
-MM2.Functions.UpdateAutoGrab = function()
-	if not Flags.AutoGrab or MM2.IsPreRoundActive()
-		or MM2.State.Is_Picking_Up or MM2.HasGunAnywhere() or IsLocalMurderer()
-	then
-		return
+local ToolbarGui = Instance.new("ScreenGui")
+ToolbarGui.Name = "MM2_V8_ToolbarGui"
+ToolbarGui.ResetOnSpawn = false
+ToolbarGui.IgnoreGuiInset = false
+ToolbarGui.DisplayOrder = 5
+pcall(function() ToolbarGui.Parent = CoreGui end)
+if not ToolbarGui.Parent then ToolbarGui.Parent = PlayerGui end
+MM2.UI.ToolbarGui = ToolbarGui
+
+local Floating = Instance.new("Frame")
+Floating.Name = "FloatingOpener"
+Floating.Size = UDim2.fromOffset(190,38)
+Floating.Position = UDim2.new(0.5,-95,0.15,-94)
+Floating.BackgroundColor3 = Color3.fromRGB(18,20,26)
+Floating.BackgroundTransparency = 0.42
+Floating.BorderSizePixel = 0
+Floating.Active = true
+Floating.Parent = ToolbarGui
+
+local FloatingCorner = Instance.new("UICorner")
+FloatingCorner.CornerRadius = UDim.new(1,0)
+FloatingCorner.Parent = Floating
+
+local RGBStroke = Instance.new("UIStroke")
+RGBStroke.Thickness = 1.5
+RGBStroke.Transparency = 0.08
+RGBStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+RGBStroke.Parent = Floating
+local RGBGradient = Instance.new("UIGradient")
+RGBGradient.Color = ColorSequence.new({
+	ColorSequenceKeypoint.new(0.00,Color3.fromRGB(70,235,255)),
+	ColorSequenceKeypoint.new(0.25,Color3.fromRGB(60,180,255)),
+	ColorSequenceKeypoint.new(0.50,Color3.fromRGB(70,110,255)),
+	ColorSequenceKeypoint.new(0.75,Color3.fromRGB(105,80,255)),
+	ColorSequenceKeypoint.new(1.00,Color3.fromRGB(70,235,255)),
+})
+RGBGradient.Parent = RGBStroke
+
+task.spawn(function()
+	while MM2.Running and RGBGradient.Parent do
+		RGBGradient.Rotation = (RGBGradient.Rotation + 1.4) % 360
+		task.wait(0.025)
 	end
+end)
 
-	local gunDrop = MM2.State.CachedGunDrop
-	if not gunDrop or not gunDrop.Parent then
-		gunDrop = workspace:FindFirstChild("GunDrop",true)
-	end
-	if not gunDrop then return end
+local DragHandle = Instance.new("TextButton")
+DragHandle.Size = UDim2.fromOffset(32,38)
+DragHandle.BackgroundTransparency = 1
+DragHandle.AutoButtonColor = false
+DragHandle.Active = true
+DragHandle.Text = "≡"
+DragHandle.TextColor3 = COLORS.Muted
+DragHandle.TextSize = 17
+DragHandle.Font = Enum.Font.GothamBold
+DragHandle.Parent = Floating
 
-	local targetPart = GetPickupPart(gunDrop)
-	if not targetPart or not targetPart.Parent or not IsGunWithinAutoGrabDistance(targetPart.Position) then
-		return
-	end
+local FloatDivider = Instance.new("Frame")
+FloatDivider.Size = UDim2.fromOffset(1,22)
+FloatDivider.Position = UDim2.fromOffset(34,8)
+FloatDivider.BackgroundColor3 = COLORS.Stroke
+FloatDivider.BorderSizePixel = 0
+FloatDivider.Parent = Floating
 
-	local char = LocalPlayer.Character
-	local humanoid = char and char:FindFirstChildOfClass("Humanoid")
-	local hrp = char and char:FindFirstChild("HumanoidRootPart")
-	if not char or not hrp or not humanoid or humanoid.Health <= 0 then return end
-	local torso = char:FindFirstChild("UpperTorso") or char:FindFirstChild("Torso")
+local OpenButton = Instance.new("TextButton")
+OpenButton.Size = UDim2.new(1,-38,1,0)
+OpenButton.Position = UDim2.fromOffset(38,0)
+OpenButton.BackgroundTransparency = 1
+OpenButton.Text = "❄ Murder Mystery 2 Script"
+OpenButton.TextColor3 = COLORS.Text
+OpenButton.TextSize = 9
+OpenButton.Font = Enum.Font.GothamBold
+OpenButton.Parent = Floating
 
-	MM2.State.Is_Picking_Up = true
-	pcall(function()
-		for _ = 1,AUTO_GRAB_TOUCH_BURST do
-			if not Flags.AutoGrab or MM2.HasGunAnywhere()
-				or not gunDrop.Parent or not targetPart.Parent then
-				break
-			end
-			TouchAutoGrabPart(hrp,targetPart)
-			if MM2.HasGunAnywhere() or not gunDrop.Parent then break end
-			if torso then TouchAutoGrabPart(torso,targetPart) end
-			if MM2.HasGunAnywhere() or not gunDrop.Parent then break end
-			task.wait(0.02)
+do
+	local dragging, dragStart, startPos = false,nil,nil
+	DragHandle.InputBegan:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+			dragging = true
+			dragStart = input.Position
+			startPos = Floating.Position
 		end
 	end)
-	MM2.State.Is_Picking_Up = false
+	UIS.InputChanged:Connect(function(input)
+		if not dragging then return end
+		if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
+			local delta = input.Position - dragStart
+			Floating.Position = UDim2.new(startPos.X.Scale,startPos.X.Offset+delta.X,startPos.Y.Scale,startPos.Y.Offset+delta.Y)
+		end
+	end)
+	UIS.InputEnded:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then dragging = false end
+	end)
+end
+
+Track(CloseButton.MouseButton1Click:Connect(function() MainFrame.Visible = false end))
+Track(OpenButton.MouseButton1Click:Connect(function() MainFrame.Visible = not MainFrame.Visible end))
+
+local Pages, TabButtons = {}, {}
+MM2.UI.Pages, MM2.UI.TabButtons = Pages, TabButtons
+
+local function NewPage(name)
+	local page = Instance.new("ScrollingFrame")
+	page.Name = name .. "Page"
+	page.Size = UDim2.fromScale(1,1)
+	page.BackgroundTransparency = 1
+	page.BorderSizePixel = 0
+	page.ScrollBarThickness = 4
+	page.ScrollBarImageColor3 = COLORS.Stroke
+	page.CanvasSize = UDim2.fromOffset(0,0)
+	page.Visible = false
+	page.Parent = Content
+	local layout = Instance.new("UIListLayout")
+	layout.Padding = UDim.new(0,10)
+	layout.SortOrder = Enum.SortOrder.LayoutOrder
+	layout.Parent = page
+	local padding = Instance.new("UIPadding")
+	padding.PaddingTop = UDim.new(0,2)
+	padding.PaddingLeft = UDim.new(0,2)
+	padding.PaddingRight = UDim.new(0,8)
+	padding.PaddingBottom = UDim.new(0,10)
+	padding.Parent = page
+	layout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+		page.CanvasSize = UDim2.fromOffset(0,layout.AbsoluteContentSize.Y+18)
+	end)
+	Pages[name] = page
+	return page
+end
+
+MM2.UI.VisualsPage = NewPage("Visuals")
+MM2.UI.CombatPage = NewPage("Combat")
+MM2.UI.PlayerPage = NewPage("Player")
+MM2.UI.FlingPage = NewPage("Fling")
+MM2.UI.AutoFarmPage = NewPage("AutoFarm")
+
+function MM2.UI.ShowPage(name)
+	for pageName,page in pairs(Pages) do page.Visible = pageName == name end
+	for tabName,btn in pairs(TabButtons) do
+		btn.BackgroundColor3 = tabName == name and COLORS.Card or Color3.fromRGB(0,0,0)
+		btn.BackgroundTransparency = tabName == name and 0 or 1
+		btn.TextColor3 = tabName == name and COLORS.Text or COLORS.Muted
+	end
+end
+
+local function AddSidebarButton(name,label,order)
+	local btn = Instance.new("TextButton")
+	btn.Name = name
+	btn.Size = UDim2.new(1,-12,0,34)
+	btn.Position = UDim2.fromOffset(6,8+((order-1)*38))
+	btn.BackgroundTransparency = 1
+	btn.BorderSizePixel = 0
+	btn.Text = label
+	btn.TextXAlignment = Enum.TextXAlignment.Left
+	btn.TextColor3 = COLORS.Muted
+	btn.TextSize = 10
+	btn.Font = Enum.Font.GothamBold
+	btn.AutoButtonColor = false
+	btn.Parent = Sidebar
+
+	local padding = Instance.new("UIPadding")
+	padding.PaddingLeft = UDim.new(0,9)
+	padding.Parent = btn
+
+	local c = Instance.new("UICorner")
+	c.CornerRadius = UDim.new(0,9)
+	c.Parent = btn
+
+	TabButtons[name] = btn
+	Track(btn.MouseButton1Click:Connect(function() MM2.UI.ShowPage(name) end))
+end
+
+AddSidebarButton("Visuals","◉ VISUALS",1)
+AddSidebarButton("Combat","◉ COMBAT",2)
+AddSidebarButton("Player","◉ PLAYER",3)
+AddSidebarButton("Fling","◉ FLING",4)
+AddSidebarButton("AutoFarm","◉ AUTO FARM",5)
+
+function MM2.UI.AddSection(parent,titleText,subtitleText)
+	local wrap = Instance.new("Frame")
+	wrap.Size = UDim2.new(1,0,0,subtitleText and 52 or 34)
+	wrap.BackgroundTransparency = 1
+	wrap.Parent = parent
+	local title = Instance.new("TextLabel")
+	title.Size = UDim2.new(1,0,0,22)
+	title.BackgroundTransparency = 1
+	title.TextXAlignment = Enum.TextXAlignment.Left
+	title.Text = titleText
+	title.TextColor3 = COLORS.Text
+	title.TextSize = 14
+	title.Font = Enum.Font.GothamBold
+	title.Parent = wrap
+	if subtitleText then
+		local sub = Instance.new("TextLabel")
+		sub.Size = UDim2.new(1,0,0,20)
+		sub.Position = UDim2.fromOffset(0,24)
+		sub.BackgroundTransparency = 1
+		sub.TextXAlignment = Enum.TextXAlignment.Left
+		sub.Text = subtitleText
+		sub.TextColor3 = COLORS.Muted
+		sub.TextSize = 10
+		sub.Font = Enum.Font.Gotham
+		sub.Parent = wrap
+	end
+	return wrap
+end
+
+function MM2.UI.CreateToggle(parent,titleText,description,flagName,callback)
+	local card = Instance.new("Frame")
+	card.Size = UDim2.new(1,0,0,64)
+	card.BackgroundColor3 = COLORS.Card
+	card.BorderSizePixel = 0
+	card.Parent = parent
+
+	local cardCorner = Instance.new("UICorner")
+	cardCorner.CornerRadius = UDim.new(0,11)
+	cardCorner.Parent = card
+
+	local cardStroke = Instance.new("UIStroke")
+	cardStroke.Color = COLORS.Stroke
+	cardStroke.Transparency = 0.45
+	cardStroke.Thickness = 1
+	cardStroke.Parent = card
+
+	local label = Instance.new("TextLabel")
+	label.Size = UDim2.new(1,-104,0,22)
+	label.Position = UDim2.fromOffset(14,10)
+	label.BackgroundTransparency = 1
+	label.TextXAlignment = Enum.TextXAlignment.Left
+	label.Text = titleText
+	label.TextColor3 = COLORS.Text
+	label.TextSize = 12
+	label.Font = Enum.Font.GothamBold
+	label.Parent = card
+	local desc = Instance.new("TextLabel")
+	desc.Size = UDim2.new(1,-104,0,18)
+	desc.Position = UDim2.fromOffset(14,34)
+	desc.BackgroundTransparency = 1
+	desc.TextXAlignment = Enum.TextXAlignment.Left
+	desc.Text = description or ""
+	desc.TextColor3 = COLORS.Muted
+	desc.TextSize = 9
+	desc.Font = Enum.Font.Gotham
+	desc.Parent = card
+	local track = Instance.new("TextButton")
+	track.Size = UDim2.fromOffset(48,24)
+	track.Position = UDim2.new(1,-62,0.5,-12)
+	track.BackgroundColor3 = COLORS.TrackOff
+	track.BorderSizePixel = 0
+	track.Text = ""
+	track.AutoButtonColor = false
+	track.Parent = card
+
+	local trackCorner = Instance.new("UICorner")
+	trackCorner.CornerRadius = UDim.new(1,0)
+	trackCorner.Parent = track
+
+	local knob = Instance.new("Frame")
+	knob.Size = UDim2.fromOffset(18,18)
+	knob.Position = UDim2.fromOffset(3,3)
+	knob.BackgroundColor3 = COLORS.Knob
+	knob.BorderSizePixel = 0
+	knob.Parent = track
+
+	local knobCorner = Instance.new("UICorner")
+	knobCorner.CornerRadius = UDim.new(1,0)
+	knobCorner.Parent = knob
+
+	local function Render(value,instant)
+		local d = instant and 0 or 0.14
+		TweenService:Create(knob,TweenInfo.new(d,Enum.EasingStyle.Quad,Enum.EasingDirection.Out),{
+			Position = value and UDim2.fromOffset(27,3) or UDim2.fromOffset(3,3)
+		}):Play()
+		TweenService:Create(track,TweenInfo.new(d,Enum.EasingStyle.Quad,Enum.EasingDirection.Out),{
+			BackgroundColor3 = value and COLORS.Accent or COLORS.TrackOff
+		}):Play()
+	end
+	Render(Flags[flagName],true)
+	Track(track.MouseButton1Click:Connect(function()
+		Flags[flagName] = not Flags[flagName]
+		Render(Flags[flagName],false)
+		if callback then callback(Flags[flagName]) end
+	end))
+	return card,track,Render
+end
+
+function MM2.UI.CreateActionButton(parent,text,callback,style)
+	local button = Instance.new("TextButton")
+	button.Size = UDim2.new(1,0,0,42)
+	button.BackgroundColor3 = style == "danger" and COLORS.Danger or COLORS.Accent
+	button.BorderSizePixel = 0
+	button.Text = text
+	button.TextColor3 = COLORS.Text
+	button.TextSize = 11
+	button.Font = Enum.Font.GothamBold
+	button.AutoButtonColor = false
+	button.Parent = parent
+
+	local corner = Instance.new("UICorner")
+	corner.CornerRadius = UDim.new(0,10)
+	corner.Parent = button
+
+	Track(button.MouseButton1Click:Connect(callback))
+	return button
+end
+
+function MM2.UI.CreateValueControl(parent,labelText,getter,setter,minValue,maxValue,step)
+	local card = Instance.new("Frame")
+	card.Size = UDim2.new(1,0,0,64)
+	card.BackgroundColor3 = COLORS.Card
+	card.BorderSizePixel = 0
+	card.Parent = parent
+
+	local corner = Instance.new("UICorner")
+	corner.CornerRadius = UDim.new(0,11)
+	corner.Parent = card
+
+	local stroke = Instance.new("UIStroke")
+	stroke.Color = COLORS.Stroke
+	stroke.Transparency = 0.45
+	stroke.Parent = card
+
+	local label = Instance.new("TextLabel")
+	label.Size = UDim2.new(1,-140,1,0)
+	label.Position = UDim2.fromOffset(14,0)
+	label.BackgroundTransparency = 1
+	label.TextXAlignment = Enum.TextXAlignment.Left
+	label.Text = labelText
+	label.TextColor3 = COLORS.Text
+	label.TextSize = 12
+	label.Font = Enum.Font.GothamBold
+	label.Parent = card
+	local value = Instance.new("TextLabel")
+	value.Size = UDim2.fromOffset(48,28)
+	value.Position = UDim2.new(1,-110,0.5,-14)
+	value.BackgroundColor3 = COLORS.Background
+	value.BorderSizePixel = 0
+	value.Text = tostring(getter())
+	value.TextColor3 = COLORS.Text
+	value.TextSize = 11
+	value.Font = Enum.Font.GothamBold
+	value.Parent = card
+
+	local vc = Instance.new("UICorner")
+	vc.CornerRadius = UDim.new(0,8)
+	vc.Parent = value
+
+	local minus = Instance.new("TextButton")
+	minus.Size = UDim2.fromOffset(26,28)
+	minus.Position = UDim2.new(1,-138,0.5,-14)
+	minus.BackgroundColor3 = COLORS.Background
+	minus.BorderSizePixel = 0
+	minus.Text = "−"
+	minus.TextColor3 = COLORS.Text
+	minus.TextSize = 14
+	minus.Font = Enum.Font.GothamBold
+	minus.Parent = card
+
+	local mc = Instance.new("UICorner")
+	mc.CornerRadius = UDim.new(0,8)
+	mc.Parent = minus
+
+	local plus = Instance.new("TextButton")
+	plus.Size = UDim2.fromOffset(26,28)
+	plus.Position = UDim2.new(1,-30,0.5,-14)
+	plus.BackgroundColor3 = COLORS.Background
+	plus.BorderSizePixel = 0
+	plus.Text = "+"
+	plus.TextColor3 = COLORS.Text
+	plus.TextSize = 14
+	plus.Font = Enum.Font.GothamBold
+	plus.Parent = card
+
+	local pc = Instance.new("UICorner")
+	pc.CornerRadius = UDim.new(0,8)
+	pc.Parent = plus
+
+	local function update(v)
+		v = math.clamp(v,minValue,maxValue)
+		setter(v)
+		value.Text = tostring(getter())
+	end
+	Track(minus.MouseButton1Click:Connect(function() update(getter()-step) end))
+	Track(plus.MouseButton1Click:Connect(function() update(getter()+step) end))
+	return card
+end
+
+function MM2.UI.CreateSlider(parent,labelText,description,getter,setter,minValue,maxValue,step)
+	local card = Instance.new("Frame")
+	card.Size = UDim2.new(1,0,0,78)
+	card.BackgroundColor3 = COLORS.Card
+	card.BorderSizePixel = 0
+	card.Parent = parent
+
+	local corner = Instance.new("UICorner")
+	corner.CornerRadius = UDim.new(0,11)
+	corner.Parent = card
+
+	local stroke = Instance.new("UIStroke")
+	stroke.Color = COLORS.Stroke
+	stroke.Transparency = 0.45
+	stroke.Parent = card
+
+	local label = Instance.new("TextLabel")
+	label.Size = UDim2.new(1,-80,0,20)
+	label.Position = UDim2.fromOffset(14,9)
+	label.BackgroundTransparency = 1
+	label.TextXAlignment = Enum.TextXAlignment.Left
+	label.Text = labelText
+	label.TextColor3 = COLORS.Text
+	label.TextSize = 12
+	label.Font = Enum.Font.GothamBold
+	label.Parent = card
+	local valueLabel = Instance.new("TextLabel")
+	valueLabel.Size = UDim2.fromOffset(54,20)
+	valueLabel.Position = UDim2.new(1,-68,0,9)
+	valueLabel.BackgroundTransparency = 1
+	valueLabel.TextXAlignment = Enum.TextXAlignment.Right
+	valueLabel.Text = tostring(getter())
+	valueLabel.TextColor3 = COLORS.Text
+	valueLabel.TextSize = 11
+	valueLabel.Font = Enum.Font.GothamBold
+	valueLabel.Parent = card
+	local desc = Instance.new("TextLabel")
+	desc.Size = UDim2.new(1,-28,0,16)
+	desc.Position = UDim2.fromOffset(14,28)
+	desc.BackgroundTransparency = 1
+	desc.TextXAlignment = Enum.TextXAlignment.Left
+	desc.Text = description or ""
+	desc.TextColor3 = COLORS.Muted
+	desc.TextSize = 9
+	desc.Font = Enum.Font.Gotham
+	desc.Parent = card
+	local bar = Instance.new("TextButton")
+	bar.Size = UDim2.new(1,-28,0,8)
+	bar.Position = UDim2.fromOffset(14,57)
+	bar.BackgroundColor3 = COLORS.TrackOff
+	bar.BorderSizePixel = 0
+	bar.Text = ""
+	bar.AutoButtonColor = false
+	bar.Active = true
+	bar.Parent = card
+
+	local barCorner = Instance.new("UICorner")
+	barCorner.CornerRadius = UDim.new(1,0)
+	barCorner.Parent = bar
+
+	local fill = Instance.new("Frame")
+	fill.Size = UDim2.fromScale(0,1)
+	fill.BackgroundColor3 = COLORS.Accent
+	fill.BorderSizePixel = 0
+	fill.Parent = bar
+
+	local fillCorner = Instance.new("UICorner")
+	fillCorner.CornerRadius = UDim.new(1,0)
+	fillCorner.Parent = fill
+
+	local knob = Instance.new("Frame")
+	knob.AnchorPoint = Vector2.new(0.5,0.5)
+	knob.Size = UDim2.fromOffset(16,16)
+	knob.Position = UDim2.new(0,0,0.5,0)
+	knob.BackgroundColor3 = COLORS.Knob
+	knob.BorderSizePixel = 0
+	knob.ZIndex = 3
+	knob.Parent = bar
+
+	local knobCorner = Instance.new("UICorner")
+	knobCorner.CornerRadius = UDim.new(1,0)
+	knobCorner.Parent = knob
+
+	local dragging = false
+	local function snap(v)
+		return math.clamp(math.floor(((v-minValue)/step)+0.5)*step+minValue,minValue,maxValue)
+	end
+	local function render(v)
+		local alpha = math.clamp((v-minValue)/(maxValue-minValue),0,1)
+		fill.Size = UDim2.fromScale(alpha,1)
+		knob.Position = UDim2.new(alpha,0,0.5,0)
+		valueLabel.Text = tostring(v)
+	end
+	local function setFromX(x)
+		local width = math.max(bar.AbsoluteSize.X,1)
+		local alpha = math.clamp((x-bar.AbsolutePosition.X)/width,0,1)
+		local v = snap(minValue+(maxValue-minValue)*alpha)
+		setter(v)
+		render(getter())
+	end
+	render(getter())
+	Track(bar.InputBegan:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+			dragging = true
+			setFromX(input.Position.X)
+		end
+	end))
+	Track(UIS.InputChanged:Connect(function(input)
+		if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+			setFromX(input.Position.X)
+		end
+	end))
+	Track(UIS.InputEnded:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then dragging = false end
+	end))
+	return card
 end
 
 return MM2
