@@ -1,6 +1,7 @@
 --============================================================
 -- MM2 V8.6 REPLACEMENT - AutoFarm.lua
 -- Coin Farm V12.1 contact sweep.
+-- V8.6.1: safe-return fix for bag-full underground fall.
 --============================================================
 
 local MM2 = getgenv and getgenv().MM2_V85_SPLIT or _G.MM2_V85_SPLIT
@@ -34,14 +35,10 @@ local AutoFarmRunning = false
 local FarmPaused = false
 local FarmPauseReason = nil
 
--- The game can report a changing bag max through CoinCollected.
--- Start at the old known value but accept the live maximum when provided.
 local FarmBagCount = 0
 local FarmBagMax = 40
 local FarmBagFull = false
 
--- Lobby/intermission can still contain Coin_Server objects extremely far away.
--- Never wake the movement engine for those stale / remote coins.
 local FARM_MAX_START_DISTANCE = 500
 
 local FarmCharacter = nil
@@ -57,6 +54,11 @@ local FarmSweepActive = false
 local FarmSweepAttempts = 0
 local FarmNoclipConnection = nil
 local FarmOriginalCollision = {}
+
+-- Saved once per round, immediately before the farm first begins moving.
+-- This is used only as a safety return point when movement is stopped while
+-- the character may still be below the map.
+local FarmSafeReturnCFrame = nil
 
 local function FarmUpdateCharacter()
 	FarmCharacter = LocalPlayer.Character
@@ -290,13 +292,29 @@ local function FarmReleaseTarget()
 	FarmSweepAttempts = 0
 end
 
+local function FarmReturnToSafePosition()
+	if not FarmSafeReturnCFrame then
+		return
+	end
+
+	if not FarmUpdateCharacter() then
+		return
+	end
+
+	pcall(function()
+		-- Return before noclip/movement are removed so there is no physics frame
+		-- where the character is unsupported below the map.
+		FarmHRP.AssemblyLinearVelocity = Vector3.zero
+		FarmHRP.AssemblyAngularVelocity = Vector3.zero
+		FarmHRP.CFrame = FarmSafeReturnCFrame
+		FarmHRP.AssemblyLinearVelocity = Vector3.zero
+		FarmHRP.AssemblyAngularVelocity = Vector3.zero
+	end)
+end
+
 local function FarmPause(reason)
 	reason = reason or "PAUSED"
 
-	-- Critical V8.6 behavior:
-	-- once already dormant for this reason, do not keep touching humanoid /
-	-- movement state every loop. The shake diagnostic showed repeated vertical
-	-- HRP movement and Running <-> GettingUp transitions during the buggy build.
 	if FarmPaused and FarmPauseReason == reason then
 		return
 	end
@@ -305,6 +323,16 @@ local function FarmPause(reason)
 	FarmPauseReason = reason
 
 	FarmReleaseTarget()
+
+	-- Critical fix:
+	-- CoinCollected can fire while the HRP is still underground. Previously the
+	-- script destroyed AlignPosition and restored collision immediately, which
+	-- occasionally left gravity in control below the map. For BAG FULL, return
+	-- first, then tear down the movement engine.
+	if reason == "BAG FULL" then
+		FarmReturnToSafePosition()
+	end
+
 	FarmStopNoclip()
 	FarmDestroyMovement()
 
@@ -314,6 +342,16 @@ end
 local function FarmWake()
 	FarmPaused = false
 	FarmPauseReason = nil
+
+	if not FarmUpdateCharacter() then
+		return false
+	end
+
+	-- Save only once per round. This happens before the first underground move,
+	-- so subsequent target changes cannot overwrite it with an underground CFrame.
+	if not FarmSafeReturnCFrame then
+		FarmSafeReturnCFrame = FarmHRP.CFrame
+	end
 
 	if not FarmEnsureMovement() then
 		return false
@@ -408,15 +446,12 @@ local function FarmLoop()
 			break
 		end
 
-		-- During visible intermission: stay fully dormant.
 		if MM2.IsPreRoundActive and MM2.IsPreRoundActive() then
 			FarmPause("INTERMISSION")
 			task.wait(0.10)
 			continue
 		end
 
-		-- If the live bag counter says full, keep the toggle ON but destroy
-		-- all movement/noclip objects until the next round reset.
 		if FarmBagFull then
 			FarmPause("BAG FULL")
 			task.wait(0.10)
@@ -530,6 +565,7 @@ function MM2.Functions.StartAutoFarm()
 	AutoFarmRunning = true
 	FarmPaused = false
 	FarmPauseReason = nil
+	FarmSafeReturnCFrame = nil
 
 	FarmCurrentCoin = nil
 	FarmCurrentTouch = nil
@@ -546,9 +582,14 @@ function MM2.Functions.StopAutoFarm()
 	FarmPaused = false
 	FarmPauseReason = nil
 
+	-- Manual stop gets the same safety treatment if we have already begun
+	-- moving this round.
+	FarmReturnToSafePosition()
+
 	FarmReleaseTarget()
 	FarmStopNoclip()
 	FarmDestroyMovement()
+	FarmSafeReturnCFrame = nil
 end
 
 function MM2.Functions.UpdateAutoFarm()
@@ -610,6 +651,9 @@ local function FarmResetBag()
 	FarmBagFull = false
 	FarmPaused = false
 	FarmPauseReason = nil
+
+	-- Next round gets a new safe return point from its own spawn position.
+	FarmSafeReturnCFrame = nil
 end
 
 if FarmRoundStart and FarmRoundStart:IsA("RemoteEvent") then
