@@ -1,6 +1,6 @@
 --============================================================
--- MM2 V8.5 SPLIT BUILD - Fling.lua
--- Fling role targets + selected-player dropdown.
+-- MM2 V8.6 STABLE - Fling.lua
+-- Based on user's split-build Fling.lua with timing/P/cleanup fixes.
 --============================================================
 
 local MM2 = getgenv and getgenv().MM2_V85_SPLIT or _G.MM2_V85_SPLIT
@@ -14,7 +14,7 @@ local Track = MM2.Track
 
 UI.AddSection(UI.FlingPage, "Fling", "Choose a target or use quick-role actions")
 
-local FLING_DURATION = 1.05
+local FLING_DURATION = 1.30
 local FLING_HUGE = 900000000
 local FLING_FORCE_NAME = "MarbegFlingVelocity"
 
@@ -91,7 +91,7 @@ local function ExecuteYeet(targetPlayer)
 	force.Name = FLING_FORCE_NAME
 	force.Velocity = Vector3.new(FLING_HUGE,FLING_HUGE,FLING_HUGE)
 	force.MaxForce = Vector3.new(math.huge,math.huge,math.huge)
-	force.P = FLING_HUGE
+	force.P = 1250
 	force.Parent = hrp
 	CurrentFlingForce = force
 
@@ -168,14 +168,14 @@ local function ExecuteYeet(targetPlayer)
 		CurrentFlingForce = nil
 	end
 
-	hrp.AssemblyLinearVelocity = Vector3.zero
-	hrp.AssemblyAngularVelocity = Vector3.zero
-	task.wait()
-
-	pcall(function() hrp.CFrame = originalCFrame end)
-
-	hrp.AssemblyLinearVelocity = Vector3.zero
-	hrp.AssemblyAngularVelocity = Vector3.zero
+	-- Stable cleanup: return immediately without yielding a physics frame.
+	pcall(function()
+		hrp.AssemblyLinearVelocity = Vector3.zero
+		hrp.AssemblyAngularVelocity = Vector3.zero
+		hrp.CFrame = originalCFrame
+		hrp.AssemblyLinearVelocity = Vector3.zero
+		hrp.AssemblyAngularVelocity = Vector3.zero
+	end)
 
 	pcall(function()
 		humanoid:ChangeState(Enum.HumanoidStateType.GettingUp)
