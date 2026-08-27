@@ -1,5 +1,5 @@
 --============================================================
--- MM2 V8.6.1 - Combat.lua
+-- MM2 V8.6.2 CLICK FIX - Combat.lua
 -- TriggerBot, Aim Lock, Shoot Murderer, Auto Grab.
 --============================================================
 
@@ -21,7 +21,7 @@ UI.CreateToggle(UI.CombatPage, "Auto Grab Gun", "Automatically grabs the gun wit
 UI.CreateToggle(
 	UI.CombatPage,
 	"Floating Shoot Button",
-	"Show a draggable Shoot Murderer button",
+	"Show the Shoot Murderer button",
 	"ShowShootButton",
 	function(on)
 		if MM2.UI.FloatingShootButton then
@@ -373,9 +373,9 @@ FloatingShootButton.Text = "Shoot Murderer"
 FloatingShootButton.TextColor3 = UI.COLORS.Text
 FloatingShootButton.Font = Enum.Font.GothamBold
 FloatingShootButton.TextSize = 15
-FloatingShootButton.AutoButtonColor = false
+FloatingShootButton.AutoButtonColor = true
 FloatingShootButton.Active = true
-FloatingShootButton.Draggable = true
+FloatingShootButton.Draggable = false
 FloatingShootButton.Visible = false
 FloatingShootButton.ZIndex = 300
 FloatingShootButton.Parent = UI.ScreenGui
@@ -391,14 +391,33 @@ s.Thickness = 1.4
 s.Transparency = 0.2
 s.Parent = FloatingShootButton
 
-Track(FloatingShootButton.Activated:Connect(function()
-	local success,message = MM2.Functions.ShootMurderer()
-	FloatingShootButton.Text = tostring(message or (success and "Shot Fired" or "Shot Failed"))
+Track(FloatingShootButton.MouseButton1Click:Connect(function()
+	-- Match the known-working standalone diagnostic input path.
+	-- This text change happens before any target/gun checks, so it also
+	-- proves that the floating button actually received the click.
+	FloatingShootButton.Text = "CLICK DETECTED"
 
-	task.delay(0.75,function()
+	task.spawn(function()
+		local ok,success,message = pcall(function()
+			return MM2.Functions.ShootMurderer()
+		end)
+
 		if FloatingShootButton and FloatingShootButton.Parent then
-			FloatingShootButton.Text = "Shoot Murderer"
+			if not ok then
+				warn("[MM2 V8.6.2 SHOOT] BUTTON CALL ERROR:",success)
+				FloatingShootButton.Text = "Error"
+			else
+				FloatingShootButton.Text = tostring(
+					message or (success and "Shot Fired" or "Shot Failed")
+				)
+			end
 		end
+
+		task.delay(1,function()
+			if FloatingShootButton and FloatingShootButton.Parent then
+				FloatingShootButton.Text = "Shoot Murderer"
+			end
+		end)
 	end)
 end))
 
