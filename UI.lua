@@ -360,11 +360,11 @@ local function AddSidebarButton(name,label,order)
 	Track(btn.MouseButton1Click:Connect(function() MM2.UI.ShowPage(name) end))
 end
 
-AddSidebarButton("Visuals","◉ VISUALS",1)
-AddSidebarButton("Combat","◉ COMBAT",2)
-AddSidebarButton("Player","◉ PLAYER",3)
-AddSidebarButton("Fling","◉ FLING",4)
-AddSidebarButton("AutoFarm","◉ AUTO FARM",5)
+AddSidebarButton("Visuals",  "👁  VISUALS",   1)
+AddSidebarButton("Combat",   "🎯  COMBAT",    2)
+AddSidebarButton("Player",   "👤  PLAYER",    3)
+AddSidebarButton("Fling",    "💨  FLING",     4)
+AddSidebarButton("AutoFarm", "🤖  AUTO FARM", 5)
 
 function MM2.UI.AddSection(parent,titleText,subtitleText)
 	local wrap = Instance.new("Frame")
