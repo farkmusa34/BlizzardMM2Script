@@ -73,11 +73,51 @@ local MainCorner = Instance.new("UICorner")
 MainCorner.CornerRadius = UDim.new(0,16)
 MainCorner.Parent = MainFrame
 
-local MainStroke = Instance.new("UIStroke")
-MainStroke.Color = COLORS.Stroke
-MainStroke.Thickness = 1
-MainStroke.Transparency = 0.15
-MainStroke.Parent = MainFrame
+-- Animated blue -> light blue -> cyan outline registry.
+local BlueCyanGradients = {}
+
+local function CreateBlueCyanStroke(parent,thickness,transparency)
+	local stroke = Instance.new("UIStroke")
+	stroke.Thickness = thickness or 1.5
+	stroke.Transparency = transparency or 0.10
+	stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+	stroke.LineJoinMode = Enum.LineJoinMode.Round
+	stroke.Parent = parent
+
+	local gradient = Instance.new("UIGradient")
+	gradient.Color = ColorSequence.new({
+		ColorSequenceKeypoint.new(0.00,Color3.fromRGB(10,55,170)),
+		ColorSequenceKeypoint.new(0.35,Color3.fromRGB(45,140,255)),
+		ColorSequenceKeypoint.new(0.65,Color3.fromRGB(75,200,255)),
+		ColorSequenceKeypoint.new(0.85,Color3.fromRGB(35,245,255)),
+		ColorSequenceKeypoint.new(1.00,Color3.fromRGB(10,55,170)),
+	})
+	gradient.Parent = stroke
+
+	BlueCyanGradients[#BlueCyanGradients+1] = gradient
+	return stroke,gradient
+end
+
+MM2.UI.CreateBlueCyanStroke = CreateBlueCyanStroke
+CreateBlueCyanStroke(MainFrame,1.5,0.08)
+
+-- One animation loop drives every blue/cyan outline created by UI.lua
+-- or by later modules such as Combat.lua / Fling.lua.
+task.spawn(function()
+	local rotation = 0
+	while MM2.Running do
+		rotation = (rotation + 1) % 360
+		for i = #BlueCyanGradients,1,-1 do
+			local gradient = BlueCyanGradients[i]
+			if gradient and gradient.Parent then
+				gradient.Rotation = rotation
+			else
+				table.remove(BlueCyanGradients,i)
+			end
+		end
+		task.wait(0.03)
+	end
+end)
 
 --============================================================
 -- HEADER
@@ -249,31 +289,9 @@ local FloatingCorner = Instance.new("UICorner")
 FloatingCorner.CornerRadius = UDim.new(1,0)
 FloatingCorner.Parent = Floating
 
--- Dark blue -> light blue -> cyan animated outline
-
-local RGBStroke = Instance.new("UIStroke")
-RGBStroke.Thickness = 2
-RGBStroke.Transparency = 0.04
-RGBStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
-RGBStroke.LineJoinMode = Enum.LineJoinMode.Round
-RGBStroke.Parent = Floating
-
-local RGBGradient = Instance.new("UIGradient")
-RGBGradient.Color = ColorSequence.new({
-	ColorSequenceKeypoint.new(0.00,Color3.fromRGB(10,55,170)),
-	ColorSequenceKeypoint.new(0.35,Color3.fromRGB(45,140,255)),
-	ColorSequenceKeypoint.new(0.65,Color3.fromRGB(75,200,255)),
-	ColorSequenceKeypoint.new(0.85,Color3.fromRGB(35,245,255)),
-	ColorSequenceKeypoint.new(1.00,Color3.fromRGB(10,55,170)),
-})
-RGBGradient.Parent = RGBStroke
-
-task.spawn(function()
-	while MM2.Running and RGBGradient.Parent do
-		RGBGradient.Rotation = (RGBGradient.Rotation + 1) % 360
-		task.wait(0.03)
-	end
-end)
+-- Same animated dark-blue -> blue -> cyan outline as the dashboard.
+-- Toolbar dimensions above stay exactly as they were.
+CreateBlueCyanStroke(Floating,2,0.04)
 
 local DragHandle = Instance.new("TextButton")
 DragHandle.Size = UDim2.fromOffset(36,40)
@@ -603,6 +621,111 @@ function MM2.UI.CreateActionButton(parent,text,callback,style)
 	Track(button.MouseButton1Click:Connect(callback))
 
 	return button
+end
+
+--============================================================
+-- MOVABLE CIRCLE ACTION BUTTON BUILDER
+-- Used by Combat.lua / Fling.lua for the three compact floating actions.
+--============================================================
+
+function MM2.UI.CreateMovableCircleButton(name,icon,labelText,startPosition,callback)
+	local holder = Instance.new("Frame")
+	holder.Name = name .. "Holder"
+	holder.Size = UDim2.fromOffset(104,84)
+	holder.Position = startPosition
+	holder.BackgroundTransparency = 1
+	holder.Active = true
+	holder.ZIndex = 320
+	holder.Parent = ScreenGui
+
+	local button = Instance.new("TextButton")
+	button.Name = name
+	button.AnchorPoint = Vector2.new(0.5,0)
+	button.Position = UDim2.new(0.5,0,0,0)
+	button.Size = UDim2.fromOffset(56,56)
+	button.BackgroundColor3 = Color3.fromRGB(16,20,29)
+	button.BackgroundTransparency = 0.08
+	button.BorderSizePixel = 0
+	button.Text = icon or ""
+	button.TextColor3 = COLORS.Text
+	button.TextSize = 22
+	button.Font = Enum.Font.GothamBold
+	button.AutoButtonColor = false
+	button.Active = true
+	button.ZIndex = 321
+	button.Parent = holder
+
+	local corner = Instance.new("UICorner")
+	corner.CornerRadius = UDim.new(1,0)
+	corner.Parent = button
+
+	CreateBlueCyanStroke(button,1.7,0.08)
+
+	local label = Instance.new("TextLabel")
+	label.Size = UDim2.new(1,0,0,24)
+	label.Position = UDim2.fromOffset(0,59)
+	label.BackgroundTransparency = 1
+	label.Text = labelText or name
+	label.TextColor3 = COLORS.Text
+	label.TextTransparency = 0.05
+	label.TextSize = 9
+	label.TextWrapped = true
+	label.Font = Enum.Font.GothamBold
+	label.ZIndex = 321
+	label.Parent = holder
+
+	local dragging = false
+	local moved = false
+	local dragStart = nil
+	local startPos = nil
+
+	Track(button.InputBegan:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseButton1
+			or input.UserInputType == Enum.UserInputType.Touch
+		then
+			dragging = true
+			moved = false
+			dragStart = input.Position
+			startPos = holder.Position
+		end
+	end))
+
+	Track(UIS.InputChanged:Connect(function(input)
+		if not dragging or not dragStart or not startPos then return end
+		if input.UserInputType ~= Enum.UserInputType.MouseMovement
+			and input.UserInputType ~= Enum.UserInputType.Touch
+		then
+			return
+		end
+
+		local delta = input.Position-dragStart
+		if delta.Magnitude >= 4 then
+			moved = true
+		end
+
+		if moved then
+			holder.Position = UDim2.new(
+				startPos.X.Scale,
+				startPos.X.Offset+delta.X,
+				startPos.Y.Scale,
+				startPos.Y.Offset+delta.Y
+			)
+		end
+	end))
+
+	Track(UIS.InputEnded:Connect(function(input)
+		if not dragging then return end
+		if input.UserInputType == Enum.UserInputType.MouseButton1
+			or input.UserInputType == Enum.UserInputType.Touch
+		then
+			dragging = false
+			if not moved and callback then
+				task.spawn(callback)
+			end
+		end
+	end))
+
+	return button,holder,label
 end
 
 --============================================================
