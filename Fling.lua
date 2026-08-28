@@ -12,7 +12,7 @@ local LocalPlayer = MM2.LocalPlayer
 local UI = MM2.UI
 local Track = MM2.Track
 
-UI.AddSection(UI.FlingPage, "Fling", "Choose a target or use quick-role actions")
+UI.AddSection(UI.FlingPage, "Quick Role Actions", "One-tap role fling actions")
 
 local FLING_DURATION = 1.30
 local FLING_HUGE = 900000000
@@ -264,75 +264,22 @@ if UI.CreateMovableCircleButton then
 	MM2.UI.FloatingFlingMurdererHolder = FloatingFlingMurdererHolder
 end
 
--- Collapsible Fling Buttons dropdown.
+-- Fling Buttons section.
 local Flags = MM2.Flags
-Flags.ShowFlingMurdererButton = false
-Flags.ShowFlingSheriffButton = false
+Flags.ShowFlingMurdererButton = Flags.ShowFlingMurdererButton == true
+Flags.ShowFlingSheriffButton = Flags.ShowFlingSheriffButton == true
+Flags.AntiFling = Flags.AntiFling == true
 
-local FlingButtonsDropdown = Instance.new("Frame")
-FlingButtonsDropdown.Name = "FlingButtonsDropdown"
-FlingButtonsDropdown.Size = UDim2.new(1,0,0,42)
-FlingButtonsDropdown.BackgroundColor3 = UI.COLORS.Card
-FlingButtonsDropdown.BorderSizePixel = 0
-FlingButtonsDropdown.ClipsDescendants = true
-FlingButtonsDropdown.Parent = UI.FlingPage
-
-local FlingButtonsCorner = Instance.new("UICorner")
-FlingButtonsCorner.CornerRadius = UDim.new(0,11)
-FlingButtonsCorner.Parent = FlingButtonsDropdown
-
-local FlingButtonsStroke = Instance.new("UIStroke")
-FlingButtonsStroke.Color = UI.COLORS.Stroke
-FlingButtonsStroke.Transparency = 0.45
-FlingButtonsStroke.Thickness = 1
-FlingButtonsStroke.Parent = FlingButtonsDropdown
-
-local FlingButtonsHeader = Instance.new("TextButton")
-FlingButtonsHeader.Name = "Header"
-FlingButtonsHeader.Size = UDim2.new(1,0,0,42)
-FlingButtonsHeader.BackgroundTransparency = 1
-FlingButtonsHeader.Text = ""
-FlingButtonsHeader.AutoButtonColor = false
-FlingButtonsHeader.Parent = FlingButtonsDropdown
-
-local FlingButtonsTitle = Instance.new("TextLabel")
-FlingButtonsTitle.Size = UDim2.new(1,-54,1,0)
-FlingButtonsTitle.Position = UDim2.fromOffset(14,0)
-FlingButtonsTitle.BackgroundTransparency = 1
-FlingButtonsTitle.TextXAlignment = Enum.TextXAlignment.Left
-FlingButtonsTitle.Text = "Fling Buttons"
-FlingButtonsTitle.TextColor3 = UI.COLORS.Text
-FlingButtonsTitle.TextSize = 12
-FlingButtonsTitle.Font = Enum.Font.GothamBold
-FlingButtonsTitle.Parent = FlingButtonsHeader
-
-local FlingButtonsArrow = Instance.new("TextLabel")
-FlingButtonsArrow.Size = UDim2.fromOffset(32,42)
-FlingButtonsArrow.Position = UDim2.new(1,-42,0,0)
-FlingButtonsArrow.BackgroundTransparency = 1
-FlingButtonsArrow.Text = "⌄"
-FlingButtonsArrow.TextColor3 = UI.COLORS.Muted
-FlingButtonsArrow.TextSize = 18
-FlingButtonsArrow.Font = Enum.Font.GothamBold
-FlingButtonsArrow.Parent = FlingButtonsHeader
-
-local FlingButtonsBody = Instance.new("Frame")
-FlingButtonsBody.Name = "Body"
-FlingButtonsBody.Size = UDim2.new(1,-16,0,138)
-FlingButtonsBody.Position = UDim2.fromOffset(8,48)
-FlingButtonsBody.BackgroundTransparency = 1
-FlingButtonsBody.Visible = false
-FlingButtonsBody.Parent = FlingButtonsDropdown
-
-local FlingButtonsLayout = Instance.new("UIListLayout")
-FlingButtonsLayout.Padding = UDim.new(0,10)
-FlingButtonsLayout.SortOrder = Enum.SortOrder.LayoutOrder
-FlingButtonsLayout.Parent = FlingButtonsBody
+UI.AddSection(
+	UI.FlingPage,
+	"Fling Buttons",
+	"Movable on-screen fling controls"
+)
 
 UI.CreateToggle(
-	FlingButtonsBody,
-	"Fling Murderer",
-	"Show fling murderer button",
+	UI.FlingPage,
+	"Fling Murderer Button",
+	"Show the movable fling murderer button",
 	"ShowFlingMurdererButton",
 	function(on)
 		if MM2.UI.FloatingFlingMurdererHolder then
@@ -342,9 +289,9 @@ UI.CreateToggle(
 )
 
 UI.CreateToggle(
-	FlingButtonsBody,
-	"Fling Sheriff/Hero",
-	"Show fling sheriff/hero button",
+	UI.FlingPage,
+	"Fling Sheriff/Hero Button",
+	"Show the movable fling sheriff/hero button",
 	"ShowFlingSheriffButton",
 	function(on)
 		if MM2.UI.FloatingFlingSheriffHolder then
@@ -353,12 +300,65 @@ UI.CreateToggle(
 	end
 )
 
-local FlingButtonsOpen = false
-Track(FlingButtonsHeader.MouseButton1Click:Connect(function()
-	FlingButtonsOpen = not FlingButtonsOpen
-	FlingButtonsBody.Visible = FlingButtonsOpen
-	FlingButtonsDropdown.Size = FlingButtonsOpen and UDim2.new(1,0,0,194) or UDim2.new(1,0,0,42)
-	FlingButtonsArrow.Text = FlingButtonsOpen and "⌃" or "⌄"
+-- Protection section.
+UI.AddSection(
+	UI.FlingPage,
+	"Protection",
+	"Defensive fling protection"
+)
+
+local ANTI_FLING_LINEAR_LIMIT = 80
+local ANTI_FLING_ANGULAR_LIMIT = 25
+
+UI.CreateToggle(
+	UI.FlingPage,
+	"Anti Fling",
+	"Prevents you from getting thrown away",
+	"AntiFling",
+	function(on)
+		if not on or FlingRunning then return end
+
+		local _,humanoid,hrp = MM2.GetLocalCharacter()
+		if hrp then
+			hrp.AssemblyAngularVelocity = Vector3.zero
+			if hrp.AssemblyLinearVelocity.Magnitude > ANTI_FLING_LINEAR_LIMIT then
+				hrp.AssemblyLinearVelocity = Vector3.zero
+			end
+		end
+
+		if humanoid then
+			pcall(function()
+				humanoid:ChangeState(Enum.HumanoidStateType.GettingUp)
+			end)
+		end
+	end
+)
+
+-- Anti Fling intentionally pauses while ExecuteYeet is running so it never
+-- fights the user's own fling physics.
+Track(RunService.Heartbeat:Connect(function()
+	if not Flags.AntiFling or FlingRunning then return end
+
+	local _,humanoid,hrp = MM2.GetLocalCharacter()
+	if not hrp then return end
+
+	local linear = hrp.AssemblyLinearVelocity
+	local angular = hrp.AssemblyAngularVelocity
+
+	if angular.Magnitude > ANTI_FLING_ANGULAR_LIMIT then
+		hrp.AssemblyAngularVelocity = Vector3.zero
+	end
+
+	if linear.Magnitude > ANTI_FLING_LINEAR_LIMIT then
+		hrp.AssemblyLinearVelocity = Vector3.zero
+		hrp.AssemblyAngularVelocity = Vector3.zero
+
+		if humanoid then
+			pcall(function()
+				humanoid:ChangeState(Enum.HumanoidStateType.GettingUp)
+			end)
+		end
+	end
 end))
 
 local TargetCard = Instance.new("Frame")
