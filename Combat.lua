@@ -14,27 +14,10 @@ local Flags = MM2.Flags
 local UI = MM2.UI
 local Track = MM2.Track
 
--- Shared.lua does not need an edit for this build; Combat.lua owns the
--- new flag and the loop exits automatically when MM2.Running becomes false.
-if Flags.KillAll == nil then
-	Flags.KillAll = false
-end
-
 UI.AddSection(UI.CombatPage, "Combat", "Aim, pickup and weapon features")
 UI.CreateToggle(UI.CombatPage, "TriggerBot", "Fire when the crosshair is on the murderer", "TriggerBot")
 UI.CreateToggle(UI.CombatPage, "Aim Lock", "Torso aim lock in first-person / lock-center", "AimLock")
 UI.CreateToggle(UI.CombatPage, "Auto Grab Gun", "Automatically grabs the gun without moving your body", "AutoGrab")
-UI.CreateToggle(
-	UI.CombatPage,
-	"Kill All",
-	"Automatically triggers Kill All while enabled",
-	"KillAll",
-	function(on)
-		if on and MM2.Functions.KillAllOnce then
-			task.spawn(MM2.Functions.KillAllOnce)
-		end
-	end
-)
 UI.CreateToggle(
 	UI.CombatPage,
 	"Floating Shoot Button",
@@ -43,6 +26,39 @@ UI.CreateToggle(
 	function(on)
 		if MM2.UI.FloatingShootButton then
 			MM2.UI.FloatingShootButton.Visible = on
+		end
+	end
+)
+
+Flags.ShowKillAllButton = false
+
+if UI.CreateActionFeature then
+	UI.CreateActionFeature(
+		UI.CombatPage,
+		"Kill All",
+		"Stabs everyone when murderer",
+		function()
+			if MM2.Functions.KillAllOnce then
+				local ok,success,message = pcall(MM2.Functions.KillAllOnce)
+				if not ok then
+					warn("[MM2 KILL ALL ACTION]",success)
+					MM2.Notify("Kill All error",2)
+				elseif message and message ~= "Cooldown" then
+					MM2.Notify(message,1.5)
+				end
+			end
+		end
+	)
+end
+
+UI.CreateToggle(
+	UI.CombatPage,
+	"Show Kill All Button",
+	"stab all button",
+	"ShowKillAllButton",
+	function(on)
+		if MM2.UI.FloatingKillAllHolder then
+			MM2.UI.FloatingKillAllHolder.Visible = on
 		end
 	end
 )
@@ -480,17 +496,6 @@ MM2.Functions.KillAllOnce = function()
 	return true,"Triggered "..successCount
 end
 
--- Toggle-driven version. This is intentionally self-contained so Main.lua
--- does not need an edit for this three-file update.
-task.spawn(function()
-	while MM2.Running do
-		if Flags.KillAll and not KillAllBusy and MM2.Functions.KillAllOnce then
-			MM2.Functions.KillAllOnce()
-		end
-		task.wait(0.25)
-	end
-end)
-
 local function UpdateCombatFeatures()
 	local camera = workspace.CurrentCamera
 	if not camera then return end
@@ -604,9 +609,9 @@ end))
 -- Compact movable manual Kill All button.
 -- Same 56px circle size used by the two Fling role buttons.
 if UI.CreateMovableCircleButton then
-	local FloatingKillAllButton = UI.CreateMovableCircleButton(
+	local FloatingKillAllButton,FloatingKillAllHolder = UI.CreateMovableCircleButton(
 		"FloatingKillAll",
-		"☠",
+		"💀",
 		"KILL ALL",
 		UDim2.new(0.67,-52,0.78,-42),
 		function()
@@ -622,7 +627,9 @@ if UI.CreateMovableCircleButton then
 			end
 		end
 	)
+	FloatingKillAllHolder.Visible = false
 	MM2.UI.FloatingKillAllButton = FloatingKillAllButton
+	MM2.UI.FloatingKillAllHolder = FloatingKillAllHolder
 end
 
 --============================================================
