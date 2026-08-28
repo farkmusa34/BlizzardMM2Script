@@ -17,6 +17,18 @@ UI.AddSection(UI.VisualsPage, "Visuals", "ESP and tracer controls")
 
 UI.CreateToggle(
 	UI.VisualsPage,
+	"Coin ESP",
+	"Highlight uncollected coins",
+	"CoinESP",
+	function(on)
+		if not on and MM2.Functions.ClearCoinESP then
+			MM2.Functions.ClearCoinESP()
+		end
+	end
+)
+
+UI.CreateToggle(
+	UI.VisualsPage,
 	"Match ESP",
 	"Highlight players using detected roles",
 	"MatchESP",
@@ -150,6 +162,79 @@ MM2.Functions.UpdatePlayerESP = function()
 		end
 	end
 end
+
+--============================================================
+-- COIN ESP
+--============================================================
+
+MM2.State.CoinHighlights = MM2.State.CoinHighlights or {}
+
+local function IsAvailableCoin(obj)
+	if not obj or not obj.Parent or not obj:IsA("BasePart") then return false end
+	if obj.Name ~= "Coin_Server" and obj:GetAttribute("CoinID") == nil then return false end
+	local collected = obj:GetAttribute("Collected")
+	return collected ~= true and collected ~= "true"
+end
+
+local function GetCoinAdornee(coin)
+	local visual = coin:FindFirstChild("CoinVisual")
+	if visual then
+		return visual:FindFirstChild("MainCoin") or visual
+	end
+	return coin
+end
+
+MM2.Functions.ClearCoinESP = function()
+	for coin,highlight in pairs(MM2.State.CoinHighlights) do
+		if highlight then pcall(function() highlight:Destroy() end) end
+		MM2.State.CoinHighlights[coin] = nil
+	end
+end
+
+MM2.Functions.UpdateCoinESP = function()
+	if not Flags.CoinESP then return end
+
+	local seen = {}
+	local container = workspace:FindFirstChild("CoinContainer",true)
+	if container then
+		for _,coin in ipairs(container:GetChildren()) do
+			if IsAvailableCoin(coin) then
+				seen[coin] = true
+				if not MM2.State.CoinHighlights[coin] then
+					local h = Instance.new("Highlight")
+					h.Name = "MM2_CoinESP"
+					h.Adornee = GetCoinAdornee(coin)
+					h.FillColor = Color3.fromRGB(255,205,55)
+					h.OutlineColor = Color3.fromRGB(255,235,150)
+					h.FillTransparency = 0.25
+					h.OutlineTransparency = 0
+					h.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+					h.Parent = coin
+					MM2.State.CoinHighlights[coin] = h
+				end
+			end
+		end
+	end
+
+	for coin,highlight in pairs(MM2.State.CoinHighlights) do
+		if not seen[coin] or not coin.Parent then
+			if highlight then pcall(function() highlight:Destroy() end) end
+			MM2.State.CoinHighlights[coin] = nil
+		end
+	end
+end
+
+task.spawn(function()
+	while MM2.Running do
+		if Flags.CoinESP then
+			MM2.Functions.UpdateCoinESP()
+		elseif next(MM2.State.CoinHighlights) then
+			MM2.Functions.ClearCoinESP()
+		end
+		task.wait(0.15)
+	end
+	MM2.Functions.ClearCoinESP()
+end)
 
 MM2.State.CachedGunDrop = workspace:FindFirstChild("GunDrop", true)
 MM2.State.CachedGunPart = nil
