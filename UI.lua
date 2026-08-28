@@ -18,9 +18,11 @@ for _, guiName in ipairs({"MM2_UTILITY_V8","MM2_V8_TracerGui","MM2_V8_PlayerESP_
 	local old = PlayerGui:FindFirstChild(guiName)
 	if old then old:Destroy() end
 end
+
 pcall(function()
 	local old = CoreGui:FindFirstChild("MM2_UTILITY_V8")
 	if old then old:Destroy() end
+
 	local oldToolbar = CoreGui:FindFirstChild("MM2_V8_ToolbarGui")
 	if oldToolbar then oldToolbar:Destroy() end
 end)
@@ -48,8 +50,13 @@ local COLORS = {
 	Knob = Color3.fromRGB(244,246,251),
 	Danger = Color3.fromRGB(225,83,93),
 }
+
 MM2.UI.ScreenGui = ScreenGui
 MM2.UI.COLORS = COLORS
+
+--============================================================
+-- MAIN FRAME
+--============================================================
 
 local MainFrame = Instance.new("Frame")
 MainFrame.Name = "Dashboard"
@@ -61,14 +68,20 @@ MainFrame.BorderSizePixel = 0
 MainFrame.Active = true
 MainFrame.Parent = ScreenGui
 MM2.UI.MainFrame = MainFrame
+
 local MainCorner = Instance.new("UICorner")
 MainCorner.CornerRadius = UDim.new(0,16)
 MainCorner.Parent = MainFrame
+
 local MainStroke = Instance.new("UIStroke")
 MainStroke.Color = COLORS.Stroke
 MainStroke.Thickness = 1
 MainStroke.Transparency = 0.15
 MainStroke.Parent = MainFrame
+
+--============================================================
+-- HEADER
+--============================================================
 
 local Header = Instance.new("Frame")
 Header.Size = UDim2.new(1,0,0,54)
@@ -85,6 +98,7 @@ Logo.TextColor3 = COLORS.Text
 Logo.TextSize = 19
 Logo.Font = Enum.Font.GothamBold
 Logo.Parent = Header
+
 local lc = Instance.new("UICorner")
 lc.CornerRadius = UDim.new(0,10)
 lc.Parent = Logo
@@ -94,7 +108,7 @@ Title.Size = UDim2.new(0,250,0,24)
 Title.Position = UDim2.fromOffset(62,8)
 Title.BackgroundTransparency = 1
 Title.TextXAlignment = Enum.TextXAlignment.Left
-Title.Text = "MURDER MYSTERY 2 SCRIPT"
+Title.Text = "Murder Mystery 2 Script"
 Title.TextColor3 = COLORS.Text
 Title.TextSize = 13
 Title.Font = Enum.Font.GothamBold
@@ -150,6 +164,10 @@ Divider.BackgroundTransparency = 0.35
 Divider.BorderSizePixel = 0
 Divider.Parent = MainFrame
 
+--============================================================
+-- SIDEBAR / CONTENT
+--============================================================
+
 local Sidebar = Instance.new("Frame")
 Sidebar.Size = UDim2.new(0,126,1,-68)
 Sidebar.Position = UDim2.fromOffset(12,62)
@@ -167,8 +185,13 @@ Content.Position = UDim2.fromOffset(138,62)
 Content.BackgroundTransparency = 1
 Content.Parent = MainFrame
 
+--============================================================
+-- MAIN FRAME DRAGGING
+--============================================================
+
 do
 	local dragging, dragStart, startPos = false,nil,nil
+
 	Header.InputBegan:Connect(function(input)
 		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
 			dragging = true
@@ -176,19 +199,32 @@ do
 			startPos = MainFrame.Position
 		end
 	end)
+
 	UIS.InputChanged:Connect(function(input)
 		if not dragging then return end
+
 		if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
 			local delta = input.Position - dragStart
-			MainFrame.Position = UDim2.new(startPos.X.Scale,startPos.X.Offset+delta.X,startPos.Y.Scale,startPos.Y.Offset+delta.Y)
+
+			MainFrame.Position = UDim2.new(
+				startPos.X.Scale,
+				startPos.X.Offset + delta.X,
+				startPos.Y.Scale,
+				startPos.Y.Offset + delta.Y
+			)
 		end
 	end)
+
 	UIS.InputEnded:Connect(function(input)
 		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
 			dragging = false
 		end
 	end)
 end
+
+--============================================================
+-- FLOATING TOOLBAR
+--============================================================
 
 local ToolbarGui = Instance.new("ScreenGui")
 ToolbarGui.Name = "MM2_V8_ToolbarGui"
@@ -201,10 +237,10 @@ MM2.UI.ToolbarGui = ToolbarGui
 
 local Floating = Instance.new("Frame")
 Floating.Name = "FloatingOpener"
-Floating.Size = UDim2.fromOffset(190,38)
-Floating.Position = UDim2.new(0.5,-95,0.15,-94)
-Floating.BackgroundColor3 = Color3.fromRGB(18,20,26)
-Floating.BackgroundTransparency = 0.42
+Floating.Size = UDim2.fromOffset(240,40)
+Floating.Position = UDim2.new(0.5,-120,0.15,-94)
+Floating.BackgroundColor3 = Color3.fromRGB(14,18,26)
+Floating.BackgroundTransparency = 0.32
 Floating.BorderSizePixel = 0
 Floating.Active = true
 Floating.Parent = ToolbarGui
@@ -213,30 +249,34 @@ local FloatingCorner = Instance.new("UICorner")
 FloatingCorner.CornerRadius = UDim.new(1,0)
 FloatingCorner.Parent = Floating
 
+-- Dark blue -> light blue -> cyan animated outline
+
 local RGBStroke = Instance.new("UIStroke")
-RGBStroke.Thickness = 1.5
-RGBStroke.Transparency = 0.08
+RGBStroke.Thickness = 2
+RGBStroke.Transparency = 0.04
 RGBStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+RGBStroke.LineJoinMode = Enum.LineJoinMode.Round
 RGBStroke.Parent = Floating
+
 local RGBGradient = Instance.new("UIGradient")
 RGBGradient.Color = ColorSequence.new({
-	ColorSequenceKeypoint.new(0.00,Color3.fromRGB(70,235,255)),
-	ColorSequenceKeypoint.new(0.25,Color3.fromRGB(60,180,255)),
-	ColorSequenceKeypoint.new(0.50,Color3.fromRGB(70,110,255)),
-	ColorSequenceKeypoint.new(0.75,Color3.fromRGB(105,80,255)),
-	ColorSequenceKeypoint.new(1.00,Color3.fromRGB(70,235,255)),
+	ColorSequenceKeypoint.new(0.00,Color3.fromRGB(10,55,170)),
+	ColorSequenceKeypoint.new(0.35,Color3.fromRGB(45,140,255)),
+	ColorSequenceKeypoint.new(0.65,Color3.fromRGB(75,200,255)),
+	ColorSequenceKeypoint.new(0.85,Color3.fromRGB(35,245,255)),
+	ColorSequenceKeypoint.new(1.00,Color3.fromRGB(10,55,170)),
 })
 RGBGradient.Parent = RGBStroke
 
 task.spawn(function()
 	while MM2.Running and RGBGradient.Parent do
-		RGBGradient.Rotation = (RGBGradient.Rotation + 1.4) % 360
-		task.wait(0.025)
+		RGBGradient.Rotation = (RGBGradient.Rotation + 1) % 360
+		task.wait(0.03)
 	end
 end)
 
 local DragHandle = Instance.new("TextButton")
-DragHandle.Size = UDim2.fromOffset(32,38)
+DragHandle.Size = UDim2.fromOffset(36,40)
 DragHandle.BackgroundTransparency = 1
 DragHandle.AutoButtonColor = false
 DragHandle.Active = true
@@ -247,24 +287,31 @@ DragHandle.Font = Enum.Font.GothamBold
 DragHandle.Parent = Floating
 
 local FloatDivider = Instance.new("Frame")
-FloatDivider.Size = UDim2.fromOffset(1,22)
-FloatDivider.Position = UDim2.fromOffset(34,8)
+FloatDivider.Size = UDim2.fromOffset(1,24)
+FloatDivider.Position = UDim2.fromOffset(38,8)
 FloatDivider.BackgroundColor3 = COLORS.Stroke
+FloatDivider.BackgroundTransparency = 0.15
 FloatDivider.BorderSizePixel = 0
 FloatDivider.Parent = Floating
 
 local OpenButton = Instance.new("TextButton")
-OpenButton.Size = UDim2.new(1,-38,1,0)
-OpenButton.Position = UDim2.fromOffset(38,0)
+OpenButton.Size = UDim2.new(1,-42,1,0)
+OpenButton.Position = UDim2.fromOffset(42,0)
 OpenButton.BackgroundTransparency = 1
 OpenButton.Text = "❄ Murder Mystery 2 Script"
 OpenButton.TextColor3 = COLORS.Text
-OpenButton.TextSize = 9
+OpenButton.TextSize = 10
 OpenButton.Font = Enum.Font.GothamBold
+OpenButton.AutoButtonColor = false
 OpenButton.Parent = Floating
+
+--============================================================
+-- TOOLBAR DRAGGING
+--============================================================
 
 do
 	local dragging, dragStart, startPos = false,nil,nil
+
 	DragHandle.InputBegan:Connect(function(input)
 		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
 			dragging = true
@@ -272,20 +319,40 @@ do
 			startPos = Floating.Position
 		end
 	end)
+
 	UIS.InputChanged:Connect(function(input)
 		if not dragging then return end
+
 		if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
 			local delta = input.Position - dragStart
-			Floating.Position = UDim2.new(startPos.X.Scale,startPos.X.Offset+delta.X,startPos.Y.Scale,startPos.Y.Offset+delta.Y)
+
+			Floating.Position = UDim2.new(
+				startPos.X.Scale,
+				startPos.X.Offset + delta.X,
+				startPos.Y.Scale,
+				startPos.Y.Offset + delta.Y
+			)
 		end
 	end)
+
 	UIS.InputEnded:Connect(function(input)
-		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then dragging = false end
+		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+			dragging = false
+		end
 	end)
 end
 
-Track(CloseButton.MouseButton1Click:Connect(function() MainFrame.Visible = false end))
-Track(OpenButton.MouseButton1Click:Connect(function() MainFrame.Visible = not MainFrame.Visible end))
+Track(CloseButton.MouseButton1Click:Connect(function()
+	MainFrame.Visible = false
+end))
+
+Track(OpenButton.MouseButton1Click:Connect(function()
+	MainFrame.Visible = not MainFrame.Visible
+end))
+
+--============================================================
+-- PAGES
+--============================================================
 
 local Pages, TabButtons = {}, {}
 MM2.UI.Pages, MM2.UI.TabButtons = Pages, TabButtons
@@ -301,19 +368,23 @@ local function NewPage(name)
 	page.CanvasSize = UDim2.fromOffset(0,0)
 	page.Visible = false
 	page.Parent = Content
+
 	local layout = Instance.new("UIListLayout")
 	layout.Padding = UDim.new(0,10)
 	layout.SortOrder = Enum.SortOrder.LayoutOrder
 	layout.Parent = page
+
 	local padding = Instance.new("UIPadding")
 	padding.PaddingTop = UDim.new(0,2)
 	padding.PaddingLeft = UDim.new(0,2)
 	padding.PaddingRight = UDim.new(0,8)
 	padding.PaddingBottom = UDim.new(0,10)
 	padding.Parent = page
+
 	layout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
 		page.CanvasSize = UDim2.fromOffset(0,layout.AbsoluteContentSize.Y+18)
 	end)
+
 	Pages[name] = page
 	return page
 end
@@ -325,13 +396,20 @@ MM2.UI.FlingPage = NewPage("Fling")
 MM2.UI.AutoFarmPage = NewPage("AutoFarm")
 
 function MM2.UI.ShowPage(name)
-	for pageName,page in pairs(Pages) do page.Visible = pageName == name end
+	for pageName,page in pairs(Pages) do
+		page.Visible = pageName == name
+	end
+
 	for tabName,btn in pairs(TabButtons) do
 		btn.BackgroundColor3 = tabName == name and COLORS.Card or Color3.fromRGB(0,0,0)
 		btn.BackgroundTransparency = tabName == name and 0 or 1
 		btn.TextColor3 = tabName == name and COLORS.Text or COLORS.Muted
 	end
 end
+
+--============================================================
+-- SIDEBAR BUTTONS
+--============================================================
 
 local function AddSidebarButton(name,label,order)
 	local btn = Instance.new("TextButton")
@@ -357,20 +435,28 @@ local function AddSidebarButton(name,label,order)
 	c.Parent = btn
 
 	TabButtons[name] = btn
-	Track(btn.MouseButton1Click:Connect(function() MM2.UI.ShowPage(name) end))
+
+	Track(btn.MouseButton1Click:Connect(function()
+		MM2.UI.ShowPage(name)
+	end))
 end
 
-AddSidebarButton("Visuals",  "👁  VISUALS",   1)
-AddSidebarButton("Combat",   "🎯  COMBAT",    2)
-AddSidebarButton("Player",   "👤  PLAYER",    3)
-AddSidebarButton("Fling",    "💨  FLING",     4)
-AddSidebarButton("AutoFarm", "🤖  AUTO FARM", 5)
+AddSidebarButton("Visuals",  "👁  Visuals",   1)
+AddSidebarButton("Combat",   "🔫  Combat",    2)
+AddSidebarButton("Player",   "👤  Player",    3)
+AddSidebarButton("Fling",    "💨  Fling",     4)
+AddSidebarButton("AutoFarm", "🤖  Auto Farm", 5)
+
+--============================================================
+-- SECTION BUILDER
+--============================================================
 
 function MM2.UI.AddSection(parent,titleText,subtitleText)
 	local wrap = Instance.new("Frame")
 	wrap.Size = UDim2.new(1,0,0,subtitleText and 52 or 34)
 	wrap.BackgroundTransparency = 1
 	wrap.Parent = parent
+
 	local title = Instance.new("TextLabel")
 	title.Size = UDim2.new(1,0,0,22)
 	title.BackgroundTransparency = 1
@@ -380,6 +466,7 @@ function MM2.UI.AddSection(parent,titleText,subtitleText)
 	title.TextSize = 14
 	title.Font = Enum.Font.GothamBold
 	title.Parent = wrap
+
 	if subtitleText then
 		local sub = Instance.new("TextLabel")
 		sub.Size = UDim2.new(1,0,0,20)
@@ -392,8 +479,13 @@ function MM2.UI.AddSection(parent,titleText,subtitleText)
 		sub.Font = Enum.Font.Gotham
 		sub.Parent = wrap
 	end
+
 	return wrap
 end
+
+--============================================================
+-- TOGGLE BUILDER
+--============================================================
 
 function MM2.UI.CreateToggle(parent,titleText,description,flagName,callback)
 	local card = Instance.new("Frame")
@@ -422,6 +514,7 @@ function MM2.UI.CreateToggle(parent,titleText,description,flagName,callback)
 	label.TextSize = 12
 	label.Font = Enum.Font.GothamBold
 	label.Parent = card
+
 	local desc = Instance.new("TextLabel")
 	desc.Size = UDim2.new(1,-104,0,18)
 	desc.Position = UDim2.fromOffset(14,34)
@@ -432,6 +525,7 @@ function MM2.UI.CreateToggle(parent,titleText,description,flagName,callback)
 	desc.TextSize = 9
 	desc.Font = Enum.Font.Gotham
 	desc.Parent = card
+
 	local track = Instance.new("TextButton")
 	track.Size = UDim2.fromOffset(48,24)
 	track.Position = UDim2.new(1,-62,0.5,-12)
@@ -458,21 +552,37 @@ function MM2.UI.CreateToggle(parent,titleText,description,flagName,callback)
 
 	local function Render(value,instant)
 		local d = instant and 0 or 0.14
-		TweenService:Create(knob,TweenInfo.new(d,Enum.EasingStyle.Quad,Enum.EasingDirection.Out),{
-			Position = value and UDim2.fromOffset(27,3) or UDim2.fromOffset(3,3)
-		}):Play()
-		TweenService:Create(track,TweenInfo.new(d,Enum.EasingStyle.Quad,Enum.EasingDirection.Out),{
-			BackgroundColor3 = value and COLORS.Accent or COLORS.TrackOff
-		}):Play()
+
+		TweenService:Create(
+			knob,
+			TweenInfo.new(d,Enum.EasingStyle.Quad,Enum.EasingDirection.Out),
+			{Position = value and UDim2.fromOffset(27,3) or UDim2.fromOffset(3,3)}
+		):Play()
+
+		TweenService:Create(
+			track,
+			TweenInfo.new(d,Enum.EasingStyle.Quad,Enum.EasingDirection.Out),
+			{BackgroundColor3 = value and COLORS.Accent or COLORS.TrackOff}
+		):Play()
 	end
+
 	Render(Flags[flagName],true)
+
 	Track(track.MouseButton1Click:Connect(function()
 		Flags[flagName] = not Flags[flagName]
 		Render(Flags[flagName],false)
-		if callback then callback(Flags[flagName]) end
+
+		if callback then
+			callback(Flags[flagName])
+		end
 	end))
+
 	return card,track,Render
 end
+
+--============================================================
+-- ACTION BUTTON BUILDER
+--============================================================
 
 function MM2.UI.CreateActionButton(parent,text,callback,style)
 	local button = Instance.new("TextButton")
@@ -491,8 +601,13 @@ function MM2.UI.CreateActionButton(parent,text,callback,style)
 	corner.Parent = button
 
 	Track(button.MouseButton1Click:Connect(callback))
+
 	return button
 end
+
+--============================================================
+-- VALUE CONTROL BUILDER
+--============================================================
 
 function MM2.UI.CreateValueControl(parent,labelText,getter,setter,minValue,maxValue,step)
 	local card = Instance.new("Frame")
@@ -520,6 +635,7 @@ function MM2.UI.CreateValueControl(parent,labelText,getter,setter,minValue,maxVa
 	label.TextSize = 12
 	label.Font = Enum.Font.GothamBold
 	label.Parent = card
+
 	local value = Instance.new("TextLabel")
 	value.Size = UDim2.fromOffset(48,28)
 	value.Position = UDim2.new(1,-110,0.5,-14)
@@ -570,10 +686,21 @@ function MM2.UI.CreateValueControl(parent,labelText,getter,setter,minValue,maxVa
 		setter(v)
 		value.Text = tostring(getter())
 	end
-	Track(minus.MouseButton1Click:Connect(function() update(getter()-step) end))
-	Track(plus.MouseButton1Click:Connect(function() update(getter()+step) end))
+
+	Track(minus.MouseButton1Click:Connect(function()
+		update(getter()-step)
+	end))
+
+	Track(plus.MouseButton1Click:Connect(function()
+		update(getter()+step)
+	end))
+
 	return card
 end
+
+--============================================================
+-- SLIDER BUILDER
+--============================================================
 
 function MM2.UI.CreateSlider(parent,labelText,description,getter,setter,minValue,maxValue,step)
 	local card = Instance.new("Frame")
@@ -601,6 +728,7 @@ function MM2.UI.CreateSlider(parent,labelText,description,getter,setter,minValue
 	label.TextSize = 12
 	label.Font = Enum.Font.GothamBold
 	label.Parent = card
+
 	local valueLabel = Instance.new("TextLabel")
 	valueLabel.Size = UDim2.fromOffset(54,20)
 	valueLabel.Position = UDim2.new(1,-68,0,9)
@@ -611,6 +739,7 @@ function MM2.UI.CreateSlider(parent,labelText,description,getter,setter,minValue
 	valueLabel.TextSize = 11
 	valueLabel.Font = Enum.Font.GothamBold
 	valueLabel.Parent = card
+
 	local desc = Instance.new("TextLabel")
 	desc.Size = UDim2.new(1,-28,0,16)
 	desc.Position = UDim2.fromOffset(14,28)
@@ -621,6 +750,7 @@ function MM2.UI.CreateSlider(parent,labelText,description,getter,setter,minValue
 	desc.TextSize = 9
 	desc.Font = Enum.Font.Gotham
 	desc.Parent = card
+
 	local bar = Instance.new("TextButton")
 	bar.Size = UDim2.new(1,-28,0,8)
 	bar.Position = UDim2.fromOffset(14,57)
@@ -659,37 +789,61 @@ function MM2.UI.CreateSlider(parent,labelText,description,getter,setter,minValue
 	knobCorner.Parent = knob
 
 	local dragging = false
+
 	local function snap(v)
-		return math.clamp(math.floor(((v-minValue)/step)+0.5)*step+minValue,minValue,maxValue)
+		return math.clamp(
+			math.floor(((v-minValue)/step)+0.5)*step+minValue,
+			minValue,
+			maxValue
+		)
 	end
+
 	local function render(v)
 		local alpha = math.clamp((v-minValue)/(maxValue-minValue),0,1)
+
 		fill.Size = UDim2.fromScale(alpha,1)
 		knob.Position = UDim2.new(alpha,0,0.5,0)
 		valueLabel.Text = tostring(v)
 	end
+
 	local function setFromX(x)
 		local width = math.max(bar.AbsoluteSize.X,1)
 		local alpha = math.clamp((x-bar.AbsolutePosition.X)/width,0,1)
-		local v = snap(minValue+(maxValue-minValue)*alpha)
+
+		local v = snap(
+			minValue +
+			(maxValue-minValue) *
+			alpha
+		)
+
 		setter(v)
 		render(getter())
 	end
+
 	render(getter())
+
 	Track(bar.InputBegan:Connect(function(input)
 		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
 			dragging = true
 			setFromX(input.Position.X)
 		end
 	end))
+
 	Track(UIS.InputChanged:Connect(function(input)
-		if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+		if dragging and (
+			input.UserInputType == Enum.UserInputType.MouseMovement
+			or input.UserInputType == Enum.UserInputType.Touch
+		) then
 			setFromX(input.Position.X)
 		end
 	end))
+
 	Track(UIS.InputEnded:Connect(function(input)
-		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then dragging = false end
+		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+			dragging = false
+		end
 	end))
+
 	return card
 end
 
