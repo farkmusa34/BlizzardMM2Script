@@ -155,38 +155,22 @@ local function CreateSidebarIcon(parent,kind,color)
 	h.BackgroundTransparency = 1
 	h.Parent = parent
 
-	if kind == "Visuals" then
-		-- Smooth eye silhouette built from short rounded segments.
-		-- This avoids the old four-line diamond shape.
-		NewLine(h,7.0,1.55,4.4,7.4,-24,color,2)
-		NewLine(h,7.2,1.55,10.0,5.7,0,color,2)
-		NewLine(h,7.0,1.55,15.6,7.4,24,color,2)
+	local selectedAssets = {
+		Visuals = 9653613382,      -- Visuals #5
+		Fling = 18164947844,       -- Fling #1
+		Player = 12928483395,      -- Player #2
+	}
 
-		NewLine(h,7.0,1.55,4.4,12.6,24,color,2)
-		NewLine(h,7.2,1.55,10.0,14.3,0,color,2)
-		NewLine(h,7.0,1.55,15.6,12.6,-24,color,2)
-
-		local pupil = Instance.new("Frame")
-		pupil.Size = UDim2.fromOffset(5.2,5.2)
-		pupil.Position = UDim2.fromOffset(7.4,7.4)
-		pupil.BackgroundColor3 = color
-		pupil.BorderSizePixel = 0
-		pupil.Parent = h
-
-		local pc = Instance.new("UICorner")
-		pc.CornerRadius = UDim.new(1,0)
-		pc.Parent = pupil
-
-		local pupilHole = Instance.new("Frame")
-		pupilHole.Size = UDim2.fromOffset(2.0,2.0)
-		pupilHole.Position = UDim2.fromOffset(1.6,1.6)
-		pupilHole.BackgroundColor3 = COLORS.Sidebar
-		pupilHole.BorderSizePixel = 0
-		pupilHole.Parent = pupil
-
-		local phc = Instance.new("UICorner")
-		phc.CornerRadius = UDim.new(1,0)
-		phc.Parent = pupilHole
+	if selectedAssets[kind] then
+		local img = Instance.new("ImageLabel")
+		img.Name = "IconImage"
+		img.Size = UDim2.fromOffset(18,18)
+		img.Position = UDim2.fromOffset(1,1)
+		img.BackgroundTransparency = 1
+		img.Image = ("rbxthumb://type=Asset&id=%s&w=150&h=150"):format(selectedAssets[kind])
+		img.ImageColor3 = color
+		img.ScaleType = Enum.ScaleType.Fit
+		img.Parent = h
 
 	elseif kind == "Combat" then
 		local ring = Instance.new("Frame")
@@ -208,44 +192,6 @@ local function CreateSidebarIcon(parent,kind,color)
 		NewLine(h,6,1.4,17,10,0,color,2)
 		NewLine(h,6,1.4,10,3,90,color,2)
 		NewLine(h,6,1.4,10,17,90,color,2)
-
-	elseif kind == "Player" then
-		-- Clean profile/bust: circular head + rounded shoulder arc.
-		local head = Instance.new("Frame")
-		head.Size = UDim2.fromOffset(7.2,7.2)
-		head.Position = UDim2.fromOffset(6.4,1.4)
-		head.BackgroundTransparency = 1
-		head.Parent = h
-
-		local hs = Instance.new("UIStroke")
-		hs.Color = color
-		hs.Thickness = 1.45
-		hs.Parent = head
-
-		local hc = Instance.new("UICorner")
-		hc.CornerRadius = UDim.new(1,0)
-		hc.Parent = head
-
-		-- Rounded shoulders instead of the previous triangle.
-		NewLine(h,5.2,1.5,4.5,13.0,-45,color,2)
-		NewLine(h,6.0,1.5,7.1,15.1,-14,color,2)
-		NewLine(h,6.0,1.5,12.9,15.1,14,color,2)
-		NewLine(h,5.2,1.5,15.5,13.0,45,color,2)
-		NewLine(h,8.5,1.5,10,17.0,0,color,2)
-
-	elseif kind == "Fling" then
-		-- Wind icon matching the reference: three gusts with curled right ends.
-		NewLine(h,10.0,1.6,6.0,5.3,0,color,2)
-		NewLine(h,4.0,1.6,13.0,4.1,-25,color,2)
-		NewLine(h,3.8,1.6,15.6,5.8,35,color,2)
-
-		NewLine(h,14.0,1.6,7.5,9.9,0,color,2)
-		NewLine(h,4.2,1.6,16.3,8.7,-28,color,2)
-		NewLine(h,3.8,1.6,18.0,10.8,42,color,2)
-
-		NewLine(h,9.0,1.6,5.5,14.6,0,color,2)
-		NewLine(h,3.7,1.6,11.8,13.7,-26,color,2)
-		NewLine(h,3.5,1.6,14.0,15.3,38,color,2)
 
 	elseif kind == "AutoFarm" then
 		local head = Instance.new("Frame")
@@ -453,6 +399,8 @@ function MM2.UI.ShowPage(name)
 					obj.BackgroundColor3 = active and COLORS.Accent or COLORS.Muted
 				elseif obj:IsA("UIStroke") then
 					obj.Color = active and COLORS.Accent or COLORS.Muted
+				elseif obj:IsA("ImageLabel") then
+					obj.ImageColor3 = active and COLORS.Accent or COLORS.Muted
 				end
 			end
 		end
