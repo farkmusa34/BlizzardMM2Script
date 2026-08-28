@@ -164,8 +164,13 @@ local function CreateSidebarIcon(parent,kind,color)
 	if selectedAssets[kind] then
 		local img = Instance.new("ImageLabel")
 		img.Name = "IconImage"
-		img.Size = UDim2.fromOffset(18,18)
-		img.Position = UDim2.fromOffset(1,1)
+		if kind == "Fling" then
+			img.Size = UDim2.fromOffset(20,20)
+			img.Position = UDim2.fromOffset(0,0)
+		else
+			img.Size = UDim2.fromOffset(18,18)
+			img.Position = UDim2.fromOffset(1,1)
+		end
 		img.BackgroundTransparency = 1
 		img.Image = ("rbxthumb://type=Asset&id=%s&w=150&h=150"):format(selectedAssets[kind])
 		img.ImageColor3 = color
@@ -400,8 +405,11 @@ function MM2.UI.ShowPage(name)
 				elseif obj:IsA("UIStroke") then
 					obj.Color = active and COLORS.Accent or COLORS.Muted
 				elseif obj:IsA("ImageLabel") then
-					obj.ImageColor3 = active and COLORS.Accent or COLORS.Muted
-				end
+					if tabName == "Visuals" and not active then
+						obj.ImageColor3 = Color3.fromRGB(185,190,200)
+					else
+						obj.ImageColor3 = active and COLORS.Accent or COLORS.Muted
+					end
 			end
 		end
 	end
