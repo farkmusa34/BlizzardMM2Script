@@ -195,17 +195,32 @@ local function FlingRole(role,label)
 	MM2.Notify("No "..label.." target found.",2)
 end
 
-UI.CreateActionButton(
-	UI.FlingPage,
-	"FLING MURDERER — Throws the murderer away",
-	function() FlingRole("Murderer","murderer") end
-)
+-- Compact movable role-fling buttons.
+-- These replace the two large Murderer/Sheriff page buttons and use the
+-- exact same ExecuteYeet/FlingRole engine below the UI.
+if UI.CreateMovableCircleButton then
+	local FloatingFlingSheriffButton = UI.CreateMovableCircleButton(
+		"FloatingFlingSheriff",
+		"🔫",
+		"FLING SHERIFF",
+		UDim2.new(0.78,-52,0.78,-42),
+		function()
+			FlingRole("Sheriff","sheriff")
+		end
+	)
+	MM2.UI.FloatingFlingSheriffButton = FloatingFlingSheriffButton
 
-UI.CreateActionButton(
-	UI.FlingPage,
-	"FLING SHERIFF — Throws the sheriff away",
-	function() FlingRole("Sheriff","sheriff") end
-)
+	local FloatingFlingMurdererButton = UI.CreateMovableCircleButton(
+		"FloatingFlingMurderer",
+		"🔪",
+		"FLING MURDERER",
+		UDim2.new(0.89,-52,0.78,-42),
+		function()
+			FlingRole("Murderer","murderer")
+		end
+	)
+	MM2.UI.FloatingFlingMurdererButton = FloatingFlingMurdererButton
+end
 
 UI.CreateActionButton(
 	UI.FlingPage,
