@@ -386,7 +386,10 @@ MM2.UI.FlingPage = NewPage("Fling")
 MM2.UI.AutoFarmPage = NewPage("AutoFarm")
 
 function MM2.UI.ShowPage(name)
-	for pageName,page in pairs(Pages) do page.Visible = pageName == name end
+	for pageName,page in pairs(Pages) do
+		page.Visible = pageName == name
+	end
+
 	for tabName,btn in pairs(TabButtons) do
 		local active = tabName == name
 		btn.BackgroundColor3 = active and COLORS.Card or Color3.fromRGB(0,0,0)
@@ -410,11 +413,11 @@ function MM2.UI.ShowPage(name)
 					else
 						obj.ImageColor3 = active and COLORS.Accent or COLORS.Muted
 					end
+				end
 			end
 		end
 	end
 end
-
 local function AddSidebarButton(name,label,order)
 	local btn = Instance.new("TextButton")
 	btn.Name = name
