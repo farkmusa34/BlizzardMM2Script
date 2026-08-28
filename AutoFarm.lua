@@ -77,6 +77,7 @@ local FarmBagCount = 0
 local FarmBagMax = 40
 local FarmBagFull = false
 local FarmBagLiftInProgress = false
+local FarmBagLiftDone = false
 
 local FarmCharacter = nil
 local FarmHumanoid = nil
@@ -348,7 +349,7 @@ local function FarmCheckCollection(coin,coinPos)
 end
 
 local function FarmBeginBagFullLift()
-	if FarmBagLiftInProgress then return end
+	if FarmBagLiftInProgress or FarmBagLiftDone then return end
 	FarmBagLiftInProgress = true
 	FarmPaused = true
 	FarmPauseReason = "BAG FULL"
@@ -359,6 +360,7 @@ local function FarmBeginBagFullLift()
 			FarmStopNoclip()
 			FarmDestroyMovement()
 			FarmBagLiftInProgress = false
+			FarmBagLiftDone = true
 			return
 		end
 
@@ -379,6 +381,7 @@ local function FarmBeginBagFullLift()
 		FarmStopNoclip()
 		FarmDestroyMovement()
 		FarmBagLiftInProgress = false
+		FarmBagLiftDone = true
 	end)
 end
 
@@ -400,7 +403,9 @@ local function FarmLoop()
 		end
 
 		if FarmBagFull then
-			FarmBeginBagFullLift()
+			if not FarmBagLiftDone then
+				FarmBeginBagFullLift()
+			end
 			task.wait(0.10)
 			continue
 		end
@@ -500,6 +505,7 @@ function MM2.Functions.StartAutoFarm()
 	FarmPaused = false
 	FarmPauseReason = nil
 	FarmBagLiftInProgress = false
+	FarmBagLiftDone = false
 	FarmSafeReturnCFrame = nil
 	FarmCurrentCoin = nil
 	FarmCurrentTouch = nil
@@ -515,6 +521,7 @@ function MM2.Functions.StopAutoFarm()
 	FarmPaused = false
 	FarmPauseReason = nil
 	FarmBagLiftInProgress = false
+	FarmBagLiftDone = false
 
 	-- Manual stop retains the old emergency return behavior.
 	FarmReturnToSafePosition()
@@ -564,6 +571,7 @@ local function FarmResetBag()
 	FarmPaused = false
 	FarmPauseReason = nil
 	FarmBagLiftInProgress = false
+	FarmBagLiftDone = false
 	FarmSafeReturnCFrame = nil
 end
 
