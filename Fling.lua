@@ -14,34 +14,6 @@ local Track = MM2.Track
 
 UI.AddSection(UI.FlingPage, "Fling", "Choose a target or use quick-role actions")
 
-local Flags = MM2.Flags
-Flags.ShowFlingMurdererButton = false
-Flags.ShowFlingSheriffButton = false
-
-UI.CreateToggle(
-	UI.FlingPage,
-	"Fling Murderer",
-	"Show fling murderer button",
-	"ShowFlingMurdererButton",
-	function(on)
-		if MM2.UI.FloatingFlingMurdererHolder then
-			MM2.UI.FloatingFlingMurdererHolder.Visible = on
-		end
-	end
-)
-
-UI.CreateToggle(
-	UI.FlingPage,
-	"Fling Sheriff",
-	"Show fling sheriff button",
-	"ShowFlingSheriffButton",
-	function(on)
-		if MM2.UI.FloatingFlingSheriffHolder then
-			MM2.UI.FloatingFlingSheriffHolder.Visible = on
-		end
-	end
-)
-
 local FLING_DURATION = 1.30
 local FLING_HUGE = 900000000
 local FLING_FORCE_NAME = "MarbegFlingVelocity"
@@ -223,41 +195,26 @@ local function FlingRole(role,label)
 	MM2.Notify("No "..label.." target found.",2)
 end
 
--- Compact movable role-fling buttons.
--- These replace the two large Murderer/Sheriff page buttons and use the
--- exact same ExecuteYeet/FlingRole engine below the UI.
-if UI.CreateMovableCircleButton then
-	local FloatingFlingSheriffButton,FloatingFlingSheriffHolder = UI.CreateMovableCircleButton(
-		"FloatingFlingSheriff",
-		"",
-		"fling sheriff",
-		UDim2.new(0.78,-52,0.78,-42),
-		function()
-			FlingRole("Sheriff","sheriff")
-		end
-	)
-	FloatingFlingSheriffHolder.Visible = false
-	MM2.UI.FloatingFlingSheriffButton = FloatingFlingSheriffButton
-	MM2.UI.FloatingFlingSheriffHolder = FloatingFlingSheriffHolder
+-- One-tap role actions in the Fling page.
+-- These use the existing FlingRole -> ExecuteYeet engine.
+UI.CreateActionFeature(
+	UI.FlingPage,
+	"Fling Sheriff",
+	"Flings the current sheriff",
+	function() FlingRole("Sheriff","sheriff") end
+)
 
-	local FloatingFlingMurdererButton,FloatingFlingMurdererHolder = UI.CreateMovableCircleButton(
-		"FloatingFlingMurderer",
-		"",
-		"fling murderer",
-		UDim2.new(0.89,-52,0.78,-42),
-		function()
-			FlingRole("Murderer","murderer")
-		end
-	)
-	FloatingFlingMurdererHolder.Visible = false
-	MM2.UI.FloatingFlingMurdererButton = FloatingFlingMurdererButton
-	MM2.UI.FloatingFlingMurdererHolder = FloatingFlingMurdererHolder
-end
+UI.CreateActionFeature(
+	UI.FlingPage,
+	"Fling Murderer",
+	"Flings the current murderer",
+	function() FlingRole("Murderer","murderer") end
+)
 
 UI.CreateActionFeature(
 	UI.FlingPage,
 	"Fling Hero",
-	"Throws the hero away",
+	"Flings the current hero",
 	function() FlingRole("Hero","hero") end
 )
 
