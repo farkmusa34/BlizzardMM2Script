@@ -14,10 +14,27 @@ local Flags = MM2.Flags
 local UI = MM2.UI
 local Track = MM2.Track
 
+-- Shared.lua does not need an edit for this build; Combat.lua owns the
+-- new flag and the loop exits automatically when MM2.Running becomes false.
+if Flags.KillAll == nil then
+	Flags.KillAll = false
+end
+
 UI.AddSection(UI.CombatPage, "Combat", "Aim, pickup and weapon features")
 UI.CreateToggle(UI.CombatPage, "TriggerBot", "Fire when the crosshair is on the murderer", "TriggerBot")
 UI.CreateToggle(UI.CombatPage, "Aim Lock", "Torso aim lock in first-person / lock-center", "AimLock")
 UI.CreateToggle(UI.CombatPage, "Auto Grab Gun", "Automatically grabs the gun without moving your body", "AutoGrab")
+UI.CreateToggle(
+	UI.CombatPage,
+	"Kill All",
+	"Automatically triggers Kill All while enabled",
+	"KillAll",
+	function(on)
+		if on and MM2.Functions.KillAllOnce then
+			task.spawn(MM2.Functions.KillAllOnce)
+		end
+	end
+)
 UI.CreateToggle(
 	UI.CombatPage,
 	"Floating Shoot Button",
@@ -311,6 +328,169 @@ MM2.Functions.ShootMurderer = function()
 	return success,message
 end
 
+--============================================================
+-- KILL ALL
+-- Uses the same compact Knife + TouchInterest path that worked in the
+-- standalone diagnostic, but keeps it isolated from Shoot Murderer.
+--============================================================
+
+local KillAllBusy = false
+local LastKillAll = 0
+local KILL_ALL_COOLDOWN = 0.35
+
+local function GetKillAllTargetPart(character)
+	if not character then return nil end
+	return character:FindFirstChild("UpperTorso")
+		or character:FindFirstChild("Torso")
+		or character:FindFirstChild("HumanoidRootPart")
+end
+
+local function FindKnifeTool()
+	local character = LocalPlayer.Character
+	local backpack = LocalPlayer:FindFirstChildOfClass("Backpack")
+
+	local function scan(container)
+		if not container then return nil end
+		for _,tool in ipairs(container:GetChildren()) do
+			if tool:IsA("Tool") and (
+				tool.Name == "Knife"
+				or tool:GetAttribute("IsKnife") == true
+			) then
+				return tool
+			end
+		end
+		return nil
+	end
+
+	return scan(character) or scan(backpack)
+end
+
+local function EnsureKnifeEquipped()
+	local character = LocalPlayer.Character
+	local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+	if not character or not humanoid or humanoid.Health <= 0 then
+		return nil
+	end
+
+	local knife = FindKnifeTool()
+	if not knife then return nil end
+
+	if knife.Parent ~= character then
+		local ok = pcall(function()
+			humanoid:EquipTool(knife)
+		end)
+		if not ok then return nil end
+
+		local deadline = os.clock()+0.75
+		repeat
+			task.wait(0.03)
+		until knife.Parent == character or os.clock() >= deadline
+	end
+
+	if knife.Parent ~= character then
+		return nil
+	end
+
+	return knife
+end
+
+local function GetKnifeHandle(knife)
+	if not knife then return nil end
+	local handle = knife:FindFirstChild("Handle")
+	if handle and handle:IsA("BasePart") then
+		return handle
+	end
+	return knife:FindFirstChildWhichIsA("BasePart",true)
+end
+
+local function TouchKillTarget(knife,handle,targetPart)
+	if not knife or not handle or not targetPart or not targetPart.Parent then
+		return false
+	end
+	if not firetouchinterest then
+		return false
+	end
+
+	return pcall(function()
+		knife:Activate()
+		firetouchinterest(handle,targetPart,0)
+		RunService.Heartbeat:Wait()
+		firetouchinterest(handle,targetPart,1)
+	end)
+end
+
+MM2.Functions.KillAllOnce = function()
+	if KillAllBusy then
+		return false,"Busy"
+	end
+
+	local now = os.clock()
+	if now-LastKillAll < KILL_ALL_COOLDOWN then
+		return false,"Cooldown"
+	end
+
+	KillAllBusy = true
+	local successCount = 0
+
+	local ok,err = pcall(function()
+		local knife = EnsureKnifeEquipped()
+		if not knife then
+			error("No Knife")
+		end
+
+		local handle = GetKnifeHandle(knife)
+		if not handle then
+			error("No Handle")
+		end
+
+		for _,player in ipairs(Players:GetPlayers()) do
+			if player ~= LocalPlayer then
+				local character = player.Character
+				local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+				local targetPart = GetKillAllTargetPart(character)
+
+				if humanoid and humanoid.Health > 0 and targetPart then
+					if TouchKillTarget(knife,handle,targetPart) then
+						successCount += 1
+					end
+					task.wait(0.02)
+				end
+			end
+		end
+	end)
+
+	LastKillAll = os.clock()
+	KillAllBusy = false
+
+	if not ok then
+		local message = tostring(err)
+		if string.find(message,"No Knife",1,true) then
+			return false,"No Knife"
+		elseif string.find(message,"No Handle",1,true) then
+			return false,"No Handle"
+		end
+		warn("[MM2 KILL ALL ERROR]",err)
+		return false,"Error"
+	end
+
+	if successCount <= 0 then
+		return false,"No Targets"
+	end
+
+	return true,"Triggered "..successCount
+end
+
+-- Toggle-driven version. This is intentionally self-contained so Main.lua
+-- does not need an edit for this three-file update.
+task.spawn(function()
+	while MM2.Running do
+		if Flags.KillAll and not KillAllBusy and MM2.Functions.KillAllOnce then
+			MM2.Functions.KillAllOnce()
+		end
+		task.wait(0.25)
+	end
+end)
+
 local function UpdateCombatFeatures()
 	local camera = workspace.CurrentCamera
 	if not camera then return end
@@ -420,6 +600,30 @@ Track(FloatingShootButton.MouseButton1Click:Connect(function()
 		end)
 	end)
 end))
+
+-- Compact movable manual Kill All button.
+-- Same 56px circle size used by the two Fling role buttons.
+if UI.CreateMovableCircleButton then
+	local FloatingKillAllButton = UI.CreateMovableCircleButton(
+		"FloatingKillAll",
+		"☠",
+		"KILL ALL",
+		UDim2.new(0.67,-52,0.78,-42),
+		function()
+			local ok,success,message = pcall(function()
+				return MM2.Functions.KillAllOnce()
+			end)
+
+			if not ok then
+				warn("[MM2 KILL ALL BUTTON]",success)
+				MM2.Notify("Kill All error",2)
+			elseif message and message ~= "Cooldown" then
+				MM2.Notify(message,1.5)
+			end
+		end
+	)
+	MM2.UI.FloatingKillAllButton = FloatingKillAllButton
+end
 
 --============================================================
 -- AUTO GRAB
