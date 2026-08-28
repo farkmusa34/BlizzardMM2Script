@@ -151,95 +151,129 @@ end
 
 local function CreateSidebarIcon(parent,kind,color)
 	local h = Instance.new("Frame")
-	h.Size = UDim2.fromOffset(18,18)
+	h.Size = UDim2.fromOffset(20,20)
 	h.BackgroundTransparency = 1
 	h.Parent = parent
 
 	if kind == "Visuals" then
-		-- Almond-shaped eye: four angled lids + centered pupil.
-		NewLine(h,9,1.5,5.4,6.3,-28,color,2)
-		NewLine(h,9,1.5,12.6,6.3,28,color,2)
-		NewLine(h,9,1.5,5.4,11.7,28,color,2)
-		NewLine(h,9,1.5,12.6,11.7,-28,color,2)
+		-- Smooth eye silhouette built from short rounded segments.
+		-- This avoids the old four-line diamond shape.
+		NewLine(h,7.0,1.55,4.4,7.4,-24,color,2)
+		NewLine(h,7.2,1.55,10.0,5.7,0,color,2)
+		NewLine(h,7.0,1.55,15.6,7.4,24,color,2)
+
+		NewLine(h,7.0,1.55,4.4,12.6,24,color,2)
+		NewLine(h,7.2,1.55,10.0,14.3,0,color,2)
+		NewLine(h,7.0,1.55,15.6,12.6,-24,color,2)
+
 		local pupil = Instance.new("Frame")
-		pupil.Size = UDim2.fromOffset(4.5,4.5)
-		pupil.Position = UDim2.fromOffset(6.75,6.75)
+		pupil.Size = UDim2.fromOffset(5.2,5.2)
+		pupil.Position = UDim2.fromOffset(7.4,7.4)
 		pupil.BackgroundColor3 = color
 		pupil.BorderSizePixel = 0
 		pupil.Parent = h
+
 		local pc = Instance.new("UICorner")
 		pc.CornerRadius = UDim.new(1,0)
 		pc.Parent = pupil
 
+		local pupilHole = Instance.new("Frame")
+		pupilHole.Size = UDim2.fromOffset(2.0,2.0)
+		pupilHole.Position = UDim2.fromOffset(1.6,1.6)
+		pupilHole.BackgroundColor3 = COLORS.Sidebar
+		pupilHole.BorderSizePixel = 0
+		pupilHole.Parent = pupil
+
+		local phc = Instance.new("UICorner")
+		phc.CornerRadius = UDim.new(1,0)
+		phc.Parent = pupilHole
+
 	elseif kind == "Combat" then
 		local ring = Instance.new("Frame")
 		ring.Size = UDim2.fromOffset(10,10)
-		ring.Position = UDim2.fromOffset(4,4)
+		ring.Position = UDim2.fromOffset(5,5)
 		ring.BackgroundTransparency = 1
 		ring.Parent = h
+
 		local rs = Instance.new("UIStroke")
 		rs.Color = color
 		rs.Thickness = 1.4
 		rs.Parent = ring
+
 		local rc = Instance.new("UICorner")
 		rc.CornerRadius = UDim.new(1,0)
 		rc.Parent = ring
-		NewLine(h,6,1.4,2.5,9,0,color,2)
-		NewLine(h,6,1.4,15.5,9,0,color,2)
-		NewLine(h,6,1.4,9,2.5,90,color,2)
-		NewLine(h,6,1.4,9,15.5,90,color,2)
+
+		NewLine(h,6,1.4,3,10,0,color,2)
+		NewLine(h,6,1.4,17,10,0,color,2)
+		NewLine(h,6,1.4,10,3,90,color,2)
+		NewLine(h,6,1.4,10,17,90,color,2)
 
 	elseif kind == "Player" then
+		-- Clean profile/bust: circular head + rounded shoulder arc.
 		local head = Instance.new("Frame")
-		head.Size = UDim2.fromOffset(6.5,6.5)
-		head.Position = UDim2.fromOffset(5.75,1)
+		head.Size = UDim2.fromOffset(7.2,7.2)
+		head.Position = UDim2.fromOffset(6.4,1.4)
 		head.BackgroundTransparency = 1
 		head.Parent = h
+
 		local hs = Instance.new("UIStroke")
 		hs.Color = color
-		hs.Thickness = 1.4
+		hs.Thickness = 1.45
 		hs.Parent = head
+
 		local hc = Instance.new("UICorner")
 		hc.CornerRadius = UDim.new(1,0)
 		hc.Parent = head
 
-		NewLine(h,7,1.5,5.5,12.2,-38,color,2)
-		NewLine(h,7,1.5,12.5,12.2,38,color,2)
-		NewLine(h,9,1.5,9,15.1,0,color,2)
+		-- Rounded shoulders instead of the previous triangle.
+		NewLine(h,5.2,1.5,4.5,13.0,-45,color,2)
+		NewLine(h,6.0,1.5,7.1,15.1,-14,color,2)
+		NewLine(h,6.0,1.5,12.9,15.1,14,color,2)
+		NewLine(h,5.2,1.5,15.5,13.0,45,color,2)
+		NewLine(h,8.5,1.5,10,17.0,0,color,2)
 
 	elseif kind == "Fling" then
-		-- Wind/motion mark with staggered gusts and hooked ends.
-		NewLine(h,11,1.4,6.5,4.5,0,color,2)
-		NewLine(h,4,1.4,14.2,5.8,38,color,2)
-		NewLine(h,15,1.4,8.5,9,0,color,2)
-		NewLine(h,4,1.4,15.3,10.3,-38,color,2)
-		NewLine(h,10,1.4,6,13.5,0,color,2)
-		NewLine(h,3.5,1.4,12.8,14.6,34,color,2)
+		-- Wind icon matching the reference: three gusts with curled right ends.
+		NewLine(h,10.0,1.6,6.0,5.3,0,color,2)
+		NewLine(h,4.0,1.6,13.0,4.1,-25,color,2)
+		NewLine(h,3.8,1.6,15.6,5.8,35,color,2)
+
+		NewLine(h,14.0,1.6,7.5,9.9,0,color,2)
+		NewLine(h,4.2,1.6,16.3,8.7,-28,color,2)
+		NewLine(h,3.8,1.6,18.0,10.8,42,color,2)
+
+		NewLine(h,9.0,1.6,5.5,14.6,0,color,2)
+		NewLine(h,3.7,1.6,11.8,13.7,-26,color,2)
+		NewLine(h,3.5,1.6,14.0,15.3,38,color,2)
 
 	elseif kind == "AutoFarm" then
 		local head = Instance.new("Frame")
 		head.Size = UDim2.fromOffset(14,10)
-		head.Position = UDim2.fromOffset(2,6)
+		head.Position = UDim2.fromOffset(3,7)
 		head.BackgroundTransparency = 1
 		head.Parent = h
+
 		local hs = Instance.new("UIStroke")
 		hs.Color = color
 		hs.Thickness = 1.4
 		hs.Parent = head
+
 		local hc = Instance.new("UICorner")
 		hc.CornerRadius = UDim.new(0,3)
 		hc.Parent = head
 
-		NewLine(h,1.4,4,9,3.5,0,color,2)
-		NewLine(h,5,1.4,9,1.5,0,color,2)
+		NewLine(h,1.4,4,10,4.5,0,color,2)
+		NewLine(h,5,1.4,10,2.5,0,color,2)
 
-		for _,x in ipairs({6,12}) do
+		for _,x in ipairs({7,13}) do
 			local dot = Instance.new("Frame")
 			dot.Size = UDim2.fromOffset(2.4,2.4)
-			dot.Position = UDim2.fromOffset(x-1.2,9.8)
+			dot.Position = UDim2.fromOffset(x-1.2,10.8)
 			dot.BackgroundColor3 = color
 			dot.BorderSizePixel = 0
 			dot.Parent = h
+
 			local dc = Instance.new("UICorner")
 			dc.CornerRadius = UDim.new(1,0)
 			dc.Parent = dot
@@ -443,13 +477,13 @@ local function AddSidebarButton(name,label,order)
 	-- Dedicated icon slot on the far left.
 	local icon = CreateSidebarIcon(btn,name,COLORS.Muted)
 	icon.AnchorPoint = Vector2.new(0,0.5)
-	icon.Position = UDim2.new(0,9,0.5,0)
+	icon.Position = UDim2.new(0,8,0.5,0)
 
 	-- Dedicated label slot so the icon can never sit on top of the name.
 	local textLabel = Instance.new("TextLabel")
 	textLabel.Name = "Label"
-	textLabel.Size = UDim2.new(1,-42,1,0)
-	textLabel.Position = UDim2.fromOffset(38,0)
+	textLabel.Size = UDim2.new(1,-45,1,0)
+	textLabel.Position = UDim2.fromOffset(41,0)
 	textLabel.BackgroundTransparency = 1
 	textLabel.Text = label
 	textLabel.TextXAlignment = Enum.TextXAlignment.Left
