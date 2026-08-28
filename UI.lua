@@ -599,6 +599,75 @@ function MM2.UI.CreateToggle(parent,titleText,description,flagName,callback)
 end
 
 --============================================================
+-- ACTION FEATURE BUILDER
+-- Card-style one-shot action with title + description.
+--============================================================
+
+function MM2.UI.CreateActionFeature(parent,titleText,description,callback)
+	local card = Instance.new("Frame")
+	card.Size = UDim2.new(1,0,0,64)
+	card.BackgroundColor3 = COLORS.Card
+	card.BorderSizePixel = 0
+	card.Parent = parent
+
+	local corner = Instance.new("UICorner")
+	corner.CornerRadius = UDim.new(0,11)
+	corner.Parent = card
+
+	local stroke = Instance.new("UIStroke")
+	stroke.Color = COLORS.Stroke
+	stroke.Transparency = 0.45
+	stroke.Thickness = 1
+	stroke.Parent = card
+
+	local title = Instance.new("TextLabel")
+	title.Size = UDim2.new(1,-112,0,22)
+	title.Position = UDim2.fromOffset(14,10)
+	title.BackgroundTransparency = 1
+	title.TextXAlignment = Enum.TextXAlignment.Left
+	title.Text = titleText
+	title.TextColor3 = COLORS.Text
+	title.TextSize = 12
+	title.Font = Enum.Font.GothamBold
+	title.Parent = card
+
+	local desc = Instance.new("TextLabel")
+	desc.Size = UDim2.new(1,-112,0,18)
+	desc.Position = UDim2.fromOffset(14,34)
+	desc.BackgroundTransparency = 1
+	desc.TextXAlignment = Enum.TextXAlignment.Left
+	desc.Text = description or ""
+	desc.TextColor3 = COLORS.Muted
+	desc.TextSize = 9
+	desc.Font = Enum.Font.Gotham
+	desc.Parent = card
+
+	local action = Instance.new("TextButton")
+	action.Size = UDim2.fromOffset(82,32)
+	action.Position = UDim2.new(1,-96,0.5,-16)
+	action.BackgroundColor3 = COLORS.Accent
+	action.BorderSizePixel = 0
+	action.Text = "TRIGGER"
+	action.TextColor3 = COLORS.Text
+	action.TextSize = 9
+	action.Font = Enum.Font.GothamBold
+	action.AutoButtonColor = false
+	action.Parent = card
+
+	local actionCorner = Instance.new("UICorner")
+	actionCorner.CornerRadius = UDim.new(0,9)
+	actionCorner.Parent = action
+
+	Track(action.MouseButton1Click:Connect(function()
+		if callback then
+			task.spawn(callback)
+		end
+	end))
+
+	return card,action
+end
+
+--============================================================
 -- ACTION BUTTON BUILDER
 --============================================================
 
@@ -646,9 +715,11 @@ function MM2.UI.CreateMovableCircleButton(name,icon,labelText,startPosition,call
 	button.BackgroundColor3 = Color3.fromRGB(16,20,29)
 	button.BackgroundTransparency = 0.08
 	button.BorderSizePixel = 0
-	button.Text = icon or ""
+	local hasIcon = icon ~= nil and tostring(icon) ~= ""
+	button.Text = hasIcon and tostring(icon) or tostring(labelText or name)
 	button.TextColor3 = COLORS.Text
-	button.TextSize = 22
+	button.TextSize = hasIcon and 22 or 9
+	button.TextWrapped = not hasIcon
 	button.Font = Enum.Font.GothamBold
 	button.AutoButtonColor = false
 	button.Active = true
@@ -666,6 +737,7 @@ function MM2.UI.CreateMovableCircleButton(name,icon,labelText,startPosition,call
 	label.Position = UDim2.fromOffset(0,59)
 	label.BackgroundTransparency = 1
 	label.Text = labelText or name
+	label.Visible = hasIcon
 	label.TextColor3 = COLORS.Text
 	label.TextTransparency = 0.05
 	label.TextSize = 9
