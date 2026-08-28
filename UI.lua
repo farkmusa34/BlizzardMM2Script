@@ -418,6 +418,7 @@ function MM2.UI.ShowPage(name)
 		end
 	end
 end
+
 local function AddSidebarButton(name,label,order)
 	local btn = Instance.new("TextButton")
 	btn.Name = name
