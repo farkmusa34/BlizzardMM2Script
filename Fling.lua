@@ -14,6 +14,34 @@ local Track = MM2.Track
 
 UI.AddSection(UI.FlingPage, "Fling", "Choose a target or use quick-role actions")
 
+local Flags = MM2.Flags
+Flags.ShowFlingMurdererButton = false
+Flags.ShowFlingSheriffButton = false
+
+UI.CreateToggle(
+	UI.FlingPage,
+	"Fling Murderer",
+	"Show fling murderer button",
+	"ShowFlingMurdererButton",
+	function(on)
+		if MM2.UI.FloatingFlingMurdererHolder then
+			MM2.UI.FloatingFlingMurdererHolder.Visible = on
+		end
+	end
+)
+
+UI.CreateToggle(
+	UI.FlingPage,
+	"Fling Sheriff",
+	"Show fling sheriff button",
+	"ShowFlingSheriffButton",
+	function(on)
+		if MM2.UI.FloatingFlingSheriffHolder then
+			MM2.UI.FloatingFlingSheriffHolder.Visible = on
+		end
+	end
+)
+
 local FLING_DURATION = 1.30
 local FLING_HUGE = 900000000
 local FLING_FORCE_NAME = "MarbegFlingVelocity"
@@ -199,27 +227,31 @@ end
 -- These replace the two large Murderer/Sheriff page buttons and use the
 -- exact same ExecuteYeet/FlingRole engine below the UI.
 if UI.CreateMovableCircleButton then
-	local FloatingFlingSheriffButton = UI.CreateMovableCircleButton(
+	local FloatingFlingSheriffButton,FloatingFlingSheriffHolder = UI.CreateMovableCircleButton(
 		"FloatingFlingSheriff",
-		"🔫",
-		"FLING SHERIFF",
+		"",
+		"fling sheriff",
 		UDim2.new(0.78,-52,0.78,-42),
 		function()
 			FlingRole("Sheriff","sheriff")
 		end
 	)
+	FloatingFlingSheriffHolder.Visible = false
 	MM2.UI.FloatingFlingSheriffButton = FloatingFlingSheriffButton
+	MM2.UI.FloatingFlingSheriffHolder = FloatingFlingSheriffHolder
 
-	local FloatingFlingMurdererButton = UI.CreateMovableCircleButton(
+	local FloatingFlingMurdererButton,FloatingFlingMurdererHolder = UI.CreateMovableCircleButton(
 		"FloatingFlingMurderer",
-		"🔪",
-		"FLING MURDERER",
+		"",
+		"fling murderer",
 		UDim2.new(0.89,-52,0.78,-42),
 		function()
 			FlingRole("Murderer","murderer")
 		end
 	)
+	FloatingFlingMurdererHolder.Visible = false
 	MM2.UI.FloatingFlingMurdererButton = FloatingFlingMurdererButton
+	MM2.UI.FloatingFlingMurdererHolder = FloatingFlingMurdererHolder
 end
 
 UI.CreateActionButton(
