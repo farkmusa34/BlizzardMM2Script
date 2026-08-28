@@ -254,9 +254,10 @@ if UI.CreateMovableCircleButton then
 	MM2.UI.FloatingFlingMurdererHolder = FloatingFlingMurdererHolder
 end
 
-UI.CreateActionButton(
+UI.CreateActionFeature(
 	UI.FlingPage,
-	"FLING HERO — Throws the hero away",
+	"Fling Hero",
+	"Throws the hero away",
 	function() FlingRole("Hero","hero") end
 )
 
@@ -353,25 +354,24 @@ Track(DropdownButton.MouseButton1Click:Connect(function()
 	DropdownList.Visible = not DropdownList.Visible
 end))
 
-UI.CreateActionButton(
+UI.CreateActionFeature(
 	UI.FlingPage,
-	"FLING SELECTED PLAYER — Throws the selected player away",
+	"Fling Selected Player",
+	"Throws the selected player away",
 	function()
 		if not MM2.State.SelectedFlingTarget then
 			MM2.Notify("Select a target first.",2)
 			return
 		end
-		task.spawn(function()
-			ExecuteYeet(MM2.State.SelectedFlingTarget)
-		end)
+		ExecuteYeet(MM2.State.SelectedFlingTarget)
 	end
 )
 
-UI.CreateActionButton(
+UI.CreateActionFeature(
 	UI.FlingPage,
-	"STOP FLING",
-	StopFling,
-	"danger"
+	"Stop Fling",
+	"Stops the current fling",
+	StopFling
 )
 
 return MM2
