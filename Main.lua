@@ -1,5 +1,5 @@
 --============================================================
--- MM2 V8.5 SPLIT BUILD - Main.lua
+-- MM2 V8.6.3 SPLIT BUILD - Main.lua
 --
 -- Load order:
 -- 1. Shared.lua
@@ -21,12 +21,20 @@ local LocalPlayer = MM2.LocalPlayer
 local Flags = MM2.Flags
 local Track = MM2.Track
 
+--============================================================
+-- SERVER ROLE UPDATES
+--============================================================
+
 task.spawn(function()
 	while MM2.Running do
 		MM2.UpdateServerRoles()
 		task.wait(0.2)
 	end
 end)
+
+--============================================================
+-- MAIN UPDATE LOOP
+--============================================================
 
 task.spawn(function()
 	while MM2.Running do
@@ -51,21 +59,37 @@ task.spawn(function()
 		end
 
 		local _,humanoid = MM2.GetLocalCharacter()
+
 		if humanoid then
-			if math.abs(humanoid.WalkSpeed - MM2.PlayerSettings.WalkSpeed) > 0.01 then
-				humanoid.WalkSpeed = MM2.PlayerSettings.WalkSpeed
+			if math.abs(
+				humanoid.WalkSpeed -
+				MM2.PlayerSettings.WalkSpeed
+			) > 0.01 then
+
+				humanoid.WalkSpeed =
+					MM2.PlayerSettings.WalkSpeed
 			end
 
 			humanoid.UseJumpPower = true
 
-			if math.abs(humanoid.JumpPower - MM2.PlayerSettings.JumpPower) > 0.01 then
-				humanoid.JumpPower = MM2.PlayerSettings.JumpPower
+			if math.abs(
+				humanoid.JumpPower -
+				MM2.PlayerSettings.JumpPower
+			) > 0.01 then
+
+				humanoid.JumpPower =
+					MM2.PlayerSettings.JumpPower
 			end
 		end
 	end
 end)
 
+--============================================================
+-- PLAYER REMOVING
+--============================================================
+
 Track(Players.PlayerRemoving:Connect(function(player)
+
 	if MM2.Functions.RemovePlayerESP then
 		MM2.Functions.RemovePlayerESP(player)
 	end
@@ -79,55 +103,109 @@ Track(Players.PlayerRemoving:Connect(function(player)
 	MM2.State.PlayerOutOfRound[player.Name] = nil
 
 	if MM2.State.SelectedFlingTarget == player then
+
 		MM2.State.SelectedFlingTarget = nil
+
 		if MM2.UI.TargetStatus then
 			MM2.UI.TargetStatus.Text = "None"
 		end
 	end
 end))
 
-Track(workspace:GetPropertyChangedSignal("CurrentCamera"):Connect(function()
-	if workspace.CurrentCamera then
-		MM2.Camera = workspace.CurrentCamera
-	end
-end))
+--============================================================
+-- CAMERA UPDATE
+--============================================================
+
+Track(
+	workspace:GetPropertyChangedSignal(
+		"CurrentCamera"
+	):Connect(function()
+
+		if workspace.CurrentCamera then
+			MM2.Camera = workspace.CurrentCamera
+		end
+	end)
+)
+
+--============================================================
+-- CLEANUP
+--============================================================
 
 function MM2.Cleanup()
-	if not MM2.Running then return end
+
+	if not MM2.Running then
+		return
+	end
 
 	MM2.Running = false
 	MM2.State.Is_Picking_Up = false
+
+	-- Disable active features
 
 	Flags.AutoGrab = false
 	Flags.AutoFarm = false
 	Flags.Fly = false
 	Flags.Noclip = false
 
+	-- New combat feature cleanup
+
+	Flags.KillAll = false
+
+	--========================================================
+	-- STOP FLING
+	--========================================================
+
 	if MM2.Functions.StopFling then
 		MM2.Functions.StopFling()
 	end
+
+	--========================================================
+	-- STOP AUTO FARM
+	--========================================================
 
 	if MM2.Functions.StopAutoFarm then
 		MM2.Functions.StopAutoFarm()
 	end
 
+	--========================================================
+	-- STOP FLY
+	--========================================================
+
 	if MM2.Functions.StopFly then
 		MM2.Functions.StopFly()
 	end
+
+	--========================================================
+	-- STOP PLAYER NOCLIP
+	--========================================================
 
 	if MM2.Functions.StopPlayerNoclip then
 		MM2.Functions.StopPlayerNoclip()
 	end
 
+	--========================================================
+	-- REMOVE COMBAT RENDER STEP
+	--========================================================
+
 	pcall(function()
-		RunService:UnbindFromRenderStep("MM2_V8_CombatFeatures")
+		RunService:UnbindFromRenderStep(
+			"MM2_V8_CombatFeatures"
+		)
 	end)
+
+	--========================================================
+	-- DISCONNECT CONNECTIONS
+	--========================================================
 
 	for _,conn in ipairs(MM2.Connections) do
 		pcall(function()
 			conn:Disconnect()
 		end)
 	end
+
+	--========================================================
+	-- CLEAR ESP
+	--========================================================
 
 	if MM2.Functions.ClearPlayerESP then
 		MM2.Functions.ClearPlayerESP()
@@ -141,6 +219,10 @@ function MM2.Cleanup()
 		MM2.Functions.ClearTracers()
 	end
 
+	--========================================================
+	-- DESTROY UI
+	--========================================================
+
 	if MM2.UI.ScreenGui then
 		MM2.UI.ScreenGui:Destroy()
 	end
@@ -153,6 +235,10 @@ function MM2.Cleanup()
 		MM2.UI.TracerGui:Destroy()
 	end
 
+	--========================================================
+	-- CLEAR GLOBAL
+	--========================================================
+
 	if getgenv then
 		getgenv().MM2_V85_SPLIT = nil
 	else
@@ -160,11 +246,25 @@ function MM2.Cleanup()
 	end
 end
 
+--============================================================
+-- GLOBAL CLEANUP ACCESS
+--============================================================
+
 if getgenv then
 	getgenv().MM2_V8_Cleanup = MM2.Cleanup
 end
 
-MM2.UI.ShowPage("Visuals")
-MM2.Notify("Murder Mystery 2 Script V8.5 split build loaded",2)
+--============================================================
+-- STARTUP
+--============================================================
 
-print("[MM2 V8.5 SPLIT] ALL MODULES LOADED")
+MM2.UI.ShowPage("Visuals")
+
+MM2.Notify(
+	"Murder Mystery 2 Script V8.6.3 split build loaded",
+	2
+)
+
+print("[MM2 V8.6.3 SPLIT] ALL MODULES LOADED")
+
+return MM2
