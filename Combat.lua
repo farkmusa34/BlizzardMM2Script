@@ -17,6 +17,7 @@ local Track = MM2.Track
 UI.AddSection(UI.CombatPage, "Combat", "Aim, pickup and weapon features")
 UI.CreateToggle(UI.CombatPage, "TriggerBot", "Fire when the crosshair is on the murderer", "TriggerBot")
 UI.CreateToggle(UI.CombatPage, "Aim Lock", "Torso aim lock in first-person / lock-center", "AimLock")
+UI.CreateToggle(UI.CombatPage, "Rage Throw", "Automatically throws the knife at the closest player", "RageThrow")
 UI.CreateToggle(UI.CombatPage, "Auto Grab Gun", "Automatically grabs the gun without moving your body", "AutoGrab")
 UI.CreateToggle(
 	UI.CombatPage,
@@ -343,6 +344,96 @@ MM2.Functions.ShootMurderer = function()
 
 	return success,message
 end
+
+--============================================================
+-- RAGE THROW
+-- Closest live-player knife throw using the diagnosed KnifeThrown
+-- two-CFrame call. Only runs while a usable Knife exists.
+--============================================================
+
+local LastRageThrow = 0
+
+local function GetRageThrowTargetPart(character)
+	if not character then return nil end
+	return character:FindFirstChild("UpperTorso")
+		or character:FindFirstChild("Torso")
+		or character:FindFirstChild("HumanoidRootPart")
+end
+
+local function FindClosestRageTarget()
+	local character = LocalPlayer.Character
+	local hrp = character and character:FindFirstChild("HumanoidRootPart")
+	if not hrp then return nil,nil end
+
+	local bestPlayer,bestPart,bestDistance = nil,nil,math.huge
+	for _,player in ipairs(Players:GetPlayers()) do
+		if player ~= LocalPlayer then
+			local targetCharacter = player.Character
+			local humanoid = targetCharacter and targetCharacter:FindFirstChildOfClass("Humanoid")
+			local part = GetRageThrowTargetPart(targetCharacter)
+			if humanoid and humanoid.Health > 0 and part then
+				local distance = (part.Position-hrp.Position).Magnitude
+				if distance < bestDistance then
+					bestDistance,bestPlayer,bestPart = distance,player,part
+				end
+			end
+		end
+	end
+	return bestPlayer,bestPart
+end
+
+local function RageThrowOnce()
+	local character = LocalPlayer.Character
+	local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+	local hrp = character and character:FindFirstChild("HumanoidRootPart")
+	if not character or not humanoid or humanoid.Health <= 0 or not hrp then return false end
+
+	local knife = character:FindFirstChild("Knife")
+	if not knife then
+		local backpack = LocalPlayer:FindFirstChildOfClass("Backpack")
+		local stowed = backpack and backpack:FindFirstChild("Knife")
+		if stowed then
+			pcall(function() humanoid:EquipTool(stowed) end)
+			task.wait(0.03)
+			knife = character:FindFirstChild("Knife")
+		end
+	end
+	if not knife or knife:GetAttribute("Disabled") == true then return false end
+
+	local events = knife:FindFirstChild("Events")
+	local thrown = events and events:FindFirstChild("KnifeThrown")
+	if not thrown or not thrown:IsA("RemoteEvent") then return false end
+
+	local cooldown = 1.05 * (tonumber(knife:GetAttribute("ThrowSpeed")) or 1)
+	if os.clock()-LastRageThrow < cooldown then return false end
+
+	local _,targetPart = FindClosestRageTarget()
+	if not targetPart then return false end
+
+	local target = targetPart.Position
+	local direction = target-hrp.Position
+	direction = direction.Magnitude > 0.1 and direction.Unit or Vector3.new(0,0,-1)
+
+	LastRageThrow = os.clock()
+	local ok = pcall(function()
+		thrown:FireServer(
+			CFrame.new(target-direction*2,target),
+			CFrame.new(target)
+		)
+	end)
+	return ok
+end
+
+MM2.Functions.RageThrowOnce = RageThrowOnce
+
+task.spawn(function()
+	while MM2.Running do
+		if Flags.RageThrow then
+			RageThrowOnce()
+		end
+		task.wait(0.03)
+	end
+end)
 
 --============================================================
 -- KILL ALL
