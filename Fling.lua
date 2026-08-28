@@ -195,15 +195,25 @@ local function FlingRole(role,label)
 	MM2.Notify("No "..label.." target found.",2)
 end
 
--- One-tap role actions in the Fling page.
--- These use the existing FlingRole -> ExecuteYeet engine.
-UI.CreateActionFeature(
-	UI.FlingPage,
-	"Fling Sheriff",
-	"Flings the current sheriff",
-	function() FlingRole("Sheriff","sheriff") end
-)
+local function FlingSheriffOrHero()
+	for _,player in ipairs(Players:GetPlayers()) do
+		if player ~= LocalPlayer and MM2.State.ServerRolesCache[player.Name] == "Sheriff" then
+			task.spawn(function() ExecuteYeet(player) end)
+			return
+		end
+	end
 
+	for _,player in ipairs(Players:GetPlayers()) do
+		if player ~= LocalPlayer and MM2.State.ServerRolesCache[player.Name] == "Hero" then
+			task.spawn(function() ExecuteYeet(player) end)
+			return
+		end
+	end
+
+	MM2.Notify("No sheriff/hero target found.",2)
+end
+
+-- One-tap role actions.
 UI.CreateActionFeature(
 	UI.FlingPage,
 	"Fling Murderer",
@@ -213,10 +223,143 @@ UI.CreateActionFeature(
 
 UI.CreateActionFeature(
 	UI.FlingPage,
+	"Fling Sheriff",
+	"Flings the current sheriff",
+	function() FlingRole("Sheriff","sheriff") end
+)
+
+UI.CreateActionFeature(
+	UI.FlingPage,
 	"Fling Hero",
 	"Flings the current hero",
 	function() FlingRole("Hero","hero") end
 )
+
+-- Original movable on-screen role buttons.
+if UI.CreateMovableCircleButton then
+	local FloatingFlingSheriffButton,FloatingFlingSheriffHolder = UI.CreateMovableCircleButton(
+		"FloatingFlingSheriff",
+		"",
+		"fling sheriff/hero",
+		UDim2.new(0.78,-52,0.78,-42),
+		function()
+			FlingSheriffOrHero()
+		end
+	)
+	FloatingFlingSheriffHolder.Visible = false
+	MM2.UI.FloatingFlingSheriffButton = FloatingFlingSheriffButton
+	MM2.UI.FloatingFlingSheriffHolder = FloatingFlingSheriffHolder
+
+	local FloatingFlingMurdererButton,FloatingFlingMurdererHolder = UI.CreateMovableCircleButton(
+		"FloatingFlingMurderer",
+		"",
+		"fling murderer",
+		UDim2.new(0.89,-52,0.78,-42),
+		function()
+			FlingRole("Murderer","murderer")
+		end
+	)
+	FloatingFlingMurdererHolder.Visible = false
+	MM2.UI.FloatingFlingMurdererButton = FloatingFlingMurdererButton
+	MM2.UI.FloatingFlingMurdererHolder = FloatingFlingMurdererHolder
+end
+
+-- Collapsible Fling Buttons dropdown.
+local Flags = MM2.Flags
+Flags.ShowFlingMurdererButton = false
+Flags.ShowFlingSheriffButton = false
+
+local FlingButtonsDropdown = Instance.new("Frame")
+FlingButtonsDropdown.Name = "FlingButtonsDropdown"
+FlingButtonsDropdown.Size = UDim2.new(1,0,0,42)
+FlingButtonsDropdown.BackgroundColor3 = UI.COLORS.Card
+FlingButtonsDropdown.BorderSizePixel = 0
+FlingButtonsDropdown.ClipsDescendants = true
+FlingButtonsDropdown.Parent = UI.FlingPage
+
+local FlingButtonsCorner = Instance.new("UICorner")
+FlingButtonsCorner.CornerRadius = UDim.new(0,11)
+FlingButtonsCorner.Parent = FlingButtonsDropdown
+
+local FlingButtonsStroke = Instance.new("UIStroke")
+FlingButtonsStroke.Color = UI.COLORS.Stroke
+FlingButtonsStroke.Transparency = 0.45
+FlingButtonsStroke.Thickness = 1
+FlingButtonsStroke.Parent = FlingButtonsDropdown
+
+local FlingButtonsHeader = Instance.new("TextButton")
+FlingButtonsHeader.Name = "Header"
+FlingButtonsHeader.Size = UDim2.new(1,0,0,42)
+FlingButtonsHeader.BackgroundTransparency = 1
+FlingButtonsHeader.Text = ""
+FlingButtonsHeader.AutoButtonColor = false
+FlingButtonsHeader.Parent = FlingButtonsDropdown
+
+local FlingButtonsTitle = Instance.new("TextLabel")
+FlingButtonsTitle.Size = UDim2.new(1,-54,1,0)
+FlingButtonsTitle.Position = UDim2.fromOffset(14,0)
+FlingButtonsTitle.BackgroundTransparency = 1
+FlingButtonsTitle.TextXAlignment = Enum.TextXAlignment.Left
+FlingButtonsTitle.Text = "Fling Buttons"
+FlingButtonsTitle.TextColor3 = UI.COLORS.Text
+FlingButtonsTitle.TextSize = 12
+FlingButtonsTitle.Font = Enum.Font.GothamBold
+FlingButtonsTitle.Parent = FlingButtonsHeader
+
+local FlingButtonsArrow = Instance.new("TextLabel")
+FlingButtonsArrow.Size = UDim2.fromOffset(32,42)
+FlingButtonsArrow.Position = UDim2.new(1,-42,0,0)
+FlingButtonsArrow.BackgroundTransparency = 1
+FlingButtonsArrow.Text = "⌄"
+FlingButtonsArrow.TextColor3 = UI.COLORS.Muted
+FlingButtonsArrow.TextSize = 18
+FlingButtonsArrow.Font = Enum.Font.GothamBold
+FlingButtonsArrow.Parent = FlingButtonsHeader
+
+local FlingButtonsBody = Instance.new("Frame")
+FlingButtonsBody.Name = "Body"
+FlingButtonsBody.Size = UDim2.new(1,-16,0,138)
+FlingButtonsBody.Position = UDim2.fromOffset(8,48)
+FlingButtonsBody.BackgroundTransparency = 1
+FlingButtonsBody.Visible = false
+FlingButtonsBody.Parent = FlingButtonsDropdown
+
+local FlingButtonsLayout = Instance.new("UIListLayout")
+FlingButtonsLayout.Padding = UDim.new(0,10)
+FlingButtonsLayout.SortOrder = Enum.SortOrder.LayoutOrder
+FlingButtonsLayout.Parent = FlingButtonsBody
+
+UI.CreateToggle(
+	FlingButtonsBody,
+	"Fling Murderer",
+	"Show fling murderer button",
+	"ShowFlingMurdererButton",
+	function(on)
+		if MM2.UI.FloatingFlingMurdererHolder then
+			MM2.UI.FloatingFlingMurdererHolder.Visible = on
+		end
+	end
+)
+
+UI.CreateToggle(
+	FlingButtonsBody,
+	"Fling Sheriff/Hero",
+	"Show fling sheriff/hero button",
+	"ShowFlingSheriffButton",
+	function(on)
+		if MM2.UI.FloatingFlingSheriffHolder then
+			MM2.UI.FloatingFlingSheriffHolder.Visible = on
+		end
+	end
+)
+
+local FlingButtonsOpen = false
+Track(FlingButtonsHeader.MouseButton1Click:Connect(function()
+	FlingButtonsOpen = not FlingButtonsOpen
+	FlingButtonsBody.Visible = FlingButtonsOpen
+	FlingButtonsDropdown.Size = FlingButtonsOpen and UDim2.new(1,0,0,194) or UDim2.new(1,0,0,42)
+	FlingButtonsArrow.Text = FlingButtonsOpen and "⌃" or "⌄"
+end))
 
 local TargetCard = Instance.new("Frame")
 TargetCard.Size = UDim2.new(1,0,0,112)
