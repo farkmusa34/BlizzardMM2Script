@@ -118,7 +118,34 @@ local function CreateSnowflake(parent,size,color)
 	holder.Size = UDim2.fromOffset(size,size)
 	holder.BackgroundTransparency = 1
 	holder.Parent = parent
-	for _,r in ipairs({0,60,120}) do NewLine(holder,size*0.74,2,size/2,size/2,r,color,3) end
+
+	local cx,cy = size/2,size/2
+	local armLength = size*0.78
+	local thickness = math.max(1.4,size*0.075)
+
+	-- Six main arms.
+	for _,rotation in ipairs({0,60,120}) do
+		NewLine(holder,armLength,thickness,cx,cy,rotation,color,3)
+	end
+
+	-- Branches on each arm make this read as a real snowflake,
+	-- instead of the old simple asterisk.
+	for _,rotation in ipairs({0,60,120,180,240,300}) do
+		local rad = math.rad(rotation)
+		local branchCenterX = cx + math.cos(rad)*(size*0.27)
+		local branchCenterY = cy + math.sin(rad)*(size*0.27)
+
+		NewLine(holder,size*0.22,thickness*0.82,
+			branchCenterX + math.cos(math.rad(rotation+35))*(size*0.045),
+			branchCenterY + math.sin(math.rad(rotation+35))*(size*0.045),
+			rotation+35,color,3)
+
+		NewLine(holder,size*0.22,thickness*0.82,
+			branchCenterX + math.cos(math.rad(rotation-35))*(size*0.045),
+			branchCenterY + math.sin(math.rad(rotation-35))*(size*0.045),
+			rotation-35,color,3)
+	end
+
 	return holder
 end
 
@@ -244,8 +271,8 @@ DragHandle.Text = "≡"; DragHandle.TextColor3 = COLORS.Muted; DragHandle.TextSi
 local FloatDivider = Instance.new("Frame")
 FloatDivider.Size = UDim2.fromOffset(1,24); FloatDivider.Position = UDim2.fromOffset(38,8); FloatDivider.BackgroundColor3 = COLORS.Stroke; FloatDivider.BackgroundTransparency = 0.15; FloatDivider.BorderSizePixel = 0; FloatDivider.Parent = Floating
 
-local ToolbarSnowflake = CreateSnowflake(Floating,22,COLORS.Text)
-ToolbarSnowflake.Position = UDim2.fromOffset(51,9)
+local ToolbarSnowflake = CreateSnowflake(Floating,20,COLORS.Text)
+ToolbarSnowflake.Position = UDim2.fromOffset(47,10)
 
 local OpenButton = Instance.new("TextButton")
 OpenButton.Size = UDim2.new(1,-72,1,0); OpenButton.Position = UDim2.fromOffset(70,0); OpenButton.BackgroundTransparency = 1
@@ -271,7 +298,7 @@ end
 Track(CloseButton.MouseButton1Click:Connect(function() MainFrame.Visible = false end))
 Track(OpenButton.MouseButton1Click:Connect(function() MainFrame.Visible = not MainFrame.Visible end))
 
-local Pages, TabButtons, TabIcons = {}, {}, {}
+local Pages, TabButtons, TabIcons, TabLabels = {}, {}, {}, {}
 MM2.UI.Pages, MM2.UI.TabButtons = Pages, TabButtons
 
 local function NewPage(name)
@@ -297,12 +324,20 @@ function MM2.UI.ShowPage(name)
 		local active = tabName == name
 		btn.BackgroundColor3 = active and COLORS.Card or Color3.fromRGB(0,0,0)
 		btn.BackgroundTransparency = active and 0 or 1
-		btn.TextColor3 = active and COLORS.Text or COLORS.Muted
+
+		local label = TabLabels[tabName]
+		if label then
+			label.TextColor3 = active and COLORS.Text or COLORS.Muted
+		end
+
 		local icon = TabIcons[tabName]
 		if icon then
 			for _,obj in ipairs(icon:GetDescendants()) do
-				if obj:IsA("Frame") and obj.BackgroundTransparency < 1 then obj.BackgroundColor3 = active and COLORS.Accent or COLORS.Muted
-				elseif obj:IsA("UIStroke") then obj.Color = active and COLORS.Accent or COLORS.Muted end
+				if obj:IsA("Frame") and obj.BackgroundTransparency < 1 then
+					obj.BackgroundColor3 = active and COLORS.Accent or COLORS.Muted
+				elseif obj:IsA("UIStroke") then
+					obj.Color = active and COLORS.Accent or COLORS.Muted
+				end
 			end
 		end
 	end
@@ -310,13 +345,45 @@ end
 
 local function AddSidebarButton(name,label,order)
 	local btn = Instance.new("TextButton")
-	btn.Name = name; btn.Size = UDim2.new(1,-12,0,34); btn.Position = UDim2.fromOffset(6,8+((order-1)*38)); btn.BackgroundTransparency = 1; btn.BorderSizePixel = 0
-	btn.Text = label; btn.TextXAlignment = Enum.TextXAlignment.Left; btn.TextColor3 = COLORS.Muted; btn.TextSize = 10; btn.Font = Enum.Font.GothamBold; btn.AutoButtonColor = false; btn.Parent = Sidebar
-	local padding = Instance.new("UIPadding"); padding.PaddingLeft = UDim.new(0,34); padding.Parent = btn
-	local c = Instance.new("UICorner"); c.CornerRadius = UDim.new(0,9); c.Parent = btn
-	local icon = CreateSidebarIcon(btn,name,COLORS.Muted); icon.Position = UDim2.fromOffset(9,8)
-	TabButtons[name],TabIcons[name] = btn,icon
-	Track(btn.MouseButton1Click:Connect(function() MM2.UI.ShowPage(name) end))
+	btn.Name = name
+	btn.Size = UDim2.new(1,-12,0,34)
+	btn.Position = UDim2.fromOffset(6,8+((order-1)*38))
+	btn.BackgroundTransparency = 1
+	btn.BorderSizePixel = 0
+	btn.Text = ""
+	btn.AutoButtonColor = false
+	btn.Parent = Sidebar
+
+	local c = Instance.new("UICorner")
+	c.CornerRadius = UDim.new(0,9)
+	c.Parent = btn
+
+	-- Dedicated icon slot on the far left.
+	local icon = CreateSidebarIcon(btn,name,COLORS.Muted)
+	icon.AnchorPoint = Vector2.new(0,0.5)
+	icon.Position = UDim2.new(0,9,0.5,0)
+
+	-- Dedicated label slot so the icon can never sit on top of the name.
+	local textLabel = Instance.new("TextLabel")
+	textLabel.Name = "Label"
+	textLabel.Size = UDim2.new(1,-42,1,0)
+	textLabel.Position = UDim2.fromOffset(38,0)
+	textLabel.BackgroundTransparency = 1
+	textLabel.Text = label
+	textLabel.TextXAlignment = Enum.TextXAlignment.Left
+	textLabel.TextYAlignment = Enum.TextYAlignment.Center
+	textLabel.TextColor3 = COLORS.Muted
+	textLabel.TextSize = 10
+	textLabel.Font = Enum.Font.GothamBold
+	textLabel.Parent = btn
+
+	TabButtons[name] = btn
+	TabIcons[name] = icon
+	TabLabels[name] = textLabel
+
+	Track(btn.MouseButton1Click:Connect(function()
+		MM2.UI.ShowPage(name)
+	end))
 end
 
 AddSidebarButton("Visuals","Visuals",1)
