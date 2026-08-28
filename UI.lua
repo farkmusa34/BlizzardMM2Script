@@ -154,37 +154,98 @@ local function CreateSidebarIcon(parent,kind,color)
 	h.Size = UDim2.fromOffset(18,18)
 	h.BackgroundTransparency = 1
 	h.Parent = parent
+
 	if kind == "Visuals" then
-		local eye = Instance.new("Frame")
-		eye.Size = UDim2.fromOffset(16,10); eye.Position = UDim2.fromOffset(1,4); eye.BackgroundTransparency = 1; eye.Parent = h
-		local s = Instance.new("UIStroke"); s.Color = color; s.Thickness = 1.5; s.Parent = eye
-		local c = Instance.new("UICorner"); c.CornerRadius = UDim.new(1,0); c.Parent = eye
-		local pupil = Instance.new("Frame"); pupil.Size = UDim2.fromOffset(5,5); pupil.Position = UDim2.fromOffset(6.5,6.5); pupil.BackgroundColor3 = color; pupil.BorderSizePixel = 0; pupil.Parent = h
-		local pc = Instance.new("UICorner"); pc.CornerRadius = UDim.new(1,0); pc.Parent = pupil
+		-- Almond-shaped eye: four angled lids + centered pupil.
+		NewLine(h,9,1.5,5.4,6.3,-28,color,2)
+		NewLine(h,9,1.5,12.6,6.3,28,color,2)
+		NewLine(h,9,1.5,5.4,11.7,28,color,2)
+		NewLine(h,9,1.5,12.6,11.7,-28,color,2)
+		local pupil = Instance.new("Frame")
+		pupil.Size = UDim2.fromOffset(4.5,4.5)
+		pupil.Position = UDim2.fromOffset(6.75,6.75)
+		pupil.BackgroundColor3 = color
+		pupil.BorderSizePixel = 0
+		pupil.Parent = h
+		local pc = Instance.new("UICorner")
+		pc.CornerRadius = UDim.new(1,0)
+		pc.Parent = pupil
+
 	elseif kind == "Combat" then
-		local ring = Instance.new("Frame"); ring.Size = UDim2.fromOffset(12,12); ring.Position = UDim2.fromOffset(3,3); ring.BackgroundTransparency = 1; ring.Parent = h
-		local rs = Instance.new("UIStroke"); rs.Color = color; rs.Thickness = 1.5; rs.Parent = ring
-		local rc = Instance.new("UICorner"); rc.CornerRadius = UDim.new(1,0); rc.Parent = ring
-		NewLine(h,18,1.5,9,9,0,color,2); NewLine(h,18,1.5,9,9,90,color,2)
+		local ring = Instance.new("Frame")
+		ring.Size = UDim2.fromOffset(10,10)
+		ring.Position = UDim2.fromOffset(4,4)
+		ring.BackgroundTransparency = 1
+		ring.Parent = h
+		local rs = Instance.new("UIStroke")
+		rs.Color = color
+		rs.Thickness = 1.4
+		rs.Parent = ring
+		local rc = Instance.new("UICorner")
+		rc.CornerRadius = UDim.new(1,0)
+		rc.Parent = ring
+		NewLine(h,6,1.4,2.5,9,0,color,2)
+		NewLine(h,6,1.4,15.5,9,0,color,2)
+		NewLine(h,6,1.4,9,2.5,90,color,2)
+		NewLine(h,6,1.4,9,15.5,90,color,2)
+
 	elseif kind == "Player" then
-		local head = Instance.new("Frame"); head.Size = UDim2.fromOffset(7,7); head.Position = UDim2.fromOffset(5.5,1); head.BackgroundTransparency = 1; head.Parent = h
-		local hs = Instance.new("UIStroke"); hs.Color = color; hs.Thickness = 1.5; hs.Parent = head
-		local hc = Instance.new("UICorner"); hc.CornerRadius = UDim.new(1,0); hc.Parent = head
-		local body = Instance.new("Frame"); body.Size = UDim2.fromOffset(14,8); body.Position = UDim2.fromOffset(2,10); body.BackgroundTransparency = 1; body.Parent = h
-		local bs = Instance.new("UIStroke"); bs.Color = color; bs.Thickness = 1.5; bs.Parent = body
-		local bc = Instance.new("UICorner"); bc.CornerRadius = UDim.new(1,0); bc.Parent = body
+		local head = Instance.new("Frame")
+		head.Size = UDim2.fromOffset(6.5,6.5)
+		head.Position = UDim2.fromOffset(5.75,1)
+		head.BackgroundTransparency = 1
+		head.Parent = h
+		local hs = Instance.new("UIStroke")
+		hs.Color = color
+		hs.Thickness = 1.4
+		hs.Parent = head
+		local hc = Instance.new("UICorner")
+		hc.CornerRadius = UDim.new(1,0)
+		hc.Parent = head
+
+		NewLine(h,7,1.5,5.5,12.2,-38,color,2)
+		NewLine(h,7,1.5,12.5,12.2,38,color,2)
+		NewLine(h,9,1.5,9,15.1,0,color,2)
+
 	elseif kind == "Fling" then
-		NewLine(h,13,1.5,7.5,5,0,color,2); NewLine(h,16,1.5,9,9,0,color,2); NewLine(h,11,1.5,6.5,13,0,color,2)
+		-- Wind/motion mark with staggered gusts and hooked ends.
+		NewLine(h,11,1.4,6.5,4.5,0,color,2)
+		NewLine(h,4,1.4,14.2,5.8,38,color,2)
+		NewLine(h,15,1.4,8.5,9,0,color,2)
+		NewLine(h,4,1.4,15.3,10.3,-38,color,2)
+		NewLine(h,10,1.4,6,13.5,0,color,2)
+		NewLine(h,3.5,1.4,12.8,14.6,34,color,2)
+
 	elseif kind == "AutoFarm" then
-		local head = Instance.new("Frame"); head.Size = UDim2.fromOffset(14,11); head.Position = UDim2.fromOffset(2,5); head.BackgroundTransparency = 1; head.Parent = h
-		local hs = Instance.new("UIStroke"); hs.Color = color; hs.Thickness = 1.5; hs.Parent = head
-		local hc = Instance.new("UICorner"); hc.CornerRadius = UDim.new(0,3); hc.Parent = head
-		NewLine(h,1.5,4,9,3,0,color,2)
+		local head = Instance.new("Frame")
+		head.Size = UDim2.fromOffset(14,10)
+		head.Position = UDim2.fromOffset(2,6)
+		head.BackgroundTransparency = 1
+		head.Parent = h
+		local hs = Instance.new("UIStroke")
+		hs.Color = color
+		hs.Thickness = 1.4
+		hs.Parent = head
+		local hc = Instance.new("UICorner")
+		hc.CornerRadius = UDim.new(0,3)
+		hc.Parent = head
+
+		NewLine(h,1.4,4,9,3.5,0,color,2)
+		NewLine(h,5,1.4,9,1.5,0,color,2)
+
 		for _,x in ipairs({6,12}) do
-			local dot = Instance.new("Frame"); dot.Size = UDim2.fromOffset(2.5,2.5); dot.Position = UDim2.fromOffset(x-1.25,9); dot.BackgroundColor3 = color; dot.BorderSizePixel = 0; dot.Parent = h
-			local dc = Instance.new("UICorner"); dc.CornerRadius = UDim.new(1,0); dc.Parent = dot
+			local dot = Instance.new("Frame")
+			dot.Size = UDim2.fromOffset(2.4,2.4)
+			dot.Position = UDim2.fromOffset(x-1.2,9.8)
+			dot.BackgroundColor3 = color
+			dot.BorderSizePixel = 0
+			dot.Parent = h
+			local dc = Instance.new("UICorner")
+			dc.CornerRadius = UDim.new(1,0)
+			dc.Parent = dot
 		end
 	end
+
 	return h
 end
 
@@ -254,10 +315,31 @@ if not ToolbarGui.Parent then ToolbarGui.Parent = PlayerGui end
 MM2.UI.ToolbarGui = ToolbarGui
 
 local ToolbarOutline = Instance.new("Frame")
-ToolbarOutline.Name = "FloatingOutline"; ToolbarOutline.Size = UDim2.fromOffset(244,44); ToolbarOutline.Position = UDim2.new(0.5,-122,0.15,-96)
-ToolbarOutline.BackgroundTransparency = 1; ToolbarOutline.BorderSizePixel = 0; ToolbarOutline.Active = true; ToolbarOutline.Parent = ToolbarGui
-local toc = Instance.new("UICorner"); toc.CornerRadius = UDim.new(1,0); toc.Parent = ToolbarOutline
-CreateBlueCyanStroke(ToolbarOutline,2.4,0)
+ToolbarOutline.Name = "FloatingOutline"
+ToolbarOutline.Size = UDim2.fromOffset(244,44)
+ToolbarOutline.Position = UDim2.new(0.5,-122,0.15,-96)
+ToolbarOutline.BackgroundColor3 = Color3.fromRGB(45,140,255)
+ToolbarOutline.BackgroundTransparency = 0
+ToolbarOutline.BorderSizePixel = 0
+ToolbarOutline.Active = true
+ToolbarOutline.Parent = ToolbarGui
+
+local toc = Instance.new("UICorner")
+toc.CornerRadius = UDim.new(1,0)
+toc.Parent = ToolbarOutline
+
+-- A real 2px gradient shell, rather than a stroke on a transparent frame.
+-- This guarantees the cyan/blue border is visible.
+local ToolbarGradient = Instance.new("UIGradient")
+ToolbarGradient.Color = ColorSequence.new({
+	ColorSequenceKeypoint.new(0.00,Color3.fromRGB(10,55,170)),
+	ColorSequenceKeypoint.new(0.35,Color3.fromRGB(45,140,255)),
+	ColorSequenceKeypoint.new(0.65,Color3.fromRGB(75,200,255)),
+	ColorSequenceKeypoint.new(0.85,Color3.fromRGB(35,245,255)),
+	ColorSequenceKeypoint.new(1.00,Color3.fromRGB(10,55,170)),
+})
+ToolbarGradient.Parent = ToolbarOutline
+BlueCyanGradients[#BlueCyanGradients+1] = ToolbarGradient
 
 local Floating = Instance.new("Frame")
 Floating.Name = "FloatingOpener"; Floating.Size = UDim2.fromOffset(240,40); Floating.Position = UDim2.fromOffset(2,2)
