@@ -1,7 +1,7 @@
 --============================================================
--- MM2 V8.7.1 - AutoFarm.lua
+-- MM2 V8.7.4 - AutoFarm.lua
 -- Coin Farm V12.1 contact sweep.
--- V8.7.1: smooth +6 stud bag-full lift + Anti Disconnect.
+-- V8.7.4: Farm Speed + After Bag Full actions + Coin Rate stats.
 --============================================================
 
 local MM2 = getgenv and getgenv().MM2_V85_SPLIT or _G.MM2_V85_SPLIT
@@ -14,9 +14,25 @@ local UI = MM2.UI
 local VirtualUser = game:GetService("VirtualUser")
 
 Flags.AntiDisconnect = Flags.AntiDisconnect == true
+Flags.FarmSpeed = math.clamp(tonumber(Flags.FarmSpeed) or 25,5,25)
+Flags.KillAllAfterBagFull = Flags.KillAllAfterBagFull == true
+Flags.ShootMurdererAfterBagFull = Flags.ShootMurdererAfterBagFull == true
+Flags.FlingMurdererAfterBagFull = Flags.FlingMurdererAfterBagFull == true
+Flags.ResetCharacterAfterBagFull = Flags.ResetCharacterAfterBagFull == true
+Flags.StayUndergroundAfterBagFull = Flags.StayUndergroundAfterBagFull == true
 
 UI.AddSection(UI.AutoFarmPage, "Auto Farm", "Coin Farm V12.1 contact-sweep controls")
 UI.CreateToggle(UI.AutoFarmPage, "Auto Farm Coins", "Automatically farms coins for you", "AutoFarm")
+UI.CreateSlider(
+	UI.AutoFarmPage,
+	"Farm Speed",
+	"Adjusts auto-farm movement speed",
+	function() return Flags.FarmSpeed end,
+	function(value)
+		Flags.FarmSpeed = math.clamp(tonumber(value) or 25,5,25)
+	end,
+	5,25,1
+)
 
 local AntiDisconnectConnection = nil
 local function SetAntiDisconnect(on)
@@ -78,6 +94,11 @@ local FarmBagMax = 40
 local FarmBagFull = false
 local FarmBagLiftInProgress = false
 local FarmBagLiftDone = false
+local FarmAfterBagFullHandled = false
+
+local FarmStatsCoins = 0
+local FarmStatsStartedAt = nil
+local FarmLastReportedBagCount = 0
 
 local FarmCharacter = nil
 local FarmHumanoid = nil
@@ -193,7 +214,7 @@ local function FarmEnsureMovement()
 	FarmPositionAlign.Name = "FarmAlign"
 	FarmPositionAlign.Mode = Enum.PositionAlignmentMode.OneAttachment
 	FarmPositionAlign.Attachment0 = FarmAttachment
-	FarmPositionAlign.MaxVelocity = FARM_MAX_VELOCITY
+	FarmPositionAlign.MaxVelocity = math.clamp(tonumber(Flags.FarmSpeed) or FARM_MAX_VELOCITY,5,FARM_MAX_VELOCITY)
 	FarmPositionAlign.Responsiveness = FARM_RESPONSIVENESS
 	FarmPositionAlign.MaxForce = FARM_MAX_FORCE
 	FarmPositionAlign.ApplyAtCenterOfMass = true
@@ -348,12 +369,78 @@ local function FarmCheckCollection(coin,coinPos)
 	return false
 end
 
+local function FarmFindMurderer()
+	for _,player in ipairs(MM2.Services.Players:GetPlayers()) do
+		if player ~= LocalPlayer and MM2.State.ServerRolesCache[player.Name] == "Murderer" then
+			local character = player.Character
+			local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+			if humanoid and humanoid.Health > 0 then return player end
+		end
+	end
+	return nil
+end
+
+local function FarmRunAfterBagFullActions()
+	if FarmAfterBagFullHandled then return end
+	FarmAfterBagFullHandled = true
+
+	-- Each option is independent. Missing weapons simply make that action wait/skip;
+	-- the toggle stays enabled for the next bag-full event.
+	if Flags.KillAllAfterBagFull and MM2.Functions.KillAllOnce then
+		task.spawn(function()
+			pcall(MM2.Functions.KillAllOnce)
+		end)
+	end
+
+	if Flags.ShootMurdererAfterBagFull and MM2.Functions.ShootMurderer then
+		task.spawn(function()
+			while MM2.Running and Flags.AutoFarm and FarmBagFull and Flags.ShootMurdererAfterBagFull do
+				local murderer = FarmFindMurderer()
+				if not murderer then break end
+				local ok,success,message = pcall(MM2.Functions.ShootMurderer)
+				if not ok then break end
+				-- No Gun is not treated as an error: leave the feature enabled and
+				-- retry during this bag-full window in case a gun becomes available.
+				if message == "No Murderer" then break end
+				local retryDelay = (message == "Cooldown" or message == "Busy" or message == "No Gun") and 0.20 or 0.12
+				task.wait(retryDelay)
+			end
+		end)
+	end
+
+	if Flags.FlingMurdererAfterBagFull and MM2.Functions.ExecuteYeet then
+		task.spawn(function()
+			local murderer = FarmFindMurderer()
+			if murderer then pcall(MM2.Functions.ExecuteYeet,murderer) end
+		end)
+	end
+
+	if Flags.ResetCharacterAfterBagFull then
+		task.spawn(function()
+			task.wait(0.15)
+			local character = LocalPlayer.Character
+			local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+			if humanoid and humanoid.Health > 0 then humanoid.Health = 0 end
+		end)
+	end
+end
+
 local function FarmBeginBagFullLift()
 	if FarmBagLiftInProgress or FarmBagLiftDone then return end
 	FarmBagLiftInProgress = true
 	FarmPaused = true
 	FarmPauseReason = "BAG FULL"
 	FarmReleaseTarget()
+
+	FarmRunAfterBagFullActions()
+
+	-- Stay Underground intentionally keeps the current farm position/noclip
+	-- instead of performing the normal +6 stud bag-full lift.
+	if Flags.StayUndergroundAfterBagFull then
+		FarmBagLiftInProgress = false
+		FarmBagLiftDone = true
+		return
+	end
 
 	task.spawn(function()
 		if not FarmUpdateCharacter() or not FarmEnsureMovement() then
@@ -475,6 +562,10 @@ local function FarmLoop()
 			continue
 		end
 
+		if FarmPositionAlign then
+			FarmPositionAlign.MaxVelocity = math.clamp(tonumber(Flags.FarmSpeed) or FARM_MAX_VELOCITY,5,FARM_MAX_VELOCITY)
+		end
+
 		local now = os.clock()
 		local dt = math.clamp(now-lastLoop,0,0.05)
 		lastLoop = now
@@ -506,6 +597,7 @@ function MM2.Functions.StartAutoFarm()
 	FarmPauseReason = nil
 	FarmBagLiftInProgress = false
 	FarmBagLiftDone = false
+	FarmAfterBagFullHandled = false
 	FarmSafeReturnCFrame = nil
 	FarmCurrentCoin = nil
 	FarmCurrentTouch = nil
@@ -522,6 +614,7 @@ function MM2.Functions.StopAutoFarm()
 	FarmPauseReason = nil
 	FarmBagLiftInProgress = false
 	FarmBagLiftDone = false
+	FarmAfterBagFullHandled = false
 
 	-- Manual stop retains the old emergency return behavior.
 	FarmReturnToSafePosition()
@@ -538,6 +631,67 @@ function MM2.Functions.UpdateAutoFarm()
 		MM2.Functions.StopAutoFarm()
 	end
 end
+
+UI.AddSection(UI.AutoFarmPage, "After Bag Full", "Choose what happens when your coin bag fills")
+UI.CreateToggle(UI.AutoFarmPage, "Kill All After Bag Full", "Uses Kill All after bag full", "KillAllAfterBagFull")
+UI.CreateToggle(UI.AutoFarmPage, "Shoot Murderer After Bag Full", "Repeatedly shoots murderer until they go down", "ShootMurdererAfterBagFull")
+UI.CreateToggle(UI.AutoFarmPage, "Fling Murderer After Bag Full", "Throws away the murderer after bag full", "FlingMurdererAfterBagFull")
+UI.CreateToggle(UI.AutoFarmPage, "Reset Character After Bag Full", "Resets your character after bag full", "ResetCharacterAfterBagFull")
+UI.CreateToggle(UI.AutoFarmPage, "Stay Underground After Bag Full", "Protects you from the murderer after bag full", "StayUndergroundAfterBagFull")
+
+UI.AddSection(UI.AutoFarmPage, "Stats", "Coin farming statistics")
+
+local CoinRateCard = Instance.new("Frame")
+CoinRateCard.Size = UDim2.new(1,0,0,64)
+CoinRateCard.BackgroundColor3 = UI.COLORS.Card
+CoinRateCard.BorderSizePixel = 0
+CoinRateCard.Parent = UI.AutoFarmPage
+local CoinRateCorner = Instance.new("UICorner")
+CoinRateCorner.CornerRadius = UDim.new(0,11)
+CoinRateCorner.Parent = CoinRateCard
+local CoinRateStroke = Instance.new("UIStroke")
+CoinRateStroke.Color = UI.COLORS.Stroke
+CoinRateStroke.Transparency = 0.45
+CoinRateStroke.Parent = CoinRateCard
+local CoinRateTitle = Instance.new("TextLabel")
+CoinRateTitle.Size = UDim2.new(1,-28,0,20)
+CoinRateTitle.Position = UDim2.fromOffset(14,10)
+CoinRateTitle.BackgroundTransparency = 1
+CoinRateTitle.TextXAlignment = Enum.TextXAlignment.Left
+CoinRateTitle.Text = "Coin Rate"
+CoinRateTitle.TextColor3 = UI.COLORS.Text
+CoinRateTitle.TextSize = 12
+CoinRateTitle.Font = Enum.Font.GothamBold
+CoinRateTitle.Parent = CoinRateCard
+local CoinRateValue = Instance.new("TextLabel")
+CoinRateValue.Size = UDim2.new(1,-28,0,18)
+CoinRateValue.Position = UDim2.fromOffset(14,34)
+CoinRateValue.BackgroundTransparency = 1
+CoinRateValue.TextXAlignment = Enum.TextXAlignment.Left
+CoinRateValue.Text = "0 coins/min"
+CoinRateValue.TextColor3 = UI.COLORS.Muted
+CoinRateValue.TextSize = 10
+CoinRateValue.Font = Enum.Font.Gotham
+CoinRateValue.Parent = CoinRateCard
+
+local function FarmResetStats()
+	FarmStatsCoins = 0
+	FarmStatsStartedAt = nil
+	FarmLastReportedBagCount = FarmBagCount
+	CoinRateValue.Text = "0 coins/min"
+end
+
+UI.CreateActionFeature(UI.AutoFarmPage, "Reset Stats", "Resets coin rate statistics", FarmResetStats)
+
+MM2.Track(RunService.Heartbeat:Connect(function()
+	if not FarmStatsStartedAt or FarmStatsCoins <= 0 then
+		CoinRateValue.Text = "0 coins/min"
+		return
+	end
+	local elapsed = math.max(os.clock()-FarmStatsStartedAt,1)
+	local rate = FarmStatsCoins/(elapsed/60)
+	CoinRateValue.Text = string.format("%.1f coins/min",rate)
+end))
 
 local ReplicatedStorage = MM2.Services.ReplicatedStorage
 local Track = MM2.Track
@@ -556,7 +710,14 @@ if FarmCoinCollected and FarmCoinCollected:IsA("RemoteEvent") then
 		local current = tonumber(args[2])
 		local maximum = tonumber(args[3])
 		if maximum and maximum > 0 then FarmBagMax = maximum end
-		if current then FarmBagCount = current end
+		if current then
+			if current > FarmLastReportedBagCount then
+				FarmStatsCoins += current-FarmLastReportedBagCount
+				FarmStatsStartedAt = FarmStatsStartedAt or os.clock()
+			end
+			FarmLastReportedBagCount = current
+			FarmBagCount = current
+		end
 		FarmBagFull = FarmBagCount >= FarmBagMax
 
 		if Flags.AutoFarm and FarmBagFull then
@@ -567,11 +728,13 @@ end
 
 local function FarmResetBag()
 	FarmBagCount = 0
+	FarmLastReportedBagCount = 0
 	FarmBagFull = false
 	FarmPaused = false
 	FarmPauseReason = nil
 	FarmBagLiftInProgress = false
 	FarmBagLiftDone = false
+	FarmAfterBagFullHandled = false
 	FarmSafeReturnCFrame = nil
 end
 
