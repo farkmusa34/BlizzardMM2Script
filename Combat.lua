@@ -14,55 +14,47 @@ local Flags = MM2.Flags
 local UI = MM2.UI
 local Track = MM2.Track
 
-UI.AddSection(UI.CombatPage, "Combat", "Aim, pickup and weapon features")
+UI.AddSection(UI.CombatPage, "Aim", "Crosshair and aiming features")
 UI.CreateToggle(UI.CombatPage, "TriggerBot", "Fire when the crosshair is on the murderer", "TriggerBot")
 UI.CreateToggle(UI.CombatPage, "Aim Lock", "Torso aim lock in first-person / lock-center", "AimLock")
-UI.CreateToggle(UI.CombatPage, "Rage Throw", "Automatically throws the knife at the closest player", "RageThrow")
+
+UI.AddSection(UI.CombatPage, "Sheriff", "Legit and rage gun features")
+UI.CreateActionFeature(UI.CombatPage, "Legit Shoot Murderer", "Shoots only with a clear line of sight", function()
+    local ok,success,message = pcall(function() return MM2.Functions.ShootMurdererLegit() end)
+    if not ok then MM2.Notify("Legit Shoot error",2)
+    elseif message and message ~= "Cooldown" then MM2.Notify(message,1.5) end
+end)
+UI.CreateActionFeature(UI.CombatPage, "Rage Shoot Murderer", "Shoots the murderer without a line-of-sight check", function()
+    local ok,success,message = pcall(function() return MM2.Functions.ShootMurderer() end)
+    if not ok then MM2.Notify("Rage Shoot error",2)
+    elseif message and message ~= "Cooldown" then MM2.Notify(message,1.5) end
+end)
+UI.CreateToggle(UI.CombatPage, "Show Legit Shoot Button", "Show the Legit Shoot Murderer button", "ShowLegitShootButton", function(on)
+    if MM2.UI.FloatingLegitShootButton then MM2.UI.FloatingLegitShootButton.Visible = on end
+end)
+UI.CreateToggle(UI.CombatPage, "Show Rage Shoot Button", "Show the Rage Shoot Murderer button", "ShowShootButton", function(on)
+    if MM2.UI.FloatingShootButton then MM2.UI.FloatingShootButton.Visible = on end
+end)
 UI.CreateToggle(UI.CombatPage, "Auto Grab Gun", "Automatically grabs the gun without moving your body", "AutoGrab")
-UI.CreateToggle(
-	UI.CombatPage,
-	"Floating Shoot Button",
-	"Show the Shoot Murderer button",
-	"ShowShootButton",
-	function(on)
-		if MM2.UI.FloatingShootButton then
-			MM2.UI.FloatingShootButton.Visible = on
-		end
-	end
-)
 
-Flags.ShowKillAllButton = false
-
-if UI.CreateActionFeature then
-	UI.CreateActionFeature(
-		UI.CombatPage,
-		"Kill All",
-		"Stabs everyone when murderer",
-		function()
-			if MM2.Functions.KillAllOnce then
-				local ok,success,message = pcall(MM2.Functions.KillAllOnce)
-				if not ok then
-					warn("[MM2 KILL ALL ACTION]",success)
-					MM2.Notify("Kill All error",2)
-				elseif message and message ~= "Cooldown" then
-					MM2.Notify(message,1.5)
-				end
-			end
-		end
-	)
-end
-
-UI.CreateToggle(
-	UI.CombatPage,
-	"Show Kill All Button",
-	"stab all button",
-	"ShowKillAllButton",
-	function(on)
-		if MM2.UI.FloatingKillAllHolder then
-			MM2.UI.FloatingKillAllHolder.Visible = on
-		end
-	end
-)
+UI.AddSection(UI.CombatPage, "Murderer", "Legit and rage knife features")
+UI.CreateToggle(UI.CombatPage, "Legit Throw", "Automatically throws only at visible players", "LegitThrow")
+UI.CreateToggle(UI.CombatPage, "Rage Throw", "Automatically throws at the closest player through walls", "RageThrow")
+UI.CreateActionFeature(UI.CombatPage, "Kill All", "Stabs everyone when murderer", function()
+    if MM2.Functions.KillAllOnce then
+        local ok,success,message = pcall(MM2.Functions.KillAllOnce)
+        if not ok then
+            warn("[MM2 KILL ALL ACTION]",success)
+            MM2.Notify("Kill All error",2)
+        elseif message and message ~= "Cooldown" then
+            MM2.Notify(message,1.5)
+        end
+    end
+end)
+Flags.ShowKillAllButton = Flags.ShowKillAllButton == true
+UI.CreateToggle(UI.CombatPage, "Show Kill All Button", "stab all button", "ShowKillAllButton", function(on)
+    if MM2.UI.FloatingKillAllHolder then MM2.UI.FloatingKillAllHolder.Visible = on end
+end)
 
 local CrosshairDot = Instance.new("Frame")
 CrosshairDot.Name = "CrosshairDot"
@@ -119,6 +111,25 @@ local function FindLiveMurderer()
 		end
 	end
 	return nil
+end
+
+local function HasClearLineOfSight(targetPart)
+	local character = LocalPlayer.Character
+	if not character or not targetPart or not targetPart.Parent then return false end
+
+	local originPart = character:FindFirstChild("Head") or character:FindFirstChild("HumanoidRootPart")
+	if not originPart then return false end
+
+	local direction = targetPart.Position-originPart.Position
+	if direction.Magnitude <= 0.1 then return true end
+
+	local params = RaycastParams.new()
+	params.FilterType = Enum.RaycastFilterType.Exclude
+	params.FilterDescendantsInstances = {character}
+	params.IgnoreWater = true
+
+	local result = workspace:Raycast(originPart.Position,direction,params)
+	return result == nil or result.Instance:IsDescendantOf(targetPart.Parent)
 end
 
 local function IsAimLockAllowed()
@@ -345,6 +356,42 @@ MM2.Functions.ShootMurderer = function()
 	return success,message
 end
 
+-- Legit sheriff shot: same proven gun/equip path, but requires a clear ray to the murderer.
+MM2.Functions.ShootMurdererLegit = function()
+	if ShootBusy then return false,"Busy" end
+	local now = os.clock()
+	if now-LastManualShot < SHOT_COOLDOWN then return false,"Cooldown" end
+
+	ShootBusy = true
+	local ok,success,message = pcall(function()
+		local murderer = FindLiveMurderer()
+		if not murderer then return false,"No Murderer" end
+
+		local torso = GetCombatTorso(murderer.Character)
+		if not torso then return false,"No Target" end
+		if not HasClearLineOfSight(torso) then return false,"Blocked" end
+
+		local gun = EnsureCombatGun()
+		if not gun then return false,"No Gun" end
+		task.wait(0.12)
+
+		if not IsLivePlayer(murderer) then return false,"No Murderer" end
+		torso = GetCombatTorso(murderer.Character)
+		if not torso then return false,"No Target" end
+		if not HasClearLineOfSight(torso) then return false,"Blocked" end
+
+		if not FireCombatGun(gun,torso.Position) then return false,"Shot Failed" end
+		LastManualShot = os.clock()
+		return true,"Shot Fired"
+	end)
+	ShootBusy = false
+	if not ok then
+		warn("[MM2 LEGIT SHOOT ERROR]",success)
+		return false,"Error"
+	end
+	return success,message
+end
+
 --============================================================
 -- RAGE THROW
 -- Closest live-player knife throw using the diagnosed KnifeThrown
@@ -426,11 +473,72 @@ end
 
 MM2.Functions.RageThrowOnce = RageThrowOnce
 
+local LastLegitThrow = 0
+
+local function FindClosestLegitTarget()
+	local character = LocalPlayer.Character
+	local hrp = character and character:FindFirstChild("HumanoidRootPart")
+	if not hrp then return nil,nil end
+
+	local bestPlayer,bestPart,bestDistance = nil,nil,math.huge
+	for _,player in ipairs(Players:GetPlayers()) do
+		if player ~= LocalPlayer then
+			local targetCharacter = player.Character
+			local humanoid = targetCharacter and targetCharacter:FindFirstChildOfClass("Humanoid")
+			local part = GetRageThrowTargetPart(targetCharacter)
+			if humanoid and humanoid.Health > 0 and part and HasClearLineOfSight(part) then
+				local distance = (part.Position-hrp.Position).Magnitude
+				if distance < bestDistance then
+					bestDistance,bestPlayer,bestPart = distance,player,part
+				end
+			end
+		end
+	end
+	return bestPlayer,bestPart
+end
+
+local function LegitThrowOnce()
+	local character = LocalPlayer.Character
+	local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+	local hrp = character and character:FindFirstChild("HumanoidRootPart")
+	if not character or not humanoid or humanoid.Health <= 0 or not hrp then return false end
+
+	local knife = character:FindFirstChild("Knife")
+	if not knife then
+		local backpack = LocalPlayer:FindFirstChildOfClass("Backpack")
+		local stowed = backpack and backpack:FindFirstChild("Knife")
+		if stowed then
+			pcall(function() humanoid:EquipTool(stowed) end)
+			task.wait(0.03)
+			knife = character:FindFirstChild("Knife")
+		end
+	end
+	if not knife or knife:GetAttribute("Disabled") == true then return false end
+
+	local events = knife:FindFirstChild("Events")
+	local thrown = events and events:FindFirstChild("KnifeThrown")
+	if not thrown or not thrown:IsA("RemoteEvent") then return false end
+
+	local cooldown = 1.05 * (tonumber(knife:GetAttribute("ThrowSpeed")) or 1)
+	if os.clock()-LastLegitThrow < cooldown then return false end
+
+	local _,targetPart = FindClosestLegitTarget()
+	if not targetPart or not HasClearLineOfSight(targetPart) then return false end
+
+	local target = targetPart.Position
+	local direction = target-hrp.Position
+	direction = direction.Magnitude > 0.1 and direction.Unit or Vector3.new(0,0,-1)
+	LastLegitThrow = os.clock()
+	return pcall(function()
+		thrown:FireServer(CFrame.new(target-direction*2,target),CFrame.new(target))
+	end)
+end
+MM2.Functions.LegitThrowOnce = LegitThrowOnce
+
 task.spawn(function()
 	while MM2.Running do
-		if Flags.RageThrow then
-			RageThrowOnce()
-		end
+		if Flags.LegitThrow then LegitThrowOnce() end
+		if Flags.RageThrow then RageThrowOnce() end
 		task.wait(0.03)
 	end
 end)
@@ -645,7 +753,7 @@ FloatingShootButton.Size = UDim2.fromOffset(190,60)
 FloatingShootButton.BackgroundColor3 = UI.COLORS.Card
 FloatingShootButton.BackgroundTransparency = 0.12
 FloatingShootButton.BorderSizePixel = 0
-FloatingShootButton.Text = "Shoot Murderer"
+FloatingShootButton.Text = "Rage Shoot Murderer"
 FloatingShootButton.TextColor3 = UI.COLORS.Text
 FloatingShootButton.Font = Enum.Font.GothamBold
 FloatingShootButton.TextSize = 15
@@ -656,6 +764,7 @@ FloatingShootButton.Visible = false
 FloatingShootButton.ZIndex = 300
 FloatingShootButton.Parent = UI.ScreenGui
 MM2.UI.FloatingShootButton = FloatingShootButton
+FloatingShootButton.Visible = Flags.ShowShootButton == true
 
 local c = Instance.new("UICorner")
 c.CornerRadius = UDim.new(0,18)
@@ -691,9 +800,54 @@ Track(FloatingShootButton.MouseButton1Click:Connect(function()
 
 		task.delay(1,function()
 			if FloatingShootButton and FloatingShootButton.Parent then
-				FloatingShootButton.Text = "Shoot Murderer"
+				FloatingShootButton.Text = "Rage Shoot Murderer"
 			end
 		end)
+	end)
+end))
+
+-- Legit Shoot floating button. Uses the same gun path but refuses blocked targets.
+local FloatingLegitShootButton = Instance.new("TextButton")
+FloatingLegitShootButton.Name = "FloatingLegitShootMurderer"
+FloatingLegitShootButton.AnchorPoint = Vector2.new(0.5,0.5)
+FloatingLegitShootButton.Position = UDim2.new(0.78,0,0.64,0)
+FloatingLegitShootButton.Size = UDim2.fromOffset(190,60)
+FloatingLegitShootButton.BackgroundColor3 = UI.COLORS.Card
+FloatingLegitShootButton.BackgroundTransparency = 0.12
+FloatingLegitShootButton.BorderSizePixel = 0
+FloatingLegitShootButton.Text = "Legit Shoot Murderer"
+FloatingLegitShootButton.TextColor3 = UI.COLORS.Text
+FloatingLegitShootButton.Font = Enum.Font.GothamBold
+FloatingLegitShootButton.TextSize = 15
+FloatingLegitShootButton.AutoButtonColor = true
+FloatingLegitShootButton.Active = true
+FloatingLegitShootButton.Draggable = false
+FloatingLegitShootButton.Visible = false
+FloatingLegitShootButton.ZIndex = 300
+FloatingLegitShootButton.Parent = UI.ScreenGui
+MM2.UI.FloatingLegitShootButton = FloatingLegitShootButton
+FloatingLegitShootButton.Visible = Flags.ShowLegitShootButton == true
+
+local legitCorner = Instance.new("UICorner")
+legitCorner.CornerRadius = UDim.new(0,18)
+legitCorner.Parent = FloatingLegitShootButton
+local legitStroke = Instance.new("UIStroke")
+legitStroke.Color = UI.COLORS.Accent
+legitStroke.Thickness = 1.4
+legitStroke.Transparency = 0.2
+legitStroke.Parent = FloatingLegitShootButton
+
+Track(FloatingLegitShootButton.MouseButton1Click:Connect(function()
+	task.spawn(function()
+		local ok,success,message = pcall(function() return MM2.Functions.ShootMurdererLegit() end)
+		if FloatingLegitShootButton and FloatingLegitShootButton.Parent then
+			FloatingLegitShootButton.Text = ok and tostring(message or (success and "Shot Fired" or "Shot Failed")) or "Error"
+			task.delay(1,function()
+				if FloatingLegitShootButton and FloatingLegitShootButton.Parent then
+					FloatingLegitShootButton.Text = "Legit Shoot Murderer"
+				end
+			end)
+		end
 	end)
 end))
 
