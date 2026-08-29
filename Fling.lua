@@ -12,7 +12,7 @@ local LocalPlayer = MM2.LocalPlayer
 local UI = MM2.UI
 local Track = MM2.Track
 
-UI.AddSection(UI.FlingPage, "Quick Role Actions", "One-tap role fling actions")
+UI.AddSection(UI.FlingPage, "One-Tap Fling Role Actions", "Role and selected-player fling actions")
 
 local FLING_DURATION = 1.30
 local FLING_HUGE = 900000000
@@ -264,75 +264,14 @@ if UI.CreateMovableCircleButton then
 	MM2.UI.FloatingFlingMurdererHolder = FloatingFlingMurdererHolder
 end
 
--- Fling Buttons section.
+-- On-screen fling button state.
 local Flags = MM2.Flags
 Flags.ShowFlingMurdererButton = Flags.ShowFlingMurdererButton == true
 Flags.ShowFlingSheriffButton = Flags.ShowFlingSheriffButton == true
 Flags.AntiFling = Flags.AntiFling == true
 
-UI.AddSection(
-	UI.FlingPage,
-	"Fling Buttons",
-	"Movable on-screen fling controls"
-)
-
-UI.CreateToggle(
-	UI.FlingPage,
-	"Fling Murderer Button",
-	"Show the movable fling murderer button",
-	"ShowFlingMurdererButton",
-	function(on)
-		if MM2.UI.FloatingFlingMurdererHolder then
-			MM2.UI.FloatingFlingMurdererHolder.Visible = on
-		end
-	end
-)
-
-UI.CreateToggle(
-	UI.FlingPage,
-	"Fling Sheriff/Hero Button",
-	"Show the movable fling sheriff/hero button",
-	"ShowFlingSheriffButton",
-	function(on)
-		if MM2.UI.FloatingFlingSheriffHolder then
-			MM2.UI.FloatingFlingSheriffHolder.Visible = on
-		end
-	end
-)
-
--- Protection section.
-UI.AddSection(
-	UI.FlingPage,
-	"Protection",
-	"Defensive fling protection"
-)
-
 local ANTI_FLING_LINEAR_LIMIT = 80
 local ANTI_FLING_ANGULAR_LIMIT = 25
-
-UI.CreateToggle(
-	UI.FlingPage,
-	"Anti Fling",
-	"Prevents you from getting thrown away",
-	"AntiFling",
-	function(on)
-		if not on or FlingRunning then return end
-
-		local _,humanoid,hrp = MM2.GetLocalCharacter()
-		if hrp then
-			hrp.AssemblyAngularVelocity = Vector3.zero
-			if hrp.AssemblyLinearVelocity.Magnitude > ANTI_FLING_LINEAR_LIMIT then
-				hrp.AssemblyLinearVelocity = Vector3.zero
-			end
-		end
-
-		if humanoid then
-			pcall(function()
-				humanoid:ChangeState(Enum.HumanoidStateType.GettingUp)
-			end)
-		end
-	end
-)
 
 -- Anti Fling intentionally pauses while ExecuteYeet is running so it never
 -- fights the user's own fling physics.
@@ -472,6 +411,79 @@ UI.CreateActionFeature(
 	"Stop Fling",
 	"Stops the current fling",
 	StopFling
+)
+
+
+UI.CreateActionFeature(
+	UI.FlingPage,
+	"Refresh Player List",
+	"Refreshes the selectable player list",
+	function()
+		RefreshPlayerDropdown()
+		MM2.Notify("Player list refreshed.",1.5)
+	end
+)
+
+-- Movable on-screen fling controls.
+UI.AddSection(
+	UI.FlingPage,
+	"On Screen Buttons",
+	"Movable fling controls shown on your screen"
+)
+
+UI.CreateToggle(
+	UI.FlingPage,
+	"Fling Murderer Button",
+	"Show the movable fling murderer button",
+	"ShowFlingMurdererButton",
+	function(on)
+		if MM2.UI.FloatingFlingMurdererHolder then
+			MM2.UI.FloatingFlingMurdererHolder.Visible = on
+		end
+	end
+)
+
+UI.CreateToggle(
+	UI.FlingPage,
+	"Fling Sheriff/Hero Button",
+	"Show the movable fling sheriff/hero button",
+	"ShowFlingSheriffButton",
+	function(on)
+		if MM2.UI.FloatingFlingSheriffHolder then
+			MM2.UI.FloatingFlingSheriffHolder.Visible = on
+		end
+	end
+)
+
+-- Protection is intentionally the final section.
+UI.AddSection(
+	UI.FlingPage,
+	"Protection",
+	"Defensive fling protection"
+)
+
+UI.CreateToggle(
+	UI.FlingPage,
+	"Anti Fling",
+	"Prevents you from getting thrown away",
+	"AntiFling",
+	function(on)
+		if not on or FlingRunning then return end
+
+		local _,humanoid,hrp = MM2.GetLocalCharacter()
+		if hrp then
+			hrp.AssemblyAngularVelocity = Vector3.zero
+			if hrp.AssemblyLinearVelocity.Magnitude > ANTI_FLING_LINEAR_LIMIT then
+				hrp.AssemblyLinearVelocity = Vector3.zero
+			end
+		end
+
+		if humanoid then
+			pcall(function()
+				humanoid:ChangeState(Enum.HumanoidStateType.GettingUp)
+			end)
+		end
+	end
 )
 
 return MM2
