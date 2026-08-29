@@ -1,6 +1,7 @@
 --============================================================
--- MM2 V8.7.1 UI
+-- MM2 V8.7.2 UI
 -- Dashboard, tabs, toolbar, builders.
+-- Toggle registry added so mutually-exclusive toggles stay visually synced.
 --============================================================
 
 local MM2 = getgenv and getgenv().MM2_V85_SPLIT or _G.MM2_V85_SPLIT
@@ -47,6 +48,28 @@ local COLORS = {
 MM2.UI.ScreenGui = ScreenGui
 MM2.UI.COLORS = COLORS
 
+-- NEW: central registry for all toggle controls.
+MM2.UI.ToggleRegistry = MM2.UI.ToggleRegistry or {}
+
+function MM2.UI.SetToggleState(flagName, value, runCallback)
+	value = value == true
+	Flags[flagName] = value
+
+	local entry = MM2.UI.ToggleRegistry[flagName]
+	if entry and entry.Render then
+		entry.Render(value, false)
+	end
+
+	if runCallback and entry and entry.Callback then
+		task.spawn(entry.Callback, value)
+	end
+
+	return value
+end
+
+-- Compatibility alias for Combat.lua's fallback.
+MM2.UI.SetToggle = MM2.UI.SetToggleState
+
 local MainFrame = Instance.new("Frame")
 MainFrame.Name = "Dashboard"
 MainFrame.Size = UDim2.fromOffset(518,345)
@@ -91,7 +114,11 @@ task.spawn(function()
 		rotation = (rotation + 1) % 360
 		for i = #BlueCyanGradients,1,-1 do
 			local gradient = BlueCyanGradients[i]
-			if gradient and gradient.Parent then gradient.Rotation = rotation else table.remove(BlueCyanGradients,i) end
+			if gradient and gradient.Parent then
+				gradient.Rotation = rotation
+			else
+				table.remove(BlueCyanGradients,i)
+			end
 		end
 		task.wait(0.03)
 	end
@@ -123,13 +150,10 @@ local function CreateSnowflake(parent,size,color)
 	local armLength = size*0.78
 	local thickness = math.max(1.4,size*0.075)
 
-	-- Six main arms.
 	for _,rotation in ipairs({0,60,120}) do
 		NewLine(holder,armLength,thickness,cx,cy,rotation,color,3)
 	end
 
-	-- Branches on each arm make this read as a real snowflake,
-	-- instead of the old simple asterisk.
 	for _,rotation in ipairs({0,60,120,180,240,300}) do
 		local rad = math.rad(rotation)
 		local branchCenterX = cx + math.cos(rad)*(size*0.27)
@@ -156,9 +180,9 @@ local function CreateSidebarIcon(parent,kind,color)
 	h.Parent = parent
 
 	local selectedAssets = {
-		Visuals = 9653613382,      -- Visuals #5
-		Fling = 18164947844,       -- Fling #1
-		Player = 12928483395,      -- Player #2
+		Visuals = 9653613382,
+		Fling = 18164947844,
+		Player = 12928483395,
 	}
 
 	if selectedAssets[kind] then
@@ -255,11 +279,11 @@ Title.TextXAlignment = Enum.TextXAlignment.Left; Title.Text = "Murder Mystery 2 
 
 local Subtitle = Instance.new("TextLabel")
 Subtitle.Size = UDim2.new(0,280,0,18); Subtitle.Position = UDim2.fromOffset(62,29); Subtitle.BackgroundTransparency = 1
-Subtitle.TextXAlignment = Enum.TextXAlignment.Left; Subtitle.Text = "V8.7.1"; Subtitle.TextColor3 = COLORS.Muted; Subtitle.TextSize = 10; Subtitle.Font = Enum.Font.Gotham; Subtitle.Parent = Header
+Subtitle.TextXAlignment = Enum.TextXAlignment.Left; Subtitle.Text = "V8.7.2"; Subtitle.TextColor3 = COLORS.Muted; Subtitle.TextSize = 10; Subtitle.Font = Enum.Font.Gotham; Subtitle.Parent = Header
 
 local VersionLabel = Instance.new("TextLabel")
 VersionLabel.Size = UDim2.fromOffset(52,24); VersionLabel.Position = UDim2.new(1,-100,0,15); VersionLabel.BackgroundColor3 = COLORS.Card; VersionLabel.BorderSizePixel = 0
-VersionLabel.Text = "V8.7.1"; VersionLabel.TextColor3 = COLORS.Muted; VersionLabel.TextSize = 9; VersionLabel.Font = Enum.Font.GothamBold; VersionLabel.Parent = Header
+VersionLabel.Text = "V8.7.2"; VersionLabel.TextColor3 = COLORS.Muted; VersionLabel.TextSize = 9; VersionLabel.Font = Enum.Font.GothamBold; VersionLabel.Parent = Header
 local VersionCorner = Instance.new("UICorner"); VersionCorner.CornerRadius = UDim.new(0,7); VersionCorner.Parent = VersionLabel
 
 local CloseButton = Instance.new("TextButton")
@@ -273,13 +297,18 @@ Divider.Size = UDim2.new(1,-24,0,1); Divider.Position = UDim2.fromOffset(12,54);
 local Sidebar = Instance.new("Frame")
 Sidebar.Size = UDim2.new(0,126,1,-68); Sidebar.Position = UDim2.fromOffset(12,62); Sidebar.BackgroundColor3 = COLORS.Sidebar; Sidebar.BorderSizePixel = 0; Sidebar.Parent = MainFrame
 local SidebarCorner = Instance.new("UICorner"); SidebarCorner.CornerRadius = UDim.new(0,12); SidebarCorner.Parent = Sidebar
+
 local Content = Instance.new("Frame")
 Content.Size = UDim2.new(1,-150,1,-68); Content.Position = UDim2.fromOffset(138,62); Content.BackgroundTransparency = 1; Content.Parent = MainFrame
 
 do
 	local dragging, dragStart, startPos = false,nil,nil
 	Header.InputBegan:Connect(function(input)
-		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then dragging = true; dragStart = input.Position; startPos = MainFrame.Position end
+		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+			dragging = true
+			dragStart = input.Position
+			startPos = MainFrame.Position
+		end
 	end)
 	UIS.InputChanged:Connect(function(input)
 		if not dragging then return end
@@ -289,7 +318,9 @@ do
 		end
 	end)
 	UIS.InputEnded:Connect(function(input)
-		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then dragging = false end
+		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+			dragging = false
+		end
 	end)
 end
 
@@ -313,8 +344,6 @@ local toc = Instance.new("UICorner")
 toc.CornerRadius = UDim.new(1,0)
 toc.Parent = ToolbarOutline
 
--- A real 2px gradient shell, rather than a stroke on a transparent frame.
--- This guarantees the cyan/blue border is visible.
 local ToolbarGradient = Instance.new("UIGradient")
 ToolbarGradient.Color = ColorSequence.new({
 	ColorSequenceKeypoint.new(0.00,Color3.fromRGB(10,55,170)),
@@ -348,7 +377,11 @@ OpenButton.TextXAlignment = Enum.TextXAlignment.Left; OpenButton.Text = "Murder 
 do
 	local dragging, dragStart, startPos = false,nil,nil
 	DragHandle.InputBegan:Connect(function(input)
-		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then dragging = true; dragStart = input.Position; startPos = ToolbarOutline.Position end
+		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+			dragging = true
+			dragStart = input.Position
+			startPos = ToolbarOutline.Position
+		end
 	end)
 	UIS.InputChanged:Connect(function(input)
 		if not dragging then return end
@@ -358,7 +391,9 @@ do
 		end
 	end)
 	UIS.InputEnded:Connect(function(input)
-		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then dragging = false end
+		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+			dragging = false
+		end
 	end)
 end
 
@@ -370,11 +405,32 @@ MM2.UI.Pages, MM2.UI.TabButtons = Pages, TabButtons
 
 local function NewPage(name)
 	local page = Instance.new("ScrollingFrame")
-	page.Name = name .. "Page"; page.Size = UDim2.fromScale(1,1); page.BackgroundTransparency = 1; page.BorderSizePixel = 0
-	page.ScrollBarThickness = 4; page.ScrollBarImageColor3 = COLORS.Stroke; page.CanvasSize = UDim2.fromOffset(0,0); page.Visible = false; page.Parent = Content
-	local layout = Instance.new("UIListLayout"); layout.Padding = UDim.new(0,10); layout.SortOrder = Enum.SortOrder.LayoutOrder; layout.Parent = page
-	local padding = Instance.new("UIPadding"); padding.PaddingTop = UDim.new(0,2); padding.PaddingLeft = UDim.new(0,2); padding.PaddingRight = UDim.new(0,8); padding.PaddingBottom = UDim.new(0,10); padding.Parent = page
-	layout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function() page.CanvasSize = UDim2.fromOffset(0,layout.AbsoluteContentSize.Y+18) end)
+	page.Name = name .. "Page"
+	page.Size = UDim2.fromScale(1,1)
+	page.BackgroundTransparency = 1
+	page.BorderSizePixel = 0
+	page.ScrollBarThickness = 4
+	page.ScrollBarImageColor3 = COLORS.Stroke
+	page.CanvasSize = UDim2.fromOffset(0,0)
+	page.Visible = false
+	page.Parent = Content
+
+	local layout = Instance.new("UIListLayout")
+	layout.Padding = UDim.new(0,10)
+	layout.SortOrder = Enum.SortOrder.LayoutOrder
+	layout.Parent = page
+
+	local padding = Instance.new("UIPadding")
+	padding.PaddingTop = UDim.new(0,2)
+	padding.PaddingLeft = UDim.new(0,2)
+	padding.PaddingRight = UDim.new(0,8)
+	padding.PaddingBottom = UDim.new(0,10)
+	padding.Parent = page
+
+	layout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+		page.CanvasSize = UDim2.fromOffset(0,layout.AbsoluteContentSize.Y+18)
+	end)
+
 	Pages[name] = page
 	return page
 end
@@ -434,12 +490,10 @@ local function AddSidebarButton(name,label,order)
 	c.CornerRadius = UDim.new(0,9)
 	c.Parent = btn
 
-	-- Dedicated icon slot on the far left.
 	local icon = CreateSidebarIcon(btn,name,COLORS.Muted)
 	icon.AnchorPoint = Vector2.new(0,0.5)
 	icon.Position = UDim2.new(0,8,0.5,0)
 
-	-- Dedicated label slot so the icon can never sit on top of the name.
 	local textLabel = Instance.new("TextLabel")
 	textLabel.Name = "Label"
 	textLabel.Size = UDim2.new(1,-45,1,0)
@@ -469,34 +523,152 @@ AddSidebarButton("Fling","Fling",4)
 AddSidebarButton("AutoFarm","Auto Farm",5)
 
 function MM2.UI.AddSection(parent,titleText,subtitleText)
-	local wrap = Instance.new("Frame"); wrap.Size = UDim2.new(1,0,0,subtitleText and 52 or 34); wrap.BackgroundTransparency = 1; wrap.Parent = parent
-	local title = Instance.new("TextLabel"); title.Size = UDim2.new(1,0,0,22); title.BackgroundTransparency = 1; title.TextXAlignment = Enum.TextXAlignment.Left; title.Text = titleText; title.TextColor3 = COLORS.Text; title.TextSize = 14; title.Font = Enum.Font.GothamBold; title.Parent = wrap
+	local wrap = Instance.new("Frame")
+	wrap.Size = UDim2.new(1,0,0,subtitleText and 52 or 34)
+	wrap.BackgroundTransparency = 1
+	wrap.Parent = parent
+
+	local title = Instance.new("TextLabel")
+	title.Size = UDim2.new(1,0,0,22)
+	title.BackgroundTransparency = 1
+	title.TextXAlignment = Enum.TextXAlignment.Left
+	title.Text = titleText
+	title.TextColor3 = COLORS.Text
+	title.TextSize = 14
+	title.Font = Enum.Font.GothamBold
+	title.Parent = wrap
+
 	if subtitleText then
-		local sub = Instance.new("TextLabel"); sub.Size = UDim2.new(1,0,0,20); sub.Position = UDim2.fromOffset(0,24); sub.BackgroundTransparency = 1; sub.TextXAlignment = Enum.TextXAlignment.Left; sub.Text = subtitleText; sub.TextColor3 = COLORS.Muted; sub.TextSize = 10; sub.Font = Enum.Font.Gotham; sub.Parent = wrap
+		local sub = Instance.new("TextLabel")
+		sub.Size = UDim2.new(1,0,0,20)
+		sub.Position = UDim2.fromOffset(0,24)
+		sub.BackgroundTransparency = 1
+		sub.TextXAlignment = Enum.TextXAlignment.Left
+		sub.Text = subtitleText
+		sub.TextColor3 = COLORS.Muted
+		sub.TextSize = 10
+		sub.Font = Enum.Font.Gotham
+		sub.Parent = wrap
 	end
+
 	return wrap
 end
 
+--============================================================
+-- TOGGLE BUILDER - V8.7.2 VISUAL SYNC FIX
+--============================================================
+
 function MM2.UI.CreateToggle(parent,titleText,description,flagName,callback)
-	local card = Instance.new("Frame"); card.Size = UDim2.new(1,0,0,64); card.BackgroundColor3 = COLORS.Card; card.BorderSizePixel = 0; card.Parent = parent
-	local cardCorner = Instance.new("UICorner"); cardCorner.CornerRadius = UDim.new(0,11); cardCorner.Parent = card
-	local cardStroke = Instance.new("UIStroke"); cardStroke.Color = COLORS.Stroke; cardStroke.Transparency = 0.45; cardStroke.Thickness = 1; cardStroke.Parent = card
-	local label = Instance.new("TextLabel"); label.Size = UDim2.new(1,-104,0,22); label.Position = UDim2.fromOffset(14,10); label.BackgroundTransparency = 1; label.TextXAlignment = Enum.TextXAlignment.Left; label.Text = titleText; label.TextColor3 = COLORS.Text; label.TextSize = 12; label.Font = Enum.Font.GothamBold; label.Parent = card
-	local desc = Instance.new("TextLabel"); desc.Size = UDim2.new(1,-104,0,18); desc.Position = UDim2.fromOffset(14,34); desc.BackgroundTransparency = 1; desc.TextXAlignment = Enum.TextXAlignment.Left; desc.Text = description or ""; desc.TextColor3 = COLORS.Muted; desc.TextSize = 9; desc.Font = Enum.Font.Gotham; desc.Parent = card
-	local track = Instance.new("TextButton"); track.Size = UDim2.fromOffset(48,24); track.Position = UDim2.new(1,-62,0.5,-12); track.BackgroundColor3 = COLORS.TrackOff; track.BorderSizePixel = 0; track.Text = ""; track.AutoButtonColor = false; track.Parent = card
-	local tc = Instance.new("UICorner"); tc.CornerRadius = UDim.new(1,0); tc.Parent = track
-	local knob = Instance.new("Frame"); knob.Size = UDim2.fromOffset(18,18); knob.Position = UDim2.fromOffset(3,3); knob.BackgroundColor3 = COLORS.Knob; knob.BorderSizePixel = 0; knob.Parent = track
-	local kc = Instance.new("UICorner"); kc.CornerRadius = UDim.new(1,0); kc.Parent = knob
+	local card = Instance.new("Frame")
+	card.Size = UDim2.new(1,0,0,64)
+	card.BackgroundColor3 = COLORS.Card
+	card.BorderSizePixel = 0
+	card.Parent = parent
+
+	local cardCorner = Instance.new("UICorner")
+	cardCorner.CornerRadius = UDim.new(0,11)
+	cardCorner.Parent = card
+
+	local cardStroke = Instance.new("UIStroke")
+	cardStroke.Color = COLORS.Stroke
+	cardStroke.Transparency = 0.45
+	cardStroke.Thickness = 1
+	cardStroke.Parent = card
+
+	local label = Instance.new("TextLabel")
+	label.Size = UDim2.new(1,-104,0,22)
+	label.Position = UDim2.fromOffset(14,10)
+	label.BackgroundTransparency = 1
+	label.TextXAlignment = Enum.TextXAlignment.Left
+	label.Text = titleText
+	label.TextColor3 = COLORS.Text
+	label.TextSize = 12
+	label.Font = Enum.Font.GothamBold
+	label.Parent = card
+
+	local desc = Instance.new("TextLabel")
+	desc.Size = UDim2.new(1,-104,0,18)
+	desc.Position = UDim2.fromOffset(14,34)
+	desc.BackgroundTransparency = 1
+	desc.TextXAlignment = Enum.TextXAlignment.Left
+	desc.Text = description or ""
+	desc.TextColor3 = COLORS.Muted
+	desc.TextSize = 9
+	desc.Font = Enum.Font.Gotham
+	desc.Parent = card
+
+	local toggleTrack = Instance.new("TextButton")
+	toggleTrack.Size = UDim2.fromOffset(48,24)
+	toggleTrack.Position = UDim2.new(1,-62,0.5,-12)
+	toggleTrack.BackgroundColor3 = COLORS.TrackOff
+	toggleTrack.BorderSizePixel = 0
+	toggleTrack.Text = ""
+	toggleTrack.AutoButtonColor = false
+	toggleTrack.Parent = card
+
+	local tc = Instance.new("UICorner")
+	tc.CornerRadius = UDim.new(1,0)
+	tc.Parent = toggleTrack
+
+	local knob = Instance.new("Frame")
+	knob.Size = UDim2.fromOffset(18,18)
+	knob.Position = UDim2.fromOffset(3,3)
+	knob.BackgroundColor3 = COLORS.Knob
+	knob.BorderSizePixel = 0
+	knob.Parent = toggleTrack
+
+	local kc = Instance.new("UICorner")
+	kc.CornerRadius = UDim.new(1,0)
+	kc.Parent = knob
+
 	local function Render(value,instant)
-		local d = instant and 0 or 0.14
-		TweenService:Create(knob,TweenInfo.new(d,Enum.EasingStyle.Quad,Enum.EasingDirection.Out),{Position = value and UDim2.fromOffset(27,3) or UDim2.fromOffset(3,3)}):Play()
-		TweenService:Create(track,TweenInfo.new(d,Enum.EasingStyle.Quad,Enum.EasingDirection.Out),{BackgroundColor3 = value and COLORS.Accent or COLORS.TrackOff}):Play()
+		value = value == true
+		local duration = instant and 0 or 0.14
+
+		TweenService:Create(
+			knob,
+			TweenInfo.new(duration,Enum.EasingStyle.Quad,Enum.EasingDirection.Out),
+			{
+				Position = value
+					and UDim2.fromOffset(27,3)
+					or UDim2.fromOffset(3,3)
+			}
+		):Play()
+
+		TweenService:Create(
+			toggleTrack,
+			TweenInfo.new(duration,Enum.EasingStyle.Quad,Enum.EasingDirection.Out),
+			{
+				BackgroundColor3 = value
+					and COLORS.Accent
+					or COLORS.TrackOff
+			}
+		):Play()
 	end
-	Render(Flags[flagName],true)
-	Track(track.MouseButton1Click:Connect(function()
-		Flags[flagName] = not Flags[flagName]; Render(Flags[flagName],false); if callback then callback(Flags[flagName]) end
+
+	-- NEW: register this toggle so other scripts can redraw it.
+	MM2.UI.ToggleRegistry[flagName] = {
+		Card = card,
+		Track = toggleTrack,
+		Knob = knob,
+		Render = Render,
+		Callback = callback,
+	}
+
+	Render(Flags[flagName] == true,true)
+
+	Track(toggleTrack.MouseButton1Click:Connect(function()
+		local newValue = not (Flags[flagName] == true)
+
+		-- Update this toggle through the same central path.
+		MM2.UI.SetToggleState(flagName,newValue,false)
+
+		if callback then
+			callback(newValue)
+		end
 	end))
-	return card,track,Render
+
+	return card,toggleTrack,Render
 end
 
 function MM2.UI.CreateActionFeature(parent,titleText,description,callback)
