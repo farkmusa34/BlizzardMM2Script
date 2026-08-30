@@ -1,35 +1,18 @@
 --============================================================
 -- MM2 V8.8.4 - AutoFarm.lua
--- Coin Farm V13.3 contact re-arm fallback.
+-- Coin Farm V13.4 vertical-aware target selection.
 --
--- V13.3:
--- - Keeps V13.2 enlarged HRP pickup hitbox.
+-- V13.4:
+-- - Keeps V13.3 enlarged HRP pickup hitbox.
 -- - Keeps normal direct underground farming at -5.05.
--- - No constant sweep.
--- - No constant bouncing.
+-- - Keeps V13.3 contact re-arm fallback.
+-- - Keeps all bag-full actions / stats / remotes untouched.
 --
--- Diagnostic V8 confirmed a failure case where:
---   HRP reached ~4.875 below the coin,
---   H reached ~0.026,
---   TouchInterest remained present,
---   but CoinCollected never fired.
---
--- Cause:
--- - During large elevation changes HRP can generate an early
---   edge touch, then remain continuously overlapping the coin.
--- - Settling at -5.05 does not necessarily create a fresh
---   physical touch transition.
---
--- V13.3 fallback:
--- - Only activates when settled directly under a coin and
---   CoinCollected still has not happened.
--- - Briefly moves below the physical touch boundary.
--- - Holds outside contact for a tiny moment.
--- - Re-enters the normal -5.05 position once.
--- - Gives Roblox a fresh physical .Touched transition.
--- - Maximum 2 retries before temporarily skipping that coin.
---
--- After Bag Full logic preserved.
+-- NEW:
+-- - Coin selection now slightly penalizes large vertical travel.
+-- - Scores the REAL farm target (coin.Y - 5.05), not coin center.
+-- - High coins are NOT ignored.
+-- - Flat nearby routes are simply preferred when reasonable.
 --============================================================
 
 local MM2 = getgenv and getgenv().MM2_V85_SPLIT or _G.MM2_V85_SPLIT
@@ -52,7 +35,7 @@ Flags.StayUndergroundAfterBagFull = Flags.StayUndergroundAfterBagFull == true
 UI.AddSection(
 	UI.AutoFarmPage,
 	"Auto Farm",
-	"Coin Farm V13.3 contact re-arm fallback"
+	"Coin Farm V13.4 vertical-aware selection"
 )
 
 UI.CreateToggle(
@@ -138,17 +121,19 @@ local FARM_LOOP_DELAY = 0.02
 local FARM_MAX_START_DISTANCE = 500
 
 --============================================================
+-- V13.4 Coin Selection
+--
+-- 1.00 = no extra vertical penalty
+-- 1.35 = mild preference for flatter routes
+--
+-- This is intentionally mild.
+-- Elevated coins can still be selected normally.
+--============================================================
+
+local FARM_VERTICAL_SELECTION_WEIGHT = 1.35
+
+--============================================================
 -- V13.3 Contact Re-Arm
---
--- HRP height = 12
--- HRP half height = 6
--- Coin height = 2
--- Coin half height = 1
---
--- Approx vertical contact boundary:
---     6 + 1 = 7 studs
---
--- So -7.35 gives a little clearance outside contact.
 --============================================================
 
 local FARM_REARM_CLOSE_HORIZONTAL = 0.40
@@ -156,28 +141,21 @@ local FARM_REARM_CLOSE_HORIZONTAL = 0.40
 local FARM_REARM_MIN_SETTLED_V = 4.65
 local FARM_REARM_MAX_SETTLED_V = 5.25
 
--- Normal coins usually confirm much faster than this.
 local FARM_REARM_STUCK_DELAY = 0.30
 
--- Move outside the ~7 stud vertical overlap boundary.
 local FARM_REARM_EXIT_Y_OFFSET = -7.35
 local FARM_REARM_EXIT_REACHED_V = 7.15
 local FARM_REARM_EXIT_TIMEOUT = 0.45
 
--- Give physics a moment to register separation.
 local FARM_REARM_SEPARATION_HOLD = 0.06
 
--- Return to normal underground target.
 local FARM_REARM_REENTER_TIMEOUT = 0.50
 local FARM_REARM_REENTER_V = 5.25
 
--- Allow CoinCollected a moment after fresh contact.
 local FARM_REARM_VERIFY_DELAY = 0.35
 
 local FARM_REARM_MAX_ATTEMPTS = 2
 
--- If two fresh-contact attempts still fail,
--- temporarily farm another coin instead.
 local FARM_REARM_SKIP_TIME = 1.50
 
 --============================================================
@@ -230,7 +208,6 @@ local FarmOriginalCollision = {}
 
 local FarmSafeReturnCFrame = nil
 
--- HRP hitbox state.
 local FarmOriginalHRPSize = nil
 local FarmSizedHRP = nil
 
@@ -244,7 +221,6 @@ local FarmRearmCloseStartedAt = nil
 local FarmRearmStateStartedAt = 0
 local FarmRearmAttempts = 0
 
--- Weak-key table so destroyed coins disappear automatically.
 local FarmCoinSkipUntil =
 	setmetatable({}, {__mode = "k"})
 
@@ -386,13 +362,39 @@ local function FarmCoinIsTemporarilySkipped(coin)
 	return true
 end
 
+--============================================================
+-- Target Position Helpers
+--============================================================
+
+local function FarmGetCoinTargetWithOffset(coinPos,yOffset)
+	return Vector3.new(
+		coinPos.X,
+		coinPos.Y + yOffset,
+		coinPos.Z
+	)
+end
+
+local function FarmGetCoinTarget(coinPos)
+	return FarmGetCoinTargetWithOffset(
+		coinPos,
+		FARM_COIN_Y_OFFSET
+	)
+end
+
+--============================================================
+-- V13.4 Vertical-Aware Coin Selection
+--============================================================
+
 local function FarmFindNearestCoin()
 	if not FarmHRP then
 		return nil,math.huge
 	end
 
 	local best = nil
-	local bestDistance = math.huge
+	local bestScore = math.huge
+	local bestTravelDistance = math.huge
+
+	local hrpPosition = FarmHRP.Position
 
 	for _,obj in ipairs(workspace:GetDescendants()) do
 		if FarmValidCoin(obj)
@@ -401,18 +403,55 @@ local function FarmFindNearestCoin()
 			local pos = FarmGetPosition(obj)
 
 			if pos then
-				local distance =
-					(FarmHRP.Position-pos).Magnitude
+				local target =
+					FarmGetCoinTarget(pos)
 
-				if distance < bestDistance then
+				local dx =
+					target.X
+					-
+					hrpPosition.X
+
+				local dz =
+					target.Z
+					-
+					hrpPosition.Z
+
+				local horizontalDistance =
+					math.sqrt(
+						dx*dx
+						+
+						dz*dz
+					)
+
+				local verticalDistance =
+					math.abs(
+						target.Y
+						-
+						hrpPosition.Y
+					)
+
+				local score =
+					horizontalDistance
+					+
+					(
+						verticalDistance
+						*
+						FARM_VERTICAL_SELECTION_WEIGHT
+					)
+
+				local travelDistance =
+					(hrpPosition-target).Magnitude
+
+				if score < bestScore then
 					best = obj
-					bestDistance = distance
+					bestScore = score
+					bestTravelDistance = travelDistance
 				end
 			end
 		end
 	end
 
-	return best,bestDistance
+	return best,bestTravelDistance
 end
 
 --============================================================
@@ -463,7 +502,7 @@ local function FarmEnsureMovement()
 	FarmDestroyMovement()
 
 	FarmAttachment = Instance.new("Attachment")
-	FarmAttachment.Name = "FarmAttachmentV13_3"
+	FarmAttachment.Name = "FarmAttachmentV13_4"
 	FarmAttachment.Parent = FarmHRP
 
 	FarmPositionAlign = Instance.new("AlignPosition")
@@ -593,21 +632,6 @@ local function FarmReleaseTarget()
 	FarmResetRearm()
 end
 
-local function FarmGetCoinTargetWithOffset(coinPos,yOffset)
-	return Vector3.new(
-		coinPos.X,
-		coinPos.Y + yOffset,
-		coinPos.Z
-	)
-end
-
-local function FarmGetCoinTarget(coinPos)
-	return FarmGetCoinTargetWithOffset(
-		coinPos,
-		FARM_COIN_Y_OFFSET
-	)
-end
-
 local function FarmSelectTarget(coin)
 	if not FarmValidCoin(coin)
 		or not FarmEnsureMovement() then
@@ -711,16 +735,6 @@ local function FarmUpdateRearm(coinPos)
 			coinPos
 		)
 
-	--========================================================
-	-- IDLE
-	--
-	-- Normal V13.2 behavior.
-	--
-	-- Only consider re-arming when we're essentially sitting
-	-- directly underneath the coin in the known-good vertical
-	-- position, but CoinCollected has not happened.
-	--========================================================
-
 	if FarmRearmState == "idle" then
 		FarmPositionAlign.Position =
 			FarmGetCoinTarget(
@@ -752,13 +766,6 @@ local function FarmUpdateRearm(coinPos)
 		return
 	end
 
-	--========================================================
-	-- EXIT
-	--
-	-- Move far enough below the coin to completely separate
-	-- the enlarged 12-stud HRP from the 2-stud coin.
-	--========================================================
-
 	if FarmRearmState == "exit" then
 		FarmPositionAlign.Position =
 			FarmGetCoinTargetWithOffset(
@@ -782,13 +789,6 @@ local function FarmUpdateRearm(coinPos)
 		return
 	end
 
-	--========================================================
-	-- HOLD
-	--
-	-- Stay outside the overlap for a few frames so Roblox
-	-- clears the old physical contact pair.
-	--========================================================
-
 	if FarmRearmState == "hold" then
 		FarmPositionAlign.Position =
 			FarmGetCoinTargetWithOffset(
@@ -805,13 +805,6 @@ local function FarmUpdateRearm(coinPos)
 
 		return
 	end
-
-	--========================================================
-	-- REENTER
-	--
-	-- Come upward through the physical contact boundary once.
-	-- This is the fresh touch event V13.2 was missing.
-	--========================================================
 
 	if FarmRearmState == "reenter" then
 		FarmPositionAlign.Position =
@@ -835,13 +828,6 @@ local function FarmUpdateRearm(coinPos)
 		return
 	end
 
-	--========================================================
-	-- VERIFY
-	--
-	-- Hold normal position briefly.
-	-- CoinCollected is authoritative and will release target.
-	--========================================================
-
 	if FarmRearmState == "verify" then
 		FarmPositionAlign.Position =
 			FarmGetCoinTarget(
@@ -854,16 +840,11 @@ local function FarmUpdateRearm(coinPos)
 			return
 		end
 
-		-- If we're still on this coin, CoinCollected did not
-		-- happen after the fresh physical contact.
-
 		if FarmRearmAttempts
 			< FARM_REARM_MAX_ATTEMPTS then
 
-			-- One more clean separation/re-entry attempt.
 			FarmRearmState = "idle"
 
-			-- Small fresh dwell before second attempt.
 			FarmRearmCloseStartedAt =
 				now
 				-
@@ -876,8 +857,6 @@ local function FarmUpdateRearm(coinPos)
 			return
 		end
 
-		-- Two re-arm attempts failed.
-		-- Don't sit on one broken coin forever.
 		local failedCoin =
 			FarmCurrentCoin
 
@@ -1208,8 +1187,8 @@ local function FarmRunAfterBagFullActions()
 				local retryDelay =
 					(
 						message == "Cooldown"
-						or message == "Busy"
-						or message == "No Gun"
+							or message == "Busy"
+							or message == "No Gun"
 					)
 					and 0.20
 					or 0.12
@@ -1430,7 +1409,7 @@ local function FarmLoop()
 		end
 
 		--====================================================
-		-- Pick nearest valid coin
+		-- V13.4 Pick best vertical-aware valid coin
 		--====================================================
 
 		if not FarmCurrentCoin then
@@ -1514,17 +1493,6 @@ local function FarmLoop()
 
 		--====================================================
 		-- V13.3 NORMAL MOVEMENT + CONTACT RE-ARM
-		--
-		-- Most coins:
-		--     stay at coin.Y - 5.05
-		--
-		-- Only if settled under coin without CoinCollected:
-		--     exit overlap
-		--     tiny hold
-		--     re-enter once
-		--
-		-- No constant sweep.
-		-- No constant bounce.
 		--====================================================
 
 		if FarmPositionAlign then
@@ -1867,9 +1835,6 @@ if FarmCoinCollected
 						FarmStatsStartedAt
 						or os.clock()
 
-					-- Authoritative collection confirmation.
-					-- Immediately cancels any re-arm movement
-					-- and releases the target.
 					if AutoFarmRunning
 						and not FarmBagFull then
 
