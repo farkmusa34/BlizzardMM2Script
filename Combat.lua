@@ -869,7 +869,7 @@ end))
 if UI.CreateMovableCircleButton then
 	local FloatingKillAllButton,FloatingKillAllHolder = UI.CreateMovableCircleButton(
 		"FloatingKillAll",
-		"💀",
+		"ðŸ’€",
 		"KILL ALL",
 		UDim2.new(0.67,-52,0.78,-42),
 		function()
