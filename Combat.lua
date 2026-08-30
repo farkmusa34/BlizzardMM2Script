@@ -63,7 +63,7 @@ if Flags.LegitThrow and Flags.RageThrow then
 end
 
 local KNIFE_RANGE_MIN = 5
-local KNIFE_RANGE_MAX = 10000
+local KNIFE_RANGE_MAX = 1000
 Flags.KnifeRange = math.clamp(tonumber(Flags.KnifeRange) or 25,KNIFE_RANGE_MIN,KNIFE_RANGE_MAX)
 
 UI.CreateSlider(
