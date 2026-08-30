@@ -100,7 +100,7 @@ local FARM_UPRIGHT_MAX_ANGULAR = 10
 -- No normal farming floor raycast.
 -- No vertical sweep.
 -- No -5.25 -> +1.75 bounce.
-local FARM_COIN_Y_OFFSET = -5.075
+local FARM_COIN_Y_OFFSET = -4.90
 
 local FARM_MAX_VALID_COLLECTION_DISTANCE = 3.25
 local FARM_MAX_TARGET_DISTANCE = 500
