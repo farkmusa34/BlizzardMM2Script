@@ -344,7 +344,6 @@ MM2.Functions.ShootMurderer = function()
 	return success,message
 end
 
--- Legit sheriff shot: same proven gun/equip path, but requires a clear ray to the murderer.
 MM2.Functions.ShootMurdererLegit = function()
 	if ShootBusy then return false,"Busy" end
 	local now = os.clock()
@@ -377,8 +376,6 @@ end
 
 --============================================================
 -- RAGE THROW
--- Closest live-player knife throw using the diagnosed KnifeThrown
--- two-CFrame call. Only runs while a usable Knife exists.
 --============================================================
 
 local LastRageThrow = 0
@@ -416,6 +413,7 @@ local function RageThrowOnce()
 	local humanoid = character and character:FindFirstChildOfClass("Humanoid")
 	local hrp = character and character:FindFirstChild("HumanoidRootPart")
 	if not character or not humanoid or humanoid.Health <= 0 or not hrp then return false end
+
 	local knife = character:FindFirstChild("Knife")
 	if not knife then
 		local backpack = LocalPlayer:FindFirstChildOfClass("Backpack")
@@ -426,24 +424,31 @@ local function RageThrowOnce()
 			knife = character:FindFirstChild("Knife")
 		end
 	end
+
 	if not knife or knife:GetAttribute("Disabled") == true then return false end
 	local events = knife:FindFirstChild("Events")
 	local thrown = events and events:FindFirstChild("KnifeThrown")
 	if not thrown or not thrown:IsA("RemoteEvent") then return false end
+
 	local cooldown = 1.05 * (tonumber(knife:GetAttribute("ThrowSpeed")) or 1)
 	if os.clock()-LastRageThrow < cooldown then return false end
+
 	local _,targetPart = FindClosestRageTarget()
 	if not targetPart then return false end
+
 	local target = targetPart.Position
 	local direction = target-hrp.Position
 	direction = direction.Magnitude > 0.1 and direction.Unit or Vector3.new(0,0,-1)
+
 	LastRageThrow = os.clock()
+
 	local ok = pcall(function()
 		thrown:FireServer(
 			CFrame.new(target-direction*2,target),
 			CFrame.new(target)
 		)
 	end)
+
 	return ok
 end
 
@@ -498,6 +503,7 @@ local function LegitThrowOnce()
 			knife = character:FindFirstChild("Knife")
 		end
 	end
+
 	if not knife or knife:GetAttribute("Disabled") == true then return false end
 
 	local events = knife:FindFirstChild("Events")
@@ -525,8 +531,12 @@ local function LegitThrowOnce()
 	direction = direction.Magnitude > 0.1 and direction.Unit or Vector3.new(0,0,-1)
 
 	LastLegitThrow = os.clock()
+
 	return pcall(function()
-		thrown:FireServer(CFrame.new(target-direction*2,target),CFrame.new(target))
+		thrown:FireServer(
+			CFrame.new(target-direction*2,target),
+			CFrame.new(target)
+		)
 	end)
 end
 
@@ -550,9 +560,6 @@ end)
 
 --============================================================
 -- KNIFE RANGE / KILL ALL
--- Manual knife activation extends to all live players inside the selected
--- Knife Range. Kill All temporarily uses the maximum range and still calls
--- knife:Activate() only once.
 --============================================================
 
 local KillAllBusy = false
@@ -592,6 +599,7 @@ end
 local function EnsureKnifeEquipped()
 	local character = LocalPlayer.Character
 	local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+
 	if not character or not humanoid or humanoid.Health <= 0 then
 		return nil
 	end
@@ -603,6 +611,7 @@ local function EnsureKnifeEquipped()
 		local ok = pcall(function()
 			humanoid:EquipTool(knife)
 		end)
+
 		if not ok then return nil end
 
 		local deadline = os.clock()+0.75
@@ -620,21 +629,29 @@ end
 
 local function GetKnifeHandle(knife)
 	if not knife then return nil end
+
 	local handle = knife:FindFirstChild("Handle")
 	if handle and handle:IsA("BasePart") then
 		return handle
 	end
+
 	return knife:FindFirstChildWhichIsA("BasePart",true)
 end
 
 local function GetKnifeTargetsInRange(range)
-	range = math.clamp(tonumber(range) or Flags.KnifeRange,KNIFE_RANGE_MIN,KNIFE_RANGE_MAX)
+	range = math.clamp(
+		tonumber(range) or Flags.KnifeRange,
+		KNIFE_RANGE_MIN,
+		KNIFE_RANGE_MAX
+	)
 
 	local character = LocalPlayer.Character
 	local hrp = character and character:FindFirstChild("HumanoidRootPart")
+
 	if not hrp then return {} end
 
 	local targets = {}
+
 	for _,player in ipairs(Players:GetPlayers()) do
 		if player ~= LocalPlayer then
 			local targetCharacter = player.Character
@@ -643,6 +660,7 @@ local function GetKnifeTargetsInRange(range)
 
 			if humanoid and humanoid.Health > 0 and targetPart then
 				local distance = (targetPart.Position-hrp.Position).Magnitude
+
 				if distance <= range then
 					table.insert(targets,{
 						Player = player,
@@ -666,10 +684,12 @@ local function TouchKnifeTargets(handle,targets)
 
 	for _,target in ipairs(targets) do
 		local part = target.Part
+
 		if part and part.Parent then
 			local ok = pcall(function()
 				firetouchinterest(handle,part,0)
 			end)
+
 			if ok then
 				table.insert(touched,part)
 			end
@@ -710,6 +730,7 @@ local function DisconnectKnifeRangeActivation()
 		KnifeRangeActivatedConnection:Disconnect()
 		KnifeRangeActivatedConnection = nil
 	end
+
 	KnifeRangeBoundKnife = nil
 end
 
@@ -725,12 +746,15 @@ local function BindKnifeRangeActivation(knife)
 	end
 
 	KnifeRangeBoundKnife = knife
+
 	KnifeRangeActivatedConnection = knife.Activated:Connect(function()
 		if KnifeRangeSuppressActivated then return end
+
 		task.spawn(function()
 			ProcessKnifeRange(knife,Flags.KnifeRange)
 		end)
 	end)
+
 	Track(KnifeRangeActivatedConnection)
 end
 
@@ -741,8 +765,13 @@ end
 MM2.Functions.ProcessKnifeRange = function(range)
 	local knife = EnsureKnifeEquipped()
 	if not knife then return false,"No Knife" end
+
 	local touched = ProcessKnifeRange(knife,range or Flags.KnifeRange)
-	if touched <= 0 then return false,"No Targets" end
+
+	if touched <= 0 then
+		return false,"No Targets"
+	end
+
 	return true,"Triggered "..touched
 end
 
@@ -752,35 +781,39 @@ MM2.Functions.KillAllOnce = function()
 	end
 
 	local now = os.clock()
+
 	if now-LastKillAll < KILL_ALL_COOLDOWN then
 		return false,"Cooldown"
 	end
 
 	KillAllBusy = true
+
 	local success,message = false,"Error"
 
 	local ok,err = pcall(function()
 		local knife = EnsureKnifeEquipped()
+
 		if not knife then
 			message = "No Knife"
 			return
 		end
 
 		local handle = GetKnifeHandle(knife)
+
 		if not handle then
 			message = "No Handle"
 			return
 		end
 
 		local targets = GetKnifeTargetsInRange(KNIFE_RANGE_MAX)
+
 		if #targets <= 0 then
 			message = "No Targets"
 			return
 		end
 
-		-- Suppress the normal Knife Range Activated hook so this one scripted
-		-- activation does not process the same targets a second time.
 		KnifeRangeSuppressActivated = true
+
 		local activated = pcall(function()
 			knife:Activate()
 		end)
@@ -793,8 +826,6 @@ MM2.Functions.KillAllOnce = function()
 
 		local touched = TouchKnifeTargets(handle,targets)
 
-		-- Activated can arrive on the same frame, so leave suppression active
-		-- briefly and then restore normal manual Knife Range behavior.
 		task.delay(0.08,function()
 			KnifeRangeSuppressActivated = false
 		end)
@@ -820,7 +851,6 @@ MM2.Functions.KillAllOnce = function()
 	return success,message
 end
 
--- Keep the currently equipped Knife bound to the manual Knife Range handler.
 task.spawn(function()
 	while MM2.Running do
 		local character = LocalPlayer.Character
@@ -841,32 +871,48 @@ end)
 local function UpdateCombatFeatures()
 	local camera = workspace.CurrentCamera
 	if not camera then return end
+
 	local active = Flags.TriggerBot or Flags.AimLock
 	CrosshairDot.Visible = active
+
 	if not active then
 		return
 	end
+
 	if Flags.AimLock and IsAimLockAllowed() then
 		local _,targetPart = GetBestCombatTarget()
+
 		if targetPart then
-			camera.CFrame = CFrame.new(camera.CFrame.Position,targetPart.Position)
+			camera.CFrame = CFrame.new(
+				camera.CFrame.Position,
+				targetPart.Position
+			)
 		end
 	end
+
 	if not Flags.TriggerBot then return end
+
 	local now = os.clock()
+
 	if now-LastTriggerShot < SHOT_COOLDOWN then
 		return
 	end
+
 	local gun = GetCombatGun()
 	if not gun then return end
+
 	local rayResult = GetCombatCrosshairHit()
 	if not rayResult then return end
+
 	local targetPlayer = ResolveCombatPlayer(rayResult.Instance)
+
 	if not targetPlayer or not IsMurderer(targetPlayer) then
 		return
 	end
+
 	local torso = GetCombatTorso(targetPlayer.Character)
 	if not torso then return end
+
 	if FireCombatGun(gun,torso.Position) then
 		LastTriggerShot = os.clock()
 	end
@@ -897,8 +943,10 @@ local function MakeShootButtonMovable(button)
 			Track(input.Changed:Connect(function()
 				if input.UserInputState == Enum.UserInputState.End then
 					dragging = false
+
 					if moved then
 						button:SetAttribute("_JustDragged",true)
+
 						task.delay(0.10,function()
 							if button and button.Parent then
 								button:SetAttribute("_JustDragged",false)
@@ -919,9 +967,20 @@ local function MakeShootButtonMovable(button)
 	end))
 
 	Track(UIS.InputChanged:Connect(function(input)
-		if not dragging or input ~= dragInput or not dragStart or not startPosition then return end
+		if not dragging
+			or input ~= dragInput
+			or not dragStart
+			or not startPosition
+		then
+			return
+		end
+
 		local delta = input.Position-dragStart
-		if delta.Magnitude >= 4 then moved = true end
+
+		if delta.Magnitude >= 4 then
+			moved = true
+		end
+
 		if moved then
 			button.Position = UDim2.new(
 				startPosition.X.Scale,
@@ -951,8 +1010,11 @@ FloatingShootButton.Draggable = false
 FloatingShootButton.Visible = false
 FloatingShootButton.ZIndex = 300
 FloatingShootButton.Parent = UI.ScreenGui
+
 MM2.UI.FloatingShootButton = FloatingShootButton
+
 MakeShootButtonMovable(FloatingShootButton)
+
 FloatingShootButton.Visible = Flags.ShowShootButton == true
 
 local c = Instance.new("UICorner")
@@ -967,21 +1029,28 @@ s.Parent = FloatingShootButton
 
 Track(FloatingShootButton.MouseButton1Click:Connect(function()
 	if FloatingShootButton:GetAttribute("_JustDragged") then return end
+
 	FloatingShootButton.Text = "CLICK DETECTED"
+
 	task.spawn(function()
 		local ok,success,message = pcall(function()
 			return MM2.Functions.ShootMurderer()
 		end)
+
 		if FloatingShootButton and FloatingShootButton.Parent then
 			if not ok then
 				warn("[MM2 V8.6.2 SHOOT] BUTTON CALL ERROR:",success)
 				FloatingShootButton.Text = "Error"
 			else
 				FloatingShootButton.Text = tostring(
-					message or (success and "Shot Fired" or "Shot Failed")
+					message or (
+						success and "Shot Fired"
+						or "Shot Failed"
+					)
 				)
 			end
 		end
+
 		task.delay(1,function()
 			if FloatingShootButton and FloatingShootButton.Parent then
 				FloatingShootButton.Text = "Shoot Murderer (Rage)"
@@ -1008,13 +1077,17 @@ FloatingLegitShootButton.Draggable = false
 FloatingLegitShootButton.Visible = false
 FloatingLegitShootButton.ZIndex = 300
 FloatingLegitShootButton.Parent = UI.ScreenGui
+
 MM2.UI.FloatingLegitShootButton = FloatingLegitShootButton
+
 MakeShootButtonMovable(FloatingLegitShootButton)
+
 FloatingLegitShootButton.Visible = Flags.ShowLegitShootButton == true
 
 local legitCorner = Instance.new("UICorner")
 legitCorner.CornerRadius = UDim.new(0,18)
 legitCorner.Parent = FloatingLegitShootButton
+
 local legitStroke = Instance.new("UIStroke")
 legitStroke.Color = UI.COLORS.Accent
 legitStroke.Thickness = 1.4
@@ -1023,10 +1096,22 @@ legitStroke.Parent = FloatingLegitShootButton
 
 Track(FloatingLegitShootButton.MouseButton1Click:Connect(function()
 	if FloatingLegitShootButton:GetAttribute("_JustDragged") then return end
+
 	task.spawn(function()
-		local ok,success,message = pcall(function() return MM2.Functions.ShootMurdererLegit() end)
+		local ok,success,message = pcall(function()
+			return MM2.Functions.ShootMurdererLegit()
+		end)
+
 		if FloatingLegitShootButton and FloatingLegitShootButton.Parent then
-			FloatingLegitShootButton.Text = ok and tostring(message or (success and "Shot Fired" or "Shot Failed")) or "Error"
+			FloatingLegitShootButton.Text = ok
+				and tostring(
+					message or (
+						success and "Shot Fired"
+						or "Shot Failed"
+					)
+				)
+				or "Error"
+
 			task.delay(1,function()
 				if FloatingLegitShootButton and FloatingLegitShootButton.Parent then
 					FloatingLegitShootButton.Text = "Shoot Murderer (Legit)"
@@ -1037,44 +1122,67 @@ Track(FloatingLegitShootButton.MouseButton1Click:Connect(function()
 end))
 
 if UI.CreateMovableCircleButton then
-	local FloatingKillAllButton,FloatingKillAllHolder = UI.CreateMovableCircleButton(
-		"FloatingKillAll",
-		"ðŸ’€",
-		"KILL ALL",
-		UDim2.new(0.67,-52,0.78,-42),
-		function()
-			local ok,success,message = pcall(function()
-				return MM2.Functions.KillAllOnce()
-			end)
-			if not ok then
-				warn("[MM2 KILL ALL BUTTON]",success)
-				MM2.Notify("Kill All error",2)
-			elseif message and message ~= "Cooldown" then
-				MM2.Notify(message,1.5)
+	local FloatingKillAllButton,FloatingKillAllHolder =
+		UI.CreateMovableCircleButton(
+			"FloatingKillAll",
+			"💀",
+			"KILL ALL",
+			UDim2.new(0.67,-52,0.78,-42),
+			function()
+				local ok,success,message = pcall(function()
+					return MM2.Functions.KillAllOnce()
+				end)
+
+				if not ok then
+					warn("[MM2 KILL ALL BUTTON]",success)
+					MM2.Notify("Kill All error",2)
+				elseif message and message ~= "Cooldown" then
+					MM2.Notify(message,1.5)
+				end
 			end
-		end
-	)
+		)
+
 	FloatingKillAllHolder.Visible = false
+
 	MM2.UI.FloatingKillAllButton = FloatingKillAllButton
 	MM2.UI.FloatingKillAllHolder = FloatingKillAllHolder
 end
+
+--============================================================
+-- AUTO GRAB GUN
+--
+-- AutoFarm OFF:
+--     Original HRP-first pickup behavior.
+--
+-- AutoFarm ON:
+--     Torso-first pickup behavior so the enlarged AutoFarm HRP does not
+--     become the primary gun-touch part. HRP remains a fallback.
+--============================================================
 
 local MAX_GRAB_DISTANCE = 150
 local AUTO_GRAB_TOUCH_BURST = 2
 
 local function GetPickupPart(gun)
 	if not gun then return nil end
-	if gun:IsA("BasePart") and gun:FindFirstChildOfClass("TouchTransmitter") then
+
+	if gun:IsA("BasePart")
+		and gun:FindFirstChildOfClass("TouchTransmitter")
+	then
 		return gun
 	end
+
 	for _,obj in ipairs(gun:GetDescendants()) do
-		if obj:IsA("BasePart") and obj:FindFirstChildOfClass("TouchTransmitter") then
+		if obj:IsA("BasePart")
+			and obj:FindFirstChildOfClass("TouchTransmitter")
+		then
 			return obj
 		end
 	end
+
 	if gun:IsA("BasePart") then
 		return gun
 	end
+
 	return gun:FindFirstChildWhichIsA("BasePart",true)
 end
 
@@ -1082,6 +1190,7 @@ function MM2.IsPreRoundActive()
 	for _,obj in ipairs(MM2.PlayerGui:GetDescendants()) do
 		if obj:IsA("TextLabel") or obj:IsA("TextButton") then
 			local text = string.lower(tostring(obj.Text or ""))
+
 			if string.find(text,"intermission",1,true)
 				and MM2.IsActuallyVisible(obj)
 			then
@@ -1089,12 +1198,14 @@ function MM2.IsPreRoundActive()
 			end
 		end
 	end
+
 	return false
 end
 
 local function IsGunWithinAutoGrabDistance(position)
 	local hrp = LocalPlayer.Character
 		and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+
 	return hrp
 		and position
 		and (hrp.Position-position).Magnitude < MAX_GRAB_DISTANCE
@@ -1104,18 +1215,24 @@ end
 local function IsLocalMurderer()
 	local char = LocalPlayer.Character
 	local backpack = LocalPlayer:FindFirstChild("Backpack")
+
 	return MM2.HasTool(char,MM2.Config.KnifeNames)
 		or MM2.HasTool(backpack,MM2.Config.KnifeNames)
 		or MM2.State.ServerRolesCache[LocalPlayer.Name] == "Murderer"
 end
 
 local function TouchAutoGrabPart(localPart,pickupPart)
-	if not localPart or not pickupPart or not pickupPart.Parent then
+	if not localPart
+		or not pickupPart
+		or not pickupPart.Parent
+	then
 		return false
 	end
+
 	if not firetouchinterest then
 		return false
 	end
+
 	return pcall(function()
 		firetouchinterest(localPart,pickupPart,0)
 		RunService.Heartbeat:Wait()
@@ -1132,27 +1249,43 @@ MM2.Functions.UpdateAutoGrab = function()
 	then
 		return
 	end
+
 	local gunDrop = MM2.State.CachedGunDrop
+
 	if not gunDrop or not gunDrop.Parent then
 		gunDrop = workspace:FindFirstChild("GunDrop",true)
 	end
-	if not gunDrop then return end
+
+	if not gunDrop then
+		return
+	end
+
 	local targetPart = GetPickupPart(gunDrop)
+
 	if not targetPart
 		or not targetPart.Parent
 		or not IsGunWithinAutoGrabDistance(targetPart.Position)
 	then
 		return
 	end
+
 	local char = LocalPlayer.Character
 	local humanoid = char and char:FindFirstChildOfClass("Humanoid")
 	local hrp = char and char:FindFirstChild("HumanoidRootPart")
-	if not char or not hrp or not humanoid or humanoid.Health <= 0 then
+
+	if not char
+		or not hrp
+		or not humanoid
+		or humanoid.Health <= 0
+	then
 		return
 	end
+
 	local torso = char:FindFirstChild("UpperTorso")
 		or char:FindFirstChild("Torso")
+
 	MM2.State.Is_Picking_Up = true
+
 	pcall(function()
 		for _ = 1,AUTO_GRAB_TOUCH_BURST do
 			if not Flags.AutoGrab
@@ -1162,19 +1295,56 @@ MM2.Functions.UpdateAutoGrab = function()
 			then
 				break
 			end
-			TouchAutoGrabPart(hrp,targetPart)
-			if MM2.HasGunAnywhere() or not gunDrop.Parent then
-				break
+
+			--====================================================
+			-- AutoFarm compatibility.
+			--
+			-- AutoFarm ON:
+			--     Torso first because AutoFarm enlarges the HRP.
+			--     HRP is still used as fallback.
+			--
+			-- AutoFarm OFF:
+			--     Preserve the original HRP-first behavior.
+			--====================================================
+
+			if Flags.AutoFarm then
+				-- AutoFarm-safe order: torso -> HRP.
+
+				if torso then
+					TouchAutoGrabPart(torso,targetPart)
+				end
+
+				if MM2.HasGunAnywhere() or not gunDrop.Parent then
+					break
+				end
+
+				TouchAutoGrabPart(hrp,targetPart)
+
+				if MM2.HasGunAnywhere() or not gunDrop.Parent then
+					break
+				end
+			else
+				-- Original order: HRP -> torso.
+
+				TouchAutoGrabPart(hrp,targetPart)
+
+				if MM2.HasGunAnywhere() or not gunDrop.Parent then
+					break
+				end
+
+				if torso then
+					TouchAutoGrabPart(torso,targetPart)
+				end
+
+				if MM2.HasGunAnywhere() or not gunDrop.Parent then
+					break
+				end
 			end
-			if torso then
-				TouchAutoGrabPart(torso,targetPart)
-			end
-			if MM2.HasGunAnywhere() or not gunDrop.Parent then
-				break
-			end
+
 			task.wait(0.02)
 		end
 	end)
+
 	MM2.State.Is_Picking_Up = false
 end
 
