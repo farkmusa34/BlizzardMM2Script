@@ -1,9 +1,13 @@
 --============================================================
--- MM2 V8.8.2 - AutoFarm.lua
--- Coin Farm V13.1 one-way pickup rise test.
--- V8.8.2: Travel underneath, then rise once into pickup zone.
--- No repeating vertical sweep / bouncing.
--- After Bag Full logic preserved from V8.8.0.
+-- MM2 V8.8.3 - AutoFarm.lua
+-- Coin Farm V13.2 enlarged HRP pickup hitbox.
+--
+-- V13.2:
+-- - Removed one-way rise / sweep logic.
+-- - Direct movement under coin at fixed offset.
+-- - Enlarges HumanoidRootPart to 2 x 12 x 1 while farming.
+-- - Restores original HRP size when farming pauses/stops.
+-- - After Bag Full logic preserved from V8.8.0.
 --============================================================
 
 local MM2 = getgenv and getgenv().MM2_V85_SPLIT or _G.MM2_V85_SPLIT
@@ -26,7 +30,7 @@ Flags.StayUndergroundAfterBagFull = Flags.StayUndergroundAfterBagFull == true
 UI.AddSection(
 	UI.AutoFarmPage,
 	"Auto Farm",
-	"Coin Farm V13.1 one-way pickup rise controls"
+	"Coin Farm V13.2 enlarged pickup hitbox"
 )
 
 UI.CreateToggle(
@@ -100,25 +104,19 @@ local FARM_UPRIGHT_MAX_TORQUE = 500000
 local FARM_UPRIGHT_MAX_ANGULAR = 10
 
 --============================================================
--- V13.1 Normal Coin Movement
+-- V13.2 Normal Coin Movement
 --
--- Stage 1:
--- Travel directly underneath coin at -5.20.
+-- Working farmer diagnostic showed:
+-- HumanoidRootPart.Size = (2,12,1)
 --
--- Stage 2:
--- Once horizontally close, rise ONCE toward -4.70.
---
--- No repeating sweep.
--- No bouncing back downward.
+-- So V13.2 keeps HRP centered below coin and uses
+-- the enlarged vertical HRP hitbox to physically touch it.
 --============================================================
 
-local FARM_TRAVEL_Y_OFFSET = -5.20
-local FARM_PICKUP_Y_OFFSET = -4.70
+local FARM_COIN_Y_OFFSET = -5.05
+local FARM_HRP_SIZE = Vector3.new(2,12,1)
 
-local FARM_PICKUP_START_HORIZONTAL = 2.50
-local FARM_PICKUP_RISE_RATE = 2.25
-
-local FARM_MAX_VALID_COLLECTION_DISTANCE = 3.25
+local FARM_MAX_VALID_COLLECTION_DISTANCE = 6.5
 local FARM_MAX_TARGET_DISTANCE = 500
 local FARM_LOOP_DELAY = 0.02
 local FARM_MAX_START_DISTANCE = 500
@@ -165,14 +163,14 @@ local FarmUprightAlign = nil
 local FarmCurrentCoin = nil
 local FarmCurrentTouch = nil
 
--- V13.1 target movement state.
-local FarmCurrentYOffset = FARM_TRAVEL_Y_OFFSET
-local FarmPickupRiseStarted = false
-
 local FarmNoclipConnection = nil
 local FarmOriginalCollision = {}
 
 local FarmSafeReturnCFrame = nil
+
+-- V13.2 HRP hitbox state.
+local FarmOriginalHRPSize = nil
+local FarmSizedHRP = nil
 
 --============================================================
 -- Character
@@ -191,6 +189,48 @@ local function FarmUpdateCharacter()
 	FarmHRP = FarmCharacter:FindFirstChild("HumanoidRootPart")
 
 	return FarmHumanoid ~= nil and FarmHRP ~= nil
+end
+
+--============================================================
+-- HRP Pickup Hitbox
+--============================================================
+
+local function FarmRestoreHRPSize()
+	if FarmSizedHRP
+		and FarmSizedHRP.Parent
+		and FarmOriginalHRPSize then
+
+		pcall(function()
+			FarmSizedHRP.Size = FarmOriginalHRPSize
+		end)
+	end
+
+	FarmOriginalHRPSize = nil
+	FarmSizedHRP = nil
+end
+
+local function FarmApplyHRPSize()
+	if not FarmUpdateCharacter() then
+		return false
+	end
+
+	-- Character changed / respawned.
+	if FarmSizedHRP
+		and FarmSizedHRP ~= FarmHRP then
+
+		FarmRestoreHRPSize()
+	end
+
+	if FarmSizedHRP ~= FarmHRP then
+		FarmSizedHRP = FarmHRP
+		FarmOriginalHRPSize = FarmHRP.Size
+	end
+
+	pcall(function()
+		FarmHRP.Size = FARM_HRP_SIZE
+	end)
+
+	return true
 end
 
 --============================================================
@@ -315,6 +355,8 @@ local function FarmEnsureMovement()
 		return false
 	end
 
+	FarmApplyHRPSize()
+
 	if FarmAttachment
 		and FarmAttachment.Parent == FarmHRP
 		and FarmPositionAlign
@@ -328,7 +370,7 @@ local function FarmEnsureMovement()
 	FarmDestroyMovement()
 
 	FarmAttachment = Instance.new("Attachment")
-	FarmAttachment.Name = "FarmAttachmentV13_1"
+	FarmAttachment.Name = "FarmAttachmentV13_2"
 	FarmAttachment.Parent = FarmHRP
 
 	FarmPositionAlign = Instance.new("AlignPosition")
@@ -371,6 +413,8 @@ local function FarmApplyNoclip()
 	if not FarmCharacter or not FarmHumanoid then
 		return
 	end
+
+	FarmApplyHRPSize()
 
 	for _,obj in ipairs(FarmCharacter:GetDescendants()) do
 		if obj:IsA("BasePart") then
@@ -445,15 +489,12 @@ end
 local function FarmReleaseTarget()
 	FarmCurrentCoin = nil
 	FarmCurrentTouch = nil
-
-	FarmCurrentYOffset = FARM_TRAVEL_Y_OFFSET
-	FarmPickupRiseStarted = false
 end
 
-local function FarmGetCoinTarget(coinPos,yOffset)
+local function FarmGetCoinTarget(coinPos)
 	return Vector3.new(
 		coinPos.X,
-		coinPos.Y + yOffset,
+		coinPos.Y + FARM_COIN_Y_OFFSET,
 		coinPos.Z
 	)
 end
@@ -474,15 +515,8 @@ local function FarmSelectTarget(coin)
 	FarmCurrentCoin = coin
 	FarmCurrentTouch = FarmGetTouchObject(coin)
 
-	FarmCurrentYOffset = FARM_TRAVEL_Y_OFFSET
-	FarmPickupRiseStarted = false
-
-	-- Start every new coin at the lower travel height.
 	FarmPositionAlign.Position =
-		FarmGetCoinTarget(
-			coinPos,
-			FarmCurrentYOffset
-		)
+		FarmGetCoinTarget(coinPos)
 
 	return true
 end
@@ -554,6 +588,7 @@ local function FarmPause(reason)
 	FarmReleaseTarget()
 	FarmStopNoclip()
 	FarmDestroyMovement()
+	FarmRestoreHRPSize()
 end
 
 local function FarmWake()
@@ -567,6 +602,8 @@ local function FarmWake()
 	if not FarmSafeReturnCFrame then
 		FarmSafeReturnCFrame = FarmHRP.CFrame
 	end
+
+	FarmApplyHRPSize()
 
 	if not FarmEnsureMovement() then
 		return false
@@ -665,8 +702,6 @@ local function FarmFindGroundY()
 			FarmHRP.Position.Z
 		)
 
-	-- If farmer is already below map,
-	-- upward ray finds floor underside.
 	local upResult =
 		workspace:Raycast(
 			FarmHRP.Position,
@@ -678,7 +713,6 @@ local function FarmFindGroundY()
 		return upResult.Position.Y
 	end
 
-	-- Otherwise search downward.
 	local downOrigin =
 		Vector3.new(
 			xz.X,
@@ -779,8 +813,6 @@ local function FarmRunAfterBagFullActions()
 	task.spawn(function()
 		local killAllRan = false
 
-		-- Priority 1:
-		-- Kill All only if enabled AND knife exists.
 		if Flags.KillAllAfterBagFull
 			and FarmHasKnife()
 			and MM2.Functions.KillAllOnce then
@@ -795,8 +827,6 @@ local function FarmRunAfterBagFullActions()
 				and success == true
 		end
 
-		-- Priority 2:
-		-- Shoot murderer until successful / unavailable.
 		if Flags.ShootMurdererAfterBagFull
 			and MM2.Functions.ShootMurderer then
 
@@ -840,8 +870,6 @@ local function FarmRunAfterBagFullActions()
 			end
 		end
 
-		-- Priority 3:
-		-- Fling murderer after shoot loop.
 		if Flags.FlingMurdererAfterBagFull
 			and MM2.Functions.ExecuteYeet then
 
@@ -856,7 +884,6 @@ local function FarmRunAfterBagFullActions()
 			end
 		end
 
-		-- Reset fallback.
 		if Flags.ResetCharacterAfterBagFull
 			and not Flags.StayUndergroundAfterBagFull
 			and not killAllRan then
@@ -910,7 +937,6 @@ local function FarmBeginBagFullLift()
 			FarmBagLiftInProgress = false
 			FarmBagLiftDone = true
 
-			-- Preserve existing underground hold behavior.
 			while AutoFarmRunning
 				and MM2.Running
 				and FarmBagFull
@@ -937,6 +963,7 @@ local function FarmBeginBagFullLift()
 
 			FarmStopNoclip()
 			FarmDestroyMovement()
+			FarmRestoreHRPSize()
 		end)
 
 		return
@@ -948,6 +975,7 @@ local function FarmBeginBagFullLift()
 
 			FarmStopNoclip()
 			FarmDestroyMovement()
+			FarmRestoreHRPSize()
 
 			FarmBagLiftInProgress = false
 			FarmBagLiftDone = true
@@ -999,6 +1027,7 @@ local function FarmBeginBagFullLift()
 
 		FarmStopNoclip()
 		FarmDestroyMovement()
+		FarmRestoreHRPSize()
 
 		FarmBagLiftInProgress = false
 		FarmBagLiftDone = true
@@ -1010,8 +1039,6 @@ end
 --============================================================
 
 local function FarmLoop()
-	local lastLoop = os.clock()
-
 	while AutoFarmRunning and MM2.Running do
 		if not Flags.AutoFarm then
 			break
@@ -1138,16 +1165,20 @@ local function FarmLoop()
 		end
 
 		--====================================================
-		-- V13.1 NORMAL FARM MOVEMENT
+		-- V13.2 NORMAL FARM MOVEMENT
 		--
-		-- 1. Travel underneath coin at -5.20.
-		-- 2. When horizontally <= 2.50 studs:
-		--       start rising.
-		-- 3. Rise smoothly toward -4.70.
-		-- 4. Never go downward again for this coin.
+		-- Enlarged HRP:
+		--     Size = (2,12,1)
+		--
+		-- Stay directly underneath target coin.
+		-- No sweep.
+		-- No rise.
+		-- No bounce.
 		--====================================================
 
 		if FarmPositionAlign then
+			FarmApplyHRPSize()
+
 			FarmPositionAlign.MaxVelocity =
 				math.clamp(
 					tonumber(Flags.FarmSpeed)
@@ -1156,59 +1187,9 @@ local function FarmLoop()
 					FARM_MAX_VELOCITY
 				)
 
-			local now = os.clock()
-
-			local dt =
-				math.clamp(
-					now-lastLoop,
-					0,
-					0.05
-				)
-
-			lastLoop = now
-
-			local dx =
-				FarmHRP.Position.X
-				- coinPos.X
-
-			local dz =
-				FarmHRP.Position.Z
-				- coinPos.Z
-
-			local horizontalDistance =
-				math.sqrt(
-					dx*dx
-					+
-					dz*dz
-				)
-
-			-- Once triggered, stay triggered
-			-- until target is released.
-			if horizontalDistance
-				<= FARM_PICKUP_START_HORIZONTAL then
-
-				FarmPickupRiseStarted = true
-			end
-
-			if FarmPickupRiseStarted then
-				FarmCurrentYOffset =
-					math.min(
-						FARM_PICKUP_Y_OFFSET,
-						FarmCurrentYOffset
-							+
-							FARM_PICKUP_RISE_RATE
-							*
-							dt
-					)
-			else
-				FarmCurrentYOffset =
-					FARM_TRAVEL_Y_OFFSET
-			end
-
 			FarmPositionAlign.Position =
 				FarmGetCoinTarget(
-					coinPos,
-					FarmCurrentYOffset
+					coinPos
 				)
 		end
 
@@ -1229,6 +1210,7 @@ local function FarmLoop()
 	FarmReleaseTarget()
 	FarmStopNoclip()
 	FarmDestroyMovement()
+	FarmRestoreHRPSize()
 end
 
 --============================================================
@@ -1256,12 +1238,8 @@ function MM2.Functions.StartAutoFarm()
 	FarmCurrentCoin = nil
 	FarmCurrentTouch = nil
 
-	FarmCurrentYOffset =
-		FARM_TRAVEL_Y_OFFSET
-
-	FarmPickupRiseStarted = false
-
 	FarmUpdateCharacter()
+	FarmApplyHRPSize()
 
 	task.spawn(FarmLoop)
 end
@@ -1283,6 +1261,7 @@ function MM2.Functions.StopAutoFarm()
 	FarmReleaseTarget()
 	FarmStopNoclip()
 	FarmDestroyMovement()
+	FarmRestoreHRPSize()
 
 	FarmSafeReturnCFrame = nil
 end
@@ -1531,6 +1510,14 @@ if FarmCoinCollected
 					FarmStatsStartedAt =
 						FarmStatsStartedAt
 						or os.clock()
+
+					-- Authoritative collection confirmation.
+					-- Immediately release current target.
+					if AutoFarmRunning
+						and not FarmBagFull then
+
+						FarmReleaseTarget()
+					end
 				end
 
 				FarmLastReportedBagCount =
@@ -1575,11 +1562,7 @@ local function FarmResetBag()
 
 	FarmSafeReturnCFrame = nil
 
-	FarmCurrentYOffset =
-		FARM_TRAVEL_Y_OFFSET
-
-	FarmPickupRiseStarted =
-		false
+	FarmReleaseTarget()
 end
 
 if FarmRoundStart
