@@ -1,7 +1,8 @@
 --============================================================
--- MM2 V8.8.1 - AutoFarm.lua
--- Coin Farm V13.0 fixed-offset test.
--- V8.8.1: Normal farming uses direct coin-relative movement.
+-- MM2 V8.8.2 - AutoFarm.lua
+-- Coin Farm V13.1 one-way pickup rise test.
+-- V8.8.2: Travel underneath, then rise once into pickup zone.
+-- No repeating vertical sweep / bouncing.
 -- After Bag Full logic preserved from V8.8.0.
 --============================================================
 
@@ -22,7 +23,11 @@ Flags.FlingMurdererAfterBagFull = Flags.FlingMurdererAfterBagFull == true
 Flags.ResetCharacterAfterBagFull = Flags.ResetCharacterAfterBagFull == true
 Flags.StayUndergroundAfterBagFull = Flags.StayUndergroundAfterBagFull == true
 
-UI.AddSection(UI.AutoFarmPage, "Auto Farm", "Coin Farm V13.0 fixed-offset controls")
+UI.AddSection(
+	UI.AutoFarmPage,
+	"Auto Farm",
+	"Coin Farm V13.1 one-way pickup rise controls"
+)
 
 UI.CreateToggle(
 	UI.AutoFarmPage,
@@ -94,20 +99,31 @@ local FARM_UPRIGHT_RESPONSIVENESS = 12
 local FARM_UPRIGHT_MAX_TORQUE = 500000
 local FARM_UPRIGHT_MAX_ANGULAR = 10
 
--- Working-farmer diagnostic:
--- AlignPosition repeatedly sat about 5.05 - 5.10 studs below Coin_Server.
+--============================================================
+-- V13.1 Normal Coin Movement
 --
--- No normal farming floor raycast.
--- No vertical sweep.
--- No -5.25 -> +1.75 bounce.
-local FARM_COIN_Y_OFFSET = -4.90
+-- Stage 1:
+-- Travel directly underneath coin at -5.20.
+--
+-- Stage 2:
+-- Once horizontally close, rise ONCE toward -4.70.
+--
+-- No repeating sweep.
+-- No bouncing back downward.
+--============================================================
+
+local FARM_TRAVEL_Y_OFFSET = -5.20
+local FARM_PICKUP_Y_OFFSET = -4.70
+
+local FARM_PICKUP_START_HORIZONTAL = 2.50
+local FARM_PICKUP_RISE_RATE = 2.25
 
 local FARM_MAX_VALID_COLLECTION_DISTANCE = 3.25
 local FARM_MAX_TARGET_DISTANCE = 500
 local FARM_LOOP_DELAY = 0.02
 local FARM_MAX_START_DISTANCE = 500
 
--- After-bag-full constants are intentionally unchanged.
+-- After-bag-full constants intentionally unchanged.
 local FARM_BAG_LIFT_HEIGHT = 6
 local FARM_BAG_LIFT_REACHED_DISTANCE = 0.75
 local FARM_BAG_LIFT_TIMEOUT = 2.5
@@ -148,6 +164,10 @@ local FarmUprightAlign = nil
 
 local FarmCurrentCoin = nil
 local FarmCurrentTouch = nil
+
+-- V13.1 target movement state.
+local FarmCurrentYOffset = FARM_TRAVEL_Y_OFFSET
+local FarmPickupRiseStarted = false
 
 local FarmNoclipConnection = nil
 local FarmOriginalCollision = {}
@@ -217,7 +237,9 @@ local function FarmGetTouchObject(coin)
 	end
 
 	for _,obj in ipairs(coin:GetDescendants()) do
-		if obj.Name == "TouchInterest" or obj:IsA("TouchTransmitter") then
+		if obj.Name == "TouchInterest"
+			or obj:IsA("TouchTransmitter") then
+
 			return obj
 		end
 	end
@@ -246,7 +268,8 @@ local function FarmFindNearestCoin()
 			local pos = FarmGetPosition(obj)
 
 			if pos then
-				local distance = (FarmHRP.Position-pos).Magnitude
+				local distance =
+					(FarmHRP.Position-pos).Magnitude
 
 				if distance < bestDistance then
 					best = obj
@@ -305,7 +328,7 @@ local function FarmEnsureMovement()
 	FarmDestroyMovement()
 
 	FarmAttachment = Instance.new("Attachment")
-	FarmAttachment.Name = "FarmAttachmentV13"
+	FarmAttachment.Name = "FarmAttachmentV13_1"
 	FarmAttachment.Parent = FarmHRP
 
 	FarmPositionAlign = Instance.new("AlignPosition")
@@ -422,18 +445,23 @@ end
 local function FarmReleaseTarget()
 	FarmCurrentCoin = nil
 	FarmCurrentTouch = nil
+
+	FarmCurrentYOffset = FARM_TRAVEL_Y_OFFSET
+	FarmPickupRiseStarted = false
 end
 
-local function FarmGetCoinTarget(coinPos)
+local function FarmGetCoinTarget(coinPos,yOffset)
 	return Vector3.new(
 		coinPos.X,
-		coinPos.Y + FARM_COIN_Y_OFFSET,
+		coinPos.Y + yOffset,
 		coinPos.Z
 	)
 end
 
 local function FarmSelectTarget(coin)
-	if not FarmValidCoin(coin) or not FarmEnsureMovement() then
+	if not FarmValidCoin(coin)
+		or not FarmEnsureMovement() then
+
 		return false
 	end
 
@@ -446,10 +474,15 @@ local function FarmSelectTarget(coin)
 	FarmCurrentCoin = coin
 	FarmCurrentTouch = FarmGetTouchObject(coin)
 
-	-- V13:
-	-- Move directly underneath the coin at a fixed coin-relative height.
-	-- There is intentionally no contact sweep.
-	FarmPositionAlign.Position = FarmGetCoinTarget(coinPos)
+	FarmCurrentYOffset = FARM_TRAVEL_Y_OFFSET
+	FarmPickupRiseStarted = false
+
+	-- Start every new coin at the lower travel height.
+	FarmPositionAlign.Position =
+		FarmGetCoinTarget(
+			coinPos,
+			FarmCurrentYOffset
+		)
 
 	return true
 end
@@ -481,7 +514,9 @@ end
 --============================================================
 
 local function FarmReturnToSafePosition()
-	if not FarmSafeReturnCFrame or not FarmUpdateCharacter() then
+	if not FarmSafeReturnCFrame
+		or not FarmUpdateCharacter() then
+
 		return
 	end
 
@@ -507,7 +542,9 @@ local function FarmPause(reason)
 		return
 	end
 
-	if FarmPaused and FarmPauseReason == reason then
+	if FarmPaused
+		and FarmPauseReason == reason then
+
 		return
 	end
 
@@ -552,11 +589,14 @@ local function FarmFindMurderer()
 			and MM2.State.ServerRolesCache[player.Name] == "Murderer" then
 
 			local character = player.Character
+
 			local humanoid =
 				character
 				and character:FindFirstChildOfClass("Humanoid")
 
-			if humanoid and humanoid.Health > 0 then
+			if humanoid
+				and humanoid.Health > 0 then
+
 				return player
 			end
 		end
@@ -567,7 +607,10 @@ end
 
 local function FarmHasKnife()
 	if MM2.Functions.HasKnifeAnywhere then
-		local ok,result = pcall(MM2.Functions.HasKnifeAnywhere)
+		local ok,result =
+			pcall(
+				MM2.Functions.HasKnifeAnywhere
+			)
 
 		if ok then
 			return result == true
@@ -575,12 +618,14 @@ local function FarmHasKnife()
 	end
 
 	local character = LocalPlayer.Character
-	local backpack = LocalPlayer:FindFirstChildOfClass("Backpack")
+	local backpack =
+		LocalPlayer:FindFirstChildOfClass("Backpack")
 
 	for _,container in ipairs({
 		character,
 		backpack
 	}) do
+
 		if container then
 			for _,obj in ipairs(container:GetChildren()) do
 				if obj:IsA("Tool")
@@ -604,8 +649,13 @@ local function FarmFindGroundY()
 	end
 
 	local params = RaycastParams.new()
-	params.FilterType = Enum.RaycastFilterType.Exclude
-	params.FilterDescendantsInstances = {FarmCharacter}
+
+	params.FilterType =
+		Enum.RaycastFilterType.Exclude
+
+	params.FilterDescendantsInstances =
+		{FarmCharacter}
+
 	params.IgnoreWater = true
 
 	local xz =
@@ -615,8 +665,8 @@ local function FarmFindGroundY()
 			FarmHRP.Position.Z
 		)
 
-	-- If the farmer is already below the map,
-	-- upward ray finds the floor underside.
+	-- If farmer is already below map,
+	-- upward ray finds floor underside.
 	local upResult =
 		workspace:Raycast(
 			FarmHRP.Position,
@@ -628,7 +678,7 @@ local function FarmFindGroundY()
 		return upResult.Position.Y
 	end
 
-	-- Otherwise search downward from slightly above character.
+	-- Otherwise search downward.
 	local downOrigin =
 		Vector3.new(
 			xz.X,
@@ -651,7 +701,9 @@ local function FarmFindGroundY()
 end
 
 local function FarmMoveUnderground()
-	if not FarmUpdateCharacter() or not FarmEnsureMovement() then
+	if not FarmUpdateCharacter()
+		or not FarmEnsureMovement() then
+
 		return false
 	end
 
@@ -681,7 +733,9 @@ local function FarmMoveUnderground()
 		and FarmBagFull
 		and Flags.StayUndergroundAfterBagFull do
 
-		if not FarmUpdateCharacter() or not FarmPositionAlign then
+		if not FarmUpdateCharacter()
+			or not FarmPositionAlign then
+
 			break
 		end
 
@@ -693,7 +747,9 @@ local function FarmMoveUnderground()
 			return true
 		end
 
-		if os.clock()-started >= FARM_UNDERGROUND_TIMEOUT then
+		if os.clock()-started
+			>= FARM_UNDERGROUND_TIMEOUT then
+
 			break
 		end
 
@@ -730,7 +786,9 @@ local function FarmRunAfterBagFullActions()
 			and MM2.Functions.KillAllOnce then
 
 			local ok,success =
-				pcall(MM2.Functions.KillAllOnce)
+				pcall(
+					MM2.Functions.KillAllOnce
+				)
 
 			killAllRan =
 				ok
@@ -747,7 +805,8 @@ local function FarmRunAfterBagFullActions()
 				and FarmBagFull
 				and Flags.ShootMurdererAfterBagFull do
 
-				local murderer = FarmFindMurderer()
+				local murderer =
+					FarmFindMurderer()
 
 				if not murderer then
 					break
@@ -786,7 +845,8 @@ local function FarmRunAfterBagFullActions()
 		if Flags.FlingMurdererAfterBagFull
 			and MM2.Functions.ExecuteYeet then
 
-			local murderer = FarmFindMurderer()
+			local murderer =
+				FarmFindMurderer()
 
 			if murderer then
 				pcall(
@@ -797,23 +857,24 @@ local function FarmRunAfterBagFullActions()
 		end
 
 		-- Reset fallback.
-		-- Successful Kill All blocks reset.
-		-- Stay Underground also blocks reset.
 		if Flags.ResetCharacterAfterBagFull
 			and not Flags.StayUndergroundAfterBagFull
 			and not killAllRan then
 
 			task.wait(0.15)
 
-			local character = LocalPlayer.Character
+			local character =
+				LocalPlayer.Character
 
 			local humanoid =
 				character
-					and character:FindFirstChildOfClass(
-						"Humanoid"
-					)
+				and character:FindFirstChildOfClass(
+					"Humanoid"
+				)
 
-			if humanoid and humanoid.Health > 0 then
+			if humanoid
+				and humanoid.Health > 0 then
+
 				humanoid.Health = 0
 			end
 		end
@@ -827,7 +888,9 @@ end
 --============================================================
 
 local function FarmBeginBagFullLift()
-	if FarmBagLiftInProgress or FarmBagLiftDone then
+	if FarmBagLiftInProgress
+		or FarmBagLiftDone then
+
 		return
 	end
 
@@ -904,7 +967,8 @@ local function FarmBeginBagFullLift()
 				0
 			)
 
-		FarmPositionAlign.Position = liftTarget
+		FarmPositionAlign.Position =
+			liftTarget
 
 		local started = os.clock()
 
@@ -946,6 +1010,8 @@ end
 --============================================================
 
 local function FarmLoop()
+	local lastLoop = os.clock()
+
 	while AutoFarmRunning and MM2.Running do
 		if not Flags.AutoFarm then
 			break
@@ -960,6 +1026,7 @@ local function FarmLoop()
 			and MM2.IsPreRoundActive() then
 
 			FarmPause("INTERMISSION")
+
 			task.wait(0.10)
 			continue
 		end
@@ -975,23 +1042,29 @@ local function FarmLoop()
 
 		if not FarmUpdateCharacter() then
 			FarmPause("NO CHARACTER")
+
 			task.wait(0.10)
 			continue
 		end
 
 		if FarmHumanoid.Health <= 0 then
 			FarmPause("NOT ALIVE")
+
 			task.wait(0.10)
 			continue
 		end
 
-		-- Pick nearest valid coin.
+		--====================================================
+		-- Pick nearest valid coin
+		--====================================================
+
 		if not FarmCurrentCoin then
 			local coin,nearestDistance =
 				FarmFindNearestCoin()
 
 			if not coin then
 				FarmPause("NO COINS")
+
 				task.wait(0.08)
 				continue
 			end
@@ -1000,6 +1073,7 @@ local function FarmLoop()
 				> FARM_MAX_START_DISTANCE then
 
 				FarmPause("COINS TOO FAR")
+
 				task.wait(0.08)
 				continue
 			end
@@ -1027,7 +1101,9 @@ local function FarmLoop()
 		end
 
 		local coinPos =
-			FarmGetPosition(FarmCurrentCoin)
+			FarmGetPosition(
+				FarmCurrentCoin
+			)
 
 		if not coinPos then
 			FarmReleaseTarget()
@@ -1037,10 +1113,16 @@ local function FarmLoop()
 		local distance =
 			(FarmHRP.Position-coinPos).Magnitude
 
-		if distance > FARM_MAX_TARGET_DISTANCE then
+		if distance
+			> FARM_MAX_TARGET_DISTANCE then
+
 			FarmReleaseTarget()
 			continue
 		end
+
+		--====================================================
+		-- Collection Check
+		--====================================================
 
 		local collection =
 			FarmCheckCollection(
@@ -1055,6 +1137,16 @@ local function FarmLoop()
 			continue
 		end
 
+		--====================================================
+		-- V13.1 NORMAL FARM MOVEMENT
+		--
+		-- 1. Travel underneath coin at -5.20.
+		-- 2. When horizontally <= 2.50 studs:
+		--       start rising.
+		-- 3. Rise smoothly toward -4.70.
+		-- 4. Never go downward again for this coin.
+		--====================================================
+
 		if FarmPositionAlign then
 			FarmPositionAlign.MaxVelocity =
 				math.clamp(
@@ -1064,21 +1156,68 @@ local function FarmLoop()
 					FARM_MAX_VELOCITY
 				)
 
-			--================================================
-			-- V13 NORMAL FARM MOVEMENT
-			--
-			-- Always command the same point relative to coin.
-			-- No distance transition.
-			-- No sweep.
-			-- No bouncing.
-			--================================================
+			local now = os.clock()
+
+			local dt =
+				math.clamp(
+					now-lastLoop,
+					0,
+					0.05
+				)
+
+			lastLoop = now
+
+			local dx =
+				FarmHRP.Position.X
+				- coinPos.X
+
+			local dz =
+				FarmHRP.Position.Z
+				- coinPos.Z
+
+			local horizontalDistance =
+				math.sqrt(
+					dx*dx
+					+
+					dz*dz
+				)
+
+			-- Once triggered, stay triggered
+			-- until target is released.
+			if horizontalDistance
+				<= FARM_PICKUP_START_HORIZONTAL then
+
+				FarmPickupRiseStarted = true
+			end
+
+			if FarmPickupRiseStarted then
+				FarmCurrentYOffset =
+					math.min(
+						FARM_PICKUP_Y_OFFSET,
+						FarmCurrentYOffset
+							+
+							FARM_PICKUP_RISE_RATE
+							*
+							dt
+					)
+			else
+				FarmCurrentYOffset =
+					FARM_TRAVEL_Y_OFFSET
+			end
 
 			FarmPositionAlign.Position =
-				FarmGetCoinTarget(coinPos)
+				FarmGetCoinTarget(
+					coinPos,
+					FarmCurrentYOffset
+				)
 		end
 
 		task.wait(FARM_LOOP_DELAY)
 	end
+
+	--========================================================
+	-- Cleanup
+	--========================================================
 
 	AutoFarmRunning = false
 
@@ -1116,6 +1255,11 @@ function MM2.Functions.StartAutoFarm()
 
 	FarmCurrentCoin = nil
 	FarmCurrentTouch = nil
+
+	FarmCurrentYOffset =
+		FARM_TRAVEL_Y_OFFSET
+
+	FarmPickupRiseStarted = false
 
 	FarmUpdateCharacter()
 
@@ -1190,7 +1334,9 @@ UI.CreateToggle(
 	"Resets your character after bag full",
 	"ResetCharacterAfterBagFull",
 	function(on)
-		if on and UI.SetToggleState then
+		if on
+			and UI.SetToggleState then
+
 			UI.SetToggleState(
 				"StayUndergroundAfterBagFull",
 				false,
@@ -1206,7 +1352,9 @@ UI.CreateToggle(
 	"Moves 6 studs below the map floor after bag full",
 	"StayUndergroundAfterBagFull",
 	function(on)
-		if on and UI.SetToggleState then
+		if on
+			and UI.SetToggleState then
+
 			UI.SetToggleState(
 				"ResetCharacterAfterBagFull",
 				false,
@@ -1281,7 +1429,9 @@ local function FarmResetStats()
 	FarmStatsCoins = 0
 	FarmStatsStartedAt = nil
 	FarmLastReportedBagCount = FarmBagCount
-	CoinRateValue.Text = "0 coins/min"
+
+	CoinRateValue.Text =
+		"0 coins/min"
 end
 
 UI.CreateActionFeature(
@@ -1296,7 +1446,9 @@ MM2.Track(
 		if not FarmStatsStartedAt
 			or FarmStatsCoins <= 0 then
 
-			CoinRateValue.Text = "0 coins/min"
+			CoinRateValue.Text =
+				"0 coins/min"
+
 			return
 		end
 
@@ -1323,7 +1475,9 @@ MM2.Track(
 -- Gameplay Remotes
 --============================================================
 
-local ReplicatedStorage = MM2.Services.ReplicatedStorage
+local ReplicatedStorage =
+	MM2.Services.ReplicatedStorage
+
 local Track = MM2.Track
 
 local FarmGameplayRemotes =
@@ -1353,29 +1507,43 @@ if FarmCoinCollected
 		FarmCoinCollected.OnClientEvent:Connect(function(...)
 			local args = {...}
 
-			local current = tonumber(args[2])
-			local maximum = tonumber(args[3])
+			local current =
+				tonumber(args[2])
 
-			if maximum and maximum > 0 then
+			local maximum =
+				tonumber(args[3])
+
+			if maximum
+				and maximum > 0 then
+
 				FarmBagMax = maximum
 			end
 
 			if current then
-				if current > FarmLastReportedBagCount then
+				if current
+					> FarmLastReportedBagCount then
+
 					FarmStatsCoins +=
-						current-FarmLastReportedBagCount
+						current
+						-
+						FarmLastReportedBagCount
 
 					FarmStatsStartedAt =
 						FarmStatsStartedAt
 						or os.clock()
 				end
 
-				FarmLastReportedBagCount = current
-				FarmBagCount = current
+				FarmLastReportedBagCount =
+					current
+
+				FarmBagCount =
+					current
 			end
 
 			FarmBagFull =
-				FarmBagCount >= FarmBagMax
+				FarmBagCount
+				>=
+				FarmBagMax
 
 			if Flags.AutoFarm
 				and FarmBagFull then
@@ -1406,6 +1574,12 @@ local function FarmResetBag()
 	FarmAfterBagActionBusy = false
 
 	FarmSafeReturnCFrame = nil
+
+	FarmCurrentYOffset =
+		FARM_TRAVEL_Y_OFFSET
+
+	FarmPickupRiseStarted =
+		false
 end
 
 if FarmRoundStart
