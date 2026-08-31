@@ -910,12 +910,9 @@ local function UpdateCombatFeatures()
 		return
 	end
 
-	local torso = GetCombatTorso(targetPlayer.Character)
-	if not torso then return end
-
-	if FireCombatGun(gun,torso.Position) then
-		LastTriggerShot = os.clock()
-	end
+	if FireCombatGun(gun,rayResult.Position) then
+	LastTriggerShot = os.clock()
+end
 end
 
 RunService:BindToRenderStep(
