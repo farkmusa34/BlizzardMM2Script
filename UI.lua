@@ -218,7 +218,7 @@ local function CreateSidebarIcon(parent,kind,color)
 	h.Parent = parent
 
 	local selectedAssets = {
-		Visuals = 137970834122380,
+		Visuals = 127129271766855,
 		Fling = 18164947844,
 		Player = 12928483395,
 	}
