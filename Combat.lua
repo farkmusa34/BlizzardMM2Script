@@ -910,7 +910,25 @@ local function UpdateCombatFeatures()
 		return
 	end
 
-	if FireCombatGun(gun,rayResult.Position) then
+	local targetPart = GetCombatTorso(targetPlayer.Character)
+
+if not targetPart then
+	return
+end
+
+local targetPosition = rayResult.Position
+
+local velocity = targetPart.AssemblyLinearVelocity
+
+local predictionTime = 0.06
+
+if velocity.Magnitude > 120 then
+	velocity = velocity.Unit * 120
+end
+
+targetPosition += velocity * predictionTime
+
+if FireCombatGun(gun,targetPosition) then
 	LastTriggerShot = os.clock()
 end
 end
