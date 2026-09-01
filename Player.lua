@@ -1,5 +1,5 @@
 --============================================================
--- MM2 V8.7 - Player.lua
+-- MM2 V8.8.4 - Player.lua
 -- Movement, Jump, Bomb Boost, Utility.
 --============================================================
 
@@ -13,9 +13,6 @@ local Flags = MM2.Flags
 local UI = MM2.UI
 local Track = MM2.Track
 local Settings = MM2.PlayerSettings
-
-local TeleportService = game:GetService("TeleportService")
-local GuiService = game:GetService("GuiService")
 
 --============================================================
 -- STATE
@@ -452,8 +449,6 @@ local function IsTouchingWall()
 
 	forward = forward.Unit
 
-	-- Check center, slightly left, and slightly right.
-	-- This works better on corners than one single ray.
 	local right =
 		Vector3.new(
 			hrp.CFrame.RightVector.X,
@@ -482,7 +477,6 @@ local function IsTouchingWall()
 			and result.Instance
 			and result.Instance:IsA("BasePart")
 		then
-			-- Avoid interpreting floors/slopes as walls.
 			if math.abs(result.Normal.Y) < 0.65 then
 				return true
 			end
@@ -569,18 +563,15 @@ local function TriggerBombJump()
 		return false
 	end
 
-	-- Equip bomb.
 	humanoid:EquipTool(bomb)
 	task.wait(0.06)
 
-	-- Rapid unequip/re-equip to start the bomb animation.
 	humanoid:UnequipTools()
 	task.wait(0.035)
 
 	humanoid:EquipTool(bomb)
 	task.wait(0.055)
 
-	-- Jump during the animation window.
 	humanoid.Jump = true
 	humanoid:ChangeState(
 		Enum.HumanoidStateType.Jumping
@@ -588,8 +579,6 @@ local function TriggerBombJump()
 
 	task.wait(0.035)
 
-	-- Tiny forward movement so the character can step onto /
-	-- collide with the Fake Bomb's physical hitbox.
 	local forward =
 		Vector3.new(
 			hrp.CFrame.LookVector.X,
@@ -771,51 +760,6 @@ local function SetBombButtonVisible(on)
 end
 
 --============================================================
--- ANTI DISCONNECT
---============================================================
-
-local RejoinBusy = false
-
-local function TryReconnect()
-	if not Flags.AntiDisconnect then
-		return
-	end
-
-	if RejoinBusy then
-		return
-	end
-
-	RejoinBusy = true
-
-	task.delay(1,function()
-		pcall(function()
-			TeleportService:Teleport(
-				game.PlaceId,
-				LocalPlayer
-			)
-		end)
-
-		task.delay(5,function()
-			RejoinBusy = false
-		end)
-	end)
-end
-
-Track(GuiService.ErrorMessageChanged:Connect(function(message)
-	if not Flags.AntiDisconnect then
-		return
-	end
-
-	if typeof(message) ~= "string"
-		or message == ""
-	then
-		return
-	end
-
-	TryReconnect()
-end))
-
---============================================================
 -- MOVEMENT SECTION
 --============================================================
 
@@ -945,7 +889,6 @@ UI.CreateActionFeature(
 	UI.PlayerPage,
 	"Bomb Jump",
 	"Perform one timed Fake Bomb jump",
-	"TRIGGER",
 	function()
 		TriggerBombJump()
 	end
@@ -968,21 +911,13 @@ UI.CreateToggle(
 UI.AddSection(
 	UI.PlayerPage,
 	"Utility",
-	"Player and session utilities"
-)
-
-UI.CreateToggle(
-	UI.PlayerPage,
-	"Anti Disconnect",
-	"Attempt to reconnect after disconnecting",
-	"AntiDisconnect"
+	"Player utilities"
 )
 
 UI.CreateActionFeature(
 	UI.PlayerPage,
 	"Reset Character",
 	"Respawn your character",
-	"TRIGGER",
 	function()
 		local char =
 			LocalPlayer.Character
@@ -996,8 +931,7 @@ UI.CreateActionFeature(
 		if humanoid then
 			humanoid.Health = 0
 		end
-	end,
-	"danger"
+	end
 )
 
 --============================================================
@@ -1017,7 +951,6 @@ Track(UIS.JumpRequest:Connect(function()
 		return
 	end
 
-	-- Normal infinite jump anywhere.
 	if Flags.InfiniteJump then
 		humanoid:ChangeState(
 			Enum.HumanoidStateType.Jumping
@@ -1026,8 +959,6 @@ Track(UIS.JumpRequest:Connect(function()
 		return
 	end
 
-	-- Wall Climb only allows the extra jump
-	-- while actually facing/touching a wall.
 	if Flags.WallClimb
 		and IsTouchingWall()
 	then
