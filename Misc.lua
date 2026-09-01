@@ -110,6 +110,18 @@ local function CopyTable(source)
 end
 
 --============================================================
+-- FACTORY DEFAULT SNAPSHOT
+--============================================================
+
+local DefaultFlags =
+	CopyTable(Flags)
+
+local DefaultPlayerSettings =
+	CopyTable(
+		MM2.PlayerSettings or {}
+	)
+
+--============================================================
 -- THEMES
 --============================================================
 
