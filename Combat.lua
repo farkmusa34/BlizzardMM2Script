@@ -920,13 +920,19 @@ local targetPosition = rayResult.Position
 
 local velocity = targetPart.AssemblyLinearVelocity
 
+local horizontalVelocity = Vector3.new(
+	velocity.X,
+	0,
+	velocity.Z
+)
+
 local predictionTime = 0.06
 
-if velocity.Magnitude > 120 then
-	velocity = velocity.Unit * 120
+if horizontalVelocity.Magnitude > 120 then
+	horizontalVelocity = horizontalVelocity.Unit * 120
 end
 
-targetPosition += velocity * predictionTime
+targetPosition += horizontalVelocity * predictionTime
 
 if FireCombatGun(gun,targetPosition) then
 	LastTriggerShot = os.clock()
