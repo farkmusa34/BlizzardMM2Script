@@ -9,6 +9,9 @@ local Flags = MM2.Flags
 local UI = MM2.UI
 local Track = MM2.Track
 
+local GRAB_GUN_ASSET_ID = 111946313098385
+local KILL_ALL_ASSET_ID = 117249257814107
+
 -- Combat UI should still load even if Visuals.lua has not created TracerGui yet.
 local CombatOverlay = UI.TracerGui or UI.ScreenGui
 assert(CombatOverlay, "Combat overlay GUI not found")
@@ -25,6 +28,14 @@ UI.CreateToggle(UI.CombatPage, "Shoot Murderer (Rage)", "Keeps the current behav
 	if MM2.UI.FloatingShootButton then MM2.UI.FloatingShootButton.Visible = on end
 end)
 UI.CreateToggle(UI.CombatPage, "Auto Grab Gun", "Automatically grabs the gun without moving your body", "AutoGrab")
+
+Flags.ShowAutoGrabGunButton = Flags.ShowAutoGrabGunButton == true
+UI.CreateToggle(UI.CombatPage, "Show Auto Grab Gun Button", "Shows a movable Grab Gun button", "ShowAutoGrabGunButton", function(on)
+	if MM2.UI.FloatingGrabGunHolder then MM2.UI.FloatingGrabGunHolder.Visible = on end
+end)
+
+Flags.NotifyDroppedGun = Flags.NotifyDroppedGun == true
+UI.CreateToggle(UI.CombatPage, "Dropped Gun Notify", "Notifies you when a dropped gun is detected", "NotifyDroppedGun")
 
 UI.AddSection(UI.CombatPage, "Murderer", "Legit and rage knife features")
 
@@ -1146,7 +1157,7 @@ if UI.CreateMovableCircleButton then
 	local FloatingKillAllButton,FloatingKillAllHolder =
 		UI.CreateMovableCircleButton(
 			"FloatingKillAll",
-			"💀",
+			"",
 			"KILL ALL",
 			UDim2.new(0.67,-52,0.78,-42),
 			function()
@@ -1162,6 +1173,17 @@ if UI.CreateMovableCircleButton then
 				end
 			end
 		)
+
+	local KillAllImage = Instance.new("ImageLabel")
+	KillAllImage.Name = "KillAllImage"
+	KillAllImage.AnchorPoint = Vector2.new(0.5,0.5)
+	KillAllImage.Position = UDim2.fromScale(0.5,0.5)
+	KillAllImage.Size = UDim2.fromScale(1,1)
+	KillAllImage.BackgroundTransparency = 1
+	KillAllImage.Image = ("rbxthumb://type=Asset&id=%s&w=420&h=420"):format(KILL_ALL_ASSET_ID)
+	KillAllImage.ScaleType = Enum.ScaleType.Fit
+	KillAllImage.ZIndex = FloatingKillAllButton.ZIndex+1
+	KillAllImage.Parent = FloatingKillAllButton
 
 	FloatingKillAllHolder.Visible = false
 
@@ -1191,6 +1213,7 @@ end
 --============================================================
 
 local AUTO_GRAB_TOUCH_BURST = 2
+local LastNotifiedGunDrop = nil
 
 local function GetPickupPart(gun)
 	if not gun then return nil end
@@ -1258,6 +1281,123 @@ local function TouchAutoGrabPart(localPart,pickupPart)
 		RunService.Heartbeat:Wait()
 		firetouchinterest(localPart,pickupPart,1)
 	end)
+end
+
+MM2.Functions.GrabGunOnce = function()
+	if MM2.IsPreRoundActive()
+		or MM2.State.Is_Picking_Up
+		or MM2.HasGunAnywhere()
+		or IsLocalMurderer()
+	then
+		return false
+	end
+
+	local gunDrop = MM2.State.CachedGunDrop
+
+	if not gunDrop or not gunDrop.Parent then
+		gunDrop = workspace:FindFirstChild("GunDrop",true)
+	end
+
+	if not gunDrop then
+		return false
+	end
+
+	local targetPart = GetPickupPart(gunDrop)
+
+	if not targetPart or not targetPart.Parent then
+		return false
+	end
+
+	local char = LocalPlayer.Character
+	local humanoid = char and char:FindFirstChildOfClass("Humanoid")
+	local hrp = char and char:FindFirstChild("HumanoidRootPart")
+
+	if not char
+		or not hrp
+		or not humanoid
+		or humanoid.Health <= 0
+	then
+		return false
+	end
+
+	local torso = char:FindFirstChild("UpperTorso")
+		or char:FindFirstChild("Torso")
+
+	MM2.State.Is_Picking_Up = true
+
+	pcall(function()
+		for _ = 1,AUTO_GRAB_TOUCH_BURST do
+			if MM2.HasGunAnywhere()
+				or not gunDrop.Parent
+				or not targetPart.Parent
+			then
+				break
+			end
+
+			if Flags.AutoFarm then
+				if torso then
+					TouchAutoGrabPart(torso,targetPart)
+				end
+
+				if MM2.HasGunAnywhere() or not gunDrop.Parent then
+					break
+				end
+
+				TouchAutoGrabPart(hrp,targetPart)
+			else
+				TouchAutoGrabPart(hrp,targetPart)
+
+				if MM2.HasGunAnywhere() or not gunDrop.Parent then
+					break
+				end
+
+				if torso then
+					TouchAutoGrabPart(torso,targetPart)
+				end
+			end
+
+			if MM2.HasGunAnywhere() or not gunDrop.Parent then
+				break
+			end
+
+			task.wait(0.02)
+		end
+	end)
+
+	MM2.State.Is_Picking_Up = false
+
+	return MM2.HasGunAnywhere()
+end
+
+if UI.CreateMovableCircleButton then
+	local FloatingGrabGunButton,FloatingGrabGunHolder =
+		UI.CreateMovableCircleButton(
+			"FloatingGrabGun",
+			"",
+			"GRAB GUN",
+			UDim2.new(0.78,-52,0.80,-42),
+			function()
+				if MM2.Functions.GrabGunOnce then
+					MM2.Functions.GrabGunOnce()
+				end
+			end
+		)
+
+	local GrabGunImage = Instance.new("ImageLabel")
+	GrabGunImage.Name = "GrabGunImage"
+	GrabGunImage.AnchorPoint = Vector2.new(0.5,0.5)
+	GrabGunImage.Position = UDim2.fromScale(0.5,0.5)
+	GrabGunImage.Size = UDim2.fromScale(1,1)
+	GrabGunImage.BackgroundTransparency = 1
+	GrabGunImage.Image = ("rbxthumb://type=Asset&id=%s&w=420&h=420"):format(GRAB_GUN_ASSET_ID)
+	GrabGunImage.ScaleType = Enum.ScaleType.Fit
+	GrabGunImage.ZIndex = FloatingGrabGunButton.ZIndex+1
+	GrabGunImage.Parent = FloatingGrabGunButton
+
+	FloatingGrabGunHolder.Visible = Flags.ShowAutoGrabGunButton == true
+
+	MM2.UI.FloatingGrabGunButton = FloatingGrabGunButton
+	MM2.UI.FloatingGrabGunHolder = FloatingGrabGunHolder
 end
 
 MM2.Functions.UpdateAutoGrab = function()
@@ -1368,5 +1508,44 @@ MM2.Functions.UpdateAutoGrab = function()
 
 	MM2.State.Is_Picking_Up = false
 end
+
+task.spawn(function()
+	while MM2.Running do
+		if Flags.NotifyDroppedGun then
+			local gunDrop = MM2.State.CachedGunDrop
+
+			if not gunDrop or not gunDrop.Parent then
+				gunDrop = workspace:FindFirstChild("GunDrop",true)
+			end
+
+			if gunDrop and gunDrop.Parent then
+				if gunDrop ~= LastNotifiedGunDrop then
+					LastNotifiedGunDrop = gunDrop
+
+					local targetPart = GetPickupPart(gunDrop)
+					local char = LocalPlayer.Character
+					local hrp = char and char:FindFirstChild("HumanoidRootPart")
+
+					if targetPart and hrp then
+						local distance = math.floor(
+							(hrp.Position-targetPart.Position).Magnitude+0.5
+						)
+
+						MM2.Notify(
+							"Dropped Gun\nA gun has been detected "..distance.." studs away",
+							3
+						)
+					end
+				end
+			else
+				LastNotifiedGunDrop = nil
+			end
+		else
+			LastNotifiedGunDrop = nil
+		end
+
+		task.wait(0.15)
+	end
+end)
 
 return MM2
