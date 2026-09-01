@@ -1309,6 +1309,127 @@ MM2.Functions.LoadConfig =
 
 local function ResetConfig()
 
+	if ConfigBusy then
+		return false
+	end
+
+	ConfigBusy = true
+
+	--========================================================
+	-- STOP AUTO SAVE FIRST
+	--========================================================
+
+	Flags.AutoSaveConfig = false
+
+	--========================================================
+	-- DELETE SAVED CONFIG
+	--========================================================
+
+	if delfile
+		and isfile
+		and isfile(CONFIG_FILE)
+	then
+		pcall(
+			delfile,
+			CONFIG_FILE
+		)
+	end
+
+	--========================================================
+	-- RESET ALL FLAGS
+	--========================================================
+
+	for key,value in pairs(DefaultFlags) do
+		Flags[key] = value
+	end
+
+	--========================================================
+	-- RESET ALL PLAYER SETTINGS
+	--========================================================
+
+	if MM2.PlayerSettings then
+		for key,value in pairs(
+			DefaultPlayerSettings
+		) do
+			MM2.PlayerSettings[key] =
+				value
+		end
+	end
+
+	--========================================================
+	-- REFRESH EVERY REGISTERED TOGGLE
+	--========================================================
+
+	if UI.SetToggleState then
+
+		for key,value in pairs(DefaultFlags) do
+
+			if typeof(value) == "boolean" then
+
+				pcall(
+					UI.SetToggleState,
+					key,
+					value,
+					true
+				)
+
+			end
+		end
+
+	end
+
+	--========================================================
+	-- FORCE PLAYER VALUES BACK TO DEFAULT
+	--========================================================
+
+	local character =
+		LocalPlayer.Character
+
+	local humanoid =
+		character
+		and character:
+			FindFirstChildOfClass(
+				"Humanoid"
+			)
+
+	if humanoid then
+
+		if DefaultPlayerSettings.WalkSpeed then
+			humanoid.WalkSpeed =
+				DefaultPlayerSettings.WalkSpeed
+		end
+
+		if DefaultPlayerSettings.JumpPower then
+			humanoid.JumpPower =
+				DefaultPlayerSettings.JumpPower
+		end
+	end
+
+	--========================================================
+	-- RESET MISC SYSTEMS
+	--========================================================
+
+	SetAntiAFK(false)
+
+	Flags.Theme = "Dark"
+
+	ApplyTheme("Dark")
+
+	SetThemeDropdown(false)
+
+	ThemeButton.Text =
+		"Dark  ▼"
+
+	LastConfigSnapshot = nil
+
+	ConfigBusy = false
+
+	return true
+end
+
+MM2.Functions.ResetConfig =
+	ResetConfig
+
 	if delfile
 		and isfile
 		and isfile(CONFIG_FILE)
