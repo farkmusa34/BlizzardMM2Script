@@ -1166,15 +1166,24 @@ end
 --============================================================
 -- AUTO GRAB GUN
 --
+-- NO DISTANCE LIMIT
+--
 -- AutoFarm OFF:
 --     Original HRP-first pickup behavior.
 --
 -- AutoFarm ON:
 --     Torso-first pickup behavior so the enlarged AutoFarm HRP does not
 --     become the primary gun-touch part. HRP remains a fallback.
+--
+-- Still blocked when:
+--     - Auto Grab is OFF
+--     - Intermission / pre-round is active
+--     - Already picking up
+--     - You already have the gun
+--     - You are the Murderer
+--     - You are dead / character is invalid
 --============================================================
 
-local MAX_GRAB_DISTANCE = 150
 local AUTO_GRAB_TOUCH_BURST = 2
 
 local function GetPickupPart(gun)
@@ -1215,16 +1224,6 @@ function MM2.IsPreRoundActive()
 	end
 
 	return false
-end
-
-local function IsGunWithinAutoGrabDistance(position)
-	local hrp = LocalPlayer.Character
-		and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
-
-	return hrp
-		and position
-		and (hrp.Position-position).Magnitude < MAX_GRAB_DISTANCE
-		or false
 end
 
 local function IsLocalMurderer()
@@ -1277,9 +1276,9 @@ MM2.Functions.UpdateAutoGrab = function()
 
 	local targetPart = GetPickupPart(gunDrop)
 
+	-- No distance check anymore.
 	if not targetPart
 		or not targetPart.Parent
-		or not IsGunWithinAutoGrabDistance(targetPart.Position)
 	then
 		return
 	end
@@ -1288,6 +1287,7 @@ MM2.Functions.UpdateAutoGrab = function()
 	local humanoid = char and char:FindFirstChildOfClass("Humanoid")
 	local hrp = char and char:FindFirstChild("HumanoidRootPart")
 
+	-- Dead / invalid character protection remains unchanged.
 	if not char
 		or not hrp
 		or not humanoid
