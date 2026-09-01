@@ -1,7 +1,8 @@
 --============================================================
--- MM2 V8.7.2 UI
+-- MM2 V8.8.4 UI
 -- Dashboard, tabs, toolbar, builders.
 -- Compact feature-card sizing.
+-- Added Misc tab.
 --============================================================
 
 local MM2 = getgenv and getgenv().MM2_V85_SPLIT or _G.MM2_V85_SPLIT
@@ -297,6 +298,29 @@ local function CreateSidebarIcon(parent,kind,color)
 			dc.CornerRadius = UDim.new(1,0)
 			dc.Parent = dot
 		end
+
+	elseif kind == "Misc" then
+		NewLine(h,14,1.4,10,5,0,color,2)
+		NewLine(h,14,1.4,10,10,0,color,2)
+		NewLine(h,14,1.4,10,15,0,color,2)
+
+		for _,data in ipairs({
+			{6,5},
+			{13,10},
+			{8,15},
+		}) do
+			local dot = Instance.new("Frame")
+			dot.Size = UDim2.fromOffset(4,4)
+			dot.Position = UDim2.fromOffset(data[1]-2,data[2]-2)
+			dot.BackgroundColor3 = color
+			dot.BorderSizePixel = 0
+			dot.ZIndex = 3
+			dot.Parent = h
+
+			local dc = Instance.new("UICorner")
+			dc.CornerRadius = UDim.new(1,0)
+			dc.Parent = dot
+		end
 	end
 
 	return h
@@ -337,7 +361,7 @@ Subtitle.Size = UDim2.new(0,280,0,18)
 Subtitle.Position = UDim2.fromOffset(62,29)
 Subtitle.BackgroundTransparency = 1
 Subtitle.TextXAlignment = Enum.TextXAlignment.Left
-Subtitle.Text = "V8.7.2"
+Subtitle.Text = "V8.8.4"
 Subtitle.TextColor3 = COLORS.Muted
 Subtitle.TextSize = 10
 Subtitle.Font = Enum.Font.Gotham
@@ -348,7 +372,7 @@ VersionLabel.Size = UDim2.fromOffset(52,24)
 VersionLabel.Position = UDim2.new(1,-100,0,15)
 VersionLabel.BackgroundColor3 = COLORS.Card
 VersionLabel.BorderSizePixel = 0
-VersionLabel.Text = "V8.7.2"
+VersionLabel.Text = "V8.8.4"
 VersionLabel.TextColor3 = COLORS.Muted
 VersionLabel.TextSize = 9
 VersionLabel.Font = Enum.Font.GothamBold
@@ -620,6 +644,7 @@ MM2.UI.CombatPage = NewPage("Combat")
 MM2.UI.PlayerPage = NewPage("Player")
 MM2.UI.FlingPage = NewPage("Fling")
 MM2.UI.AutoFarmPage = NewPage("AutoFarm")
+MM2.UI.MiscPage = NewPage("Misc")
 
 function MM2.UI.ShowPage(name)
 	for pageName,page in pairs(Pages) do
@@ -718,6 +743,7 @@ AddSidebarButton("Combat","Combat",2)
 AddSidebarButton("Player","Player",3)
 AddSidebarButton("Fling","Fling",4)
 AddSidebarButton("AutoFarm","Auto Farm",5)
+AddSidebarButton("Misc","Misc",6)
 
 function MM2.UI.AddSection(parent,titleText,subtitleText)
 	local wrap = Instance.new("Frame")
