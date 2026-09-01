@@ -965,10 +965,34 @@ function MM2.UI.CreateActionFeature(parent,titleText,description,callback)
 	ac.Parent = action
 
 	Track(action.MouseButton1Click:Connect(function()
-		if callback then
-			task.spawn(callback)
+	TweenService:Create(
+		action,
+		TweenInfo.new(0.08, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+		{
+			BackgroundColor3 = COLORS.Accent2,
+			Size = UDim2.fromOffset(78,26),
+			Position = UDim2.new(1,-94,0.5,-13)
+		}
+	):Play()
+
+	task.delay(0.09,function()
+		if action and action.Parent then
+			TweenService:Create(
+				action,
+				TweenInfo.new(0.10, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+				{
+					BackgroundColor3 = COLORS.Accent,
+					Size = UDim2.fromOffset(82,28),
+					Position = UDim2.new(1,-96,0.5,-14)
+				}
+			):Play()
 		end
-	end))
+	end)
+
+	if callback then
+		task.spawn(callback)
+	end
+end))
 
 	return card,action
 end
