@@ -98,6 +98,25 @@ local MainCorner = Instance.new("UICorner")
 MainCorner.CornerRadius = UDim.new(0,16)
 MainCorner.Parent = MainFrame
 
+--============================================================
+-- TOP GRAB HANDLE
+--============================================================
+
+local TopHandle = Instance.new("Frame")
+TopHandle.Name = "TopHandle"
+TopHandle.Size = UDim2.fromOffset(82,7)
+TopHandle.AnchorPoint = Vector2.new(0.5,0)
+TopHandle.Position = UDim2.new(0.5,0,0,6)
+TopHandle.BackgroundColor3 = Color3.fromRGB(95,102,116)
+TopHandle.BackgroundTransparency = 0.25
+TopHandle.BorderSizePixel = 0
+TopHandle.ZIndex = 20
+TopHandle.Parent = MainFrame
+
+local TopHandleCorner = Instance.new("UICorner")
+TopHandleCorner.CornerRadius = UDim.new(1,0)
+TopHandleCorner.Parent = TopHandle
+
 local BlueCyanGradients = {}
 
 local function CreateBlueCyanStroke(parent,thickness,transparency)
