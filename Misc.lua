@@ -349,10 +349,6 @@ local function ApplyTheme(themeName)
 	local finalTheme =
 		BuildThemeFromCurrent(selected)
 
-	--========================================================
-	-- UPDATE UI.COLORS
-	--========================================================
-
 	for key,value in pairs(finalTheme) do
 		if UI.COLORS[key] ~= nil
 			and typeof(value) == "Color3"
@@ -360,14 +356,6 @@ local function ApplyTheme(themeName)
 			UI.COLORS[key] = value
 		end
 	end
-
-	--========================================================
-	-- RECOLOR EXISTING UI
-	--
-	-- Instead of rebuilding the menu, find objects currently
-	-- using one of the old palette colors and replace it with
-	-- the corresponding new palette color.
-	--========================================================
 
 	local gui =
 		UI.ScreenGui
@@ -377,7 +365,6 @@ local function ApplyTheme(themeName)
 	if gui then
 		for _,object in ipairs(gui:GetDescendants()) do
 
-			-- Background
 			if object:IsA("GuiObject") then
 				for key,oldColor in pairs(oldColors) do
 					local newColor =
@@ -393,7 +380,6 @@ local function ApplyTheme(themeName)
 				end
 			end
 
-			-- Text
 			if object:IsA("TextLabel")
 				or object:IsA("TextButton")
 				or object:IsA("TextBox")
@@ -412,7 +398,6 @@ local function ApplyTheme(themeName)
 				end
 			end
 
-			-- Image tint
 			if object:IsA("ImageLabel")
 				or object:IsA("ImageButton")
 			then
@@ -430,7 +415,6 @@ local function ApplyTheme(themeName)
 				end
 			end
 
-			-- UIStroke
 			if object:IsA("UIStroke") then
 				for key,oldColor in pairs(oldColors) do
 					local newColor =
@@ -446,7 +430,6 @@ local function ApplyTheme(themeName)
 				end
 			end
 
-			-- Scrollbar
 			if object:IsA("ScrollingFrame") then
 				for key,oldColor in pairs(oldColors) do
 					local newColor =
@@ -853,7 +836,6 @@ local function RejoinCurrentPlace()
 	local success =
 		pcall(function()
 
-			-- Try same server first.
 			if game.JobId
 				and game.JobId ~= ""
 			then
@@ -1063,7 +1045,6 @@ local function ServerHop()
 
 		else
 
-			-- Fallback if server listing isn't available.
 			pcall(function()
 
 				TeleportService:Teleport(
@@ -1315,16 +1296,10 @@ local function ResetConfig()
 
 	ConfigBusy = true
 
-	--========================================================
-	-- STOP AUTO SAVE FIRST
-	--========================================================
-
+	-- Stop auto save first.
 	Flags.AutoSaveConfig = false
 
-	--========================================================
-	-- DELETE SAVED CONFIG
-	--========================================================
-
+	-- Delete saved configuration.
 	if delfile
 		and isfile
 		and isfile(CONFIG_FILE)
@@ -1335,31 +1310,25 @@ local function ResetConfig()
 		)
 	end
 
-	--========================================================
-	-- RESET ALL FLAGS
-	--========================================================
-
+	-- Reset every flag back to its startup default.
 	for key,value in pairs(DefaultFlags) do
 		Flags[key] = value
 	end
 
-	--========================================================
-	-- RESET ALL PLAYER SETTINGS
-	--========================================================
-
+	-- Reset every PlayerSetting.
 	if MM2.PlayerSettings then
+
 		for key,value in pairs(
 			DefaultPlayerSettings
 		) do
+
 			MM2.PlayerSettings[key] =
 				value
+
 		end
 	end
 
-	--========================================================
-	-- REFRESH EVERY REGISTERED TOGGLE
-	--========================================================
-
+	-- Refresh all registered toggles and run callbacks.
 	if UI.SetToggleState then
 
 		for key,value in pairs(DefaultFlags) do
@@ -1375,13 +1344,9 @@ local function ResetConfig()
 
 			end
 		end
-
 	end
 
-	--========================================================
-	-- FORCE PLAYER VALUES BACK TO DEFAULT
-	--========================================================
-
+	-- Immediately restore character movement values.
 	local character =
 		LocalPlayer.Character
 
@@ -1403,14 +1368,12 @@ local function ResetConfig()
 			humanoid.JumpPower =
 				DefaultPlayerSettings.JumpPower
 		end
-	end
 
-	--========================================================
-	-- RESET MISC SYSTEMS
-	--========================================================
+	end
 
 	SetAntiAFK(false)
 
+	-- Reset theme.
 	Flags.Theme = "Dark"
 
 	ApplyTheme("Dark")
@@ -1423,61 +1386,6 @@ local function ResetConfig()
 	LastConfigSnapshot = nil
 
 	ConfigBusy = false
-
-	return true
-end
-
-MM2.Functions.ResetConfig =
-	ResetConfig
-
-	if delfile
-		and isfile
-		and isfile(CONFIG_FILE)
-	then
-		pcall(
-			delfile,
-			CONFIG_FILE
-		)
-	end
-
-	Flags.Theme = "Dark"
-	Flags.AntiAFK = false
-	Flags.AntiDisconnect = false
-	Flags.AutoSaveConfig = false
-
-	if UI.SetToggleState then
-
-		pcall(
-			UI.SetToggleState,
-			"AntiAFK",
-			false,
-			true
-		)
-
-		pcall(
-			UI.SetToggleState,
-			"AntiDisconnect",
-			false,
-			true
-		)
-
-		pcall(
-			UI.SetToggleState,
-			"AutoSaveConfig",
-			false,
-			true
-		)
-
-	end
-
-	SetAntiAFK(false)
-
-	ApplyTheme("Dark")
-
-	ThemeButton.Text =
-		"Dark  ▼"
-
-	LastConfigSnapshot = nil
 
 	return true
 end
@@ -1600,7 +1508,6 @@ local function UnloadMenu()
 
 	MM2.Running = false
 
-	-- Stop known feature systems.
 	if MM2.Functions.StopAutoFarm then
 		pcall(
 			MM2.Functions.StopAutoFarm
@@ -1619,13 +1526,10 @@ local function UnloadMenu()
 		)
 	end
 
-	-- Save before unloading if enabled.
 	if Flags.AutoSaveConfig then
 		pcall(SaveConfig)
 	end
 
-	-- Disconnect anything registered through MM2.Track
-	-- if Shared.lua exposes an unload function.
 	if MM2.Functions.Unload then
 
 		pcall(
@@ -1635,7 +1539,6 @@ local function UnloadMenu()
 		return
 	end
 
-	-- Otherwise remove known GUIs.
 	for _,gui in ipairs({
 		UI.ScreenGui,
 		UI.TracerGui,
@@ -1668,11 +1571,9 @@ UI.CreateActionFeature(
 -- INITIALIZE
 --============================================================
 
--- Try saved config first.
 local loadedConfig =
 	LoadConfig()
 
--- Otherwise apply whichever theme is already selected.
 if not loadedConfig then
 	ApplyTheme(
 		Flags.Theme or "Dark"
