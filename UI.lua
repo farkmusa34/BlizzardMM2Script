@@ -1,7 +1,7 @@
 --============================================================
 -- MM2 V8.7.2 UI
 -- Dashboard, tabs, toolbar, builders.
--- Toggle registry added so mutually-exclusive toggles stay visually synced.
+-- Compact feature-card sizing.
 --============================================================
 
 local MM2 = getgenv and getgenv().MM2_V85_SPLIT or _G.MM2_V85_SPLIT
@@ -595,7 +595,7 @@ local function NewPage(name)
 	page.Parent = Content
 
 	local layout = Instance.new("UIListLayout")
-	layout.Padding = UDim.new(0,10)
+	layout.Padding = UDim.new(0,7)
 	layout.SortOrder = Enum.SortOrder.LayoutOrder
 	layout.Parent = page
 
@@ -752,12 +752,12 @@ function MM2.UI.AddSection(parent,titleText,subtitleText)
 end
 
 --============================================================
--- TOGGLE BUILDER - V8.7.2 VISUAL SYNC FIX
+-- TOGGLE BUILDER - COMPACT
 --============================================================
 
 function MM2.UI.CreateToggle(parent,titleText,description,flagName,callback)
 	local card = Instance.new("Frame")
-	card.Size = UDim2.new(1,0,0,64)
+	card.Size = UDim2.new(1,0,0,50)
 	card.BackgroundColor3 = COLORS.Card
 	card.BorderSizePixel = 0
 	card.Parent = parent
@@ -773,8 +773,8 @@ function MM2.UI.CreateToggle(parent,titleText,description,flagName,callback)
 	cardStroke.Parent = card
 
 	local label = Instance.new("TextLabel")
-	label.Size = UDim2.new(1,-104,0,22)
-	label.Position = UDim2.fromOffset(14,10)
+	label.Size = UDim2.new(1,-104,0,18)
+	label.Position = UDim2.fromOffset(14,6)
 	label.BackgroundTransparency = 1
 	label.TextXAlignment = Enum.TextXAlignment.Left
 	label.Text = titleText
@@ -784,8 +784,8 @@ function MM2.UI.CreateToggle(parent,titleText,description,flagName,callback)
 	label.Parent = card
 
 	local desc = Instance.new("TextLabel")
-	desc.Size = UDim2.new(1,-104,0,18)
-	desc.Position = UDim2.fromOffset(14,34)
+	desc.Size = UDim2.new(1,-104,0,14)
+	desc.Position = UDim2.fromOffset(14,27)
 	desc.BackgroundTransparency = 1
 	desc.TextXAlignment = Enum.TextXAlignment.Left
 	desc.Text = description or ""
@@ -885,7 +885,7 @@ end
 
 function MM2.UI.CreateActionFeature(parent,titleText,description,callback)
 	local card = Instance.new("Frame")
-	card.Size = UDim2.new(1,0,0,64)
+	card.Size = UDim2.new(1,0,0,50)
 	card.BackgroundColor3 = COLORS.Card
 	card.BorderSizePixel = 0
 	card.Parent = parent
@@ -901,8 +901,8 @@ function MM2.UI.CreateActionFeature(parent,titleText,description,callback)
 	stroke.Parent = card
 
 	local title = Instance.new("TextLabel")
-	title.Size = UDim2.new(1,-112,0,22)
-	title.Position = UDim2.fromOffset(14,10)
+	title.Size = UDim2.new(1,-112,0,18)
+	title.Position = UDim2.fromOffset(14,6)
 	title.BackgroundTransparency = 1
 	title.TextXAlignment = Enum.TextXAlignment.Left
 	title.Text = titleText
@@ -912,8 +912,8 @@ function MM2.UI.CreateActionFeature(parent,titleText,description,callback)
 	title.Parent = card
 
 	local desc = Instance.new("TextLabel")
-	desc.Size = UDim2.new(1,-112,0,18)
-	desc.Position = UDim2.fromOffset(14,34)
+	desc.Size = UDim2.new(1,-112,0,14)
+	desc.Position = UDim2.fromOffset(14,27)
 	desc.BackgroundTransparency = 1
 	desc.TextXAlignment = Enum.TextXAlignment.Left
 	desc.Text = description or ""
@@ -923,8 +923,8 @@ function MM2.UI.CreateActionFeature(parent,titleText,description,callback)
 	desc.Parent = card
 
 	local action = Instance.new("TextButton")
-	action.Size = UDim2.fromOffset(82,32)
-	action.Position = UDim2.new(1,-96,0.5,-16)
+	action.Size = UDim2.fromOffset(82,28)
+	action.Position = UDim2.new(1,-96,0.5,-14)
 	action.BackgroundColor3 = COLORS.Accent
 	action.BorderSizePixel = 0
 	action.Text = "TRIGGER"
@@ -1109,7 +1109,7 @@ function MM2.UI.CreateValueControl(
 	step
 )
 	local card = Instance.new("Frame")
-	card.Size = UDim2.new(1,0,0,64)
+	card.Size = UDim2.new(1,0,0,50)
 	card.BackgroundColor3 = COLORS.Card
 	card.BorderSizePixel = 0
 	card.Parent = parent
@@ -1214,7 +1214,7 @@ function MM2.UI.CreateSlider(
 	step
 )
 	local card = Instance.new("Frame")
-	card.Size = UDim2.new(1,0,0,78)
+	card.Size = UDim2.new(1,0,0,64)
 	card.BackgroundColor3 = COLORS.Card
 	card.BorderSizePixel = 0
 	card.Parent = parent
@@ -1230,7 +1230,7 @@ function MM2.UI.CreateSlider(
 
 	local label = Instance.new("TextLabel")
 	label.Size = UDim2.new(1,-80,0,20)
-	label.Position = UDim2.fromOffset(14,9)
+	label.Position = UDim2.fromOffset(14,6)
 	label.BackgroundTransparency = 1
 	label.TextXAlignment = Enum.TextXAlignment.Left
 	label.Text = labelText
@@ -1241,7 +1241,7 @@ function MM2.UI.CreateSlider(
 
 	local valueLabel = Instance.new("TextLabel")
 	valueLabel.Size = UDim2.fromOffset(54,20)
-	valueLabel.Position = UDim2.new(1,-68,0,9)
+	valueLabel.Position = UDim2.new(1,-68,0,6)
 	valueLabel.BackgroundTransparency = 1
 	valueLabel.TextXAlignment = Enum.TextXAlignment.Right
 	valueLabel.Text = tostring(getter())
@@ -1252,7 +1252,7 @@ function MM2.UI.CreateSlider(
 
 	local desc = Instance.new("TextLabel")
 	desc.Size = UDim2.new(1,-28,0,16)
-	desc.Position = UDim2.fromOffset(14,28)
+	desc.Position = UDim2.fromOffset(14,24)
 	desc.BackgroundTransparency = 1
 	desc.TextXAlignment = Enum.TextXAlignment.Left
 	desc.Text = description or ""
@@ -1263,7 +1263,7 @@ function MM2.UI.CreateSlider(
 
 	local bar = Instance.new("TextButton")
 	bar.Size = UDim2.new(1,-28,0,8)
-	bar.Position = UDim2.fromOffset(14,57)
+	bar.Position = UDim2.fromOffset(14,48)
 	bar.BackgroundColor3 = COLORS.TrackOff
 	bar.BorderSizePixel = 0
 	bar.Text = ""
