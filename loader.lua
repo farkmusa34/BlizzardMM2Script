@@ -40,6 +40,7 @@ LoadModule("Combat.lua")   -- Mounts hit detection wrappers
 LoadModule("AutoFarm.lua") -- Injects position farming logic
 LoadModule("Player.lua")   -- Custom walkspeed hooks
 LoadModule("Fling.lua")    -- Physics exploits
+LoadModule("Misc.lua")
 LoadModule("Main.lua")     -- Spawns runtime environment loops
 
 print("[MM2 LOADER] Bootstrap sequence complete.")
