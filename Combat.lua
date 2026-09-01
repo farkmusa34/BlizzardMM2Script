@@ -706,7 +706,7 @@ end
 
 MM2.Functions.ProcessKnifeRange = function(range)
 	local knife = EnsureKnifeEquipped()
-	if not knife then return false,"No Knife" end
+	if not knife then return false,"Murderer Role Required" end
 	local touched = ProcessKnifeRange(knife,range or Flags.KnifeRange)
 	if touched <= 0 then
 		return false,"No Targets"
