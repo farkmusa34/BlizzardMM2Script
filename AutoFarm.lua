@@ -1,6 +1,6 @@
 --============================================================
 -- MM2 V8.8.4 - AutoFarm.lua
--- Coin Farm V13.3 + GUI Diagnostic
+-- Coin Farm V13.4 predictive vertical pickup + GUI Diagnostic
 --============================================================
 
 local MM2 = getgenv and getgenv().MM2_V85_SPLIT or _G.MM2_V85_SPLIT
@@ -20,7 +20,7 @@ Flags.FlingMurdererAfterBagFull = Flags.FlingMurdererAfterBagFull == true
 Flags.ResetCharacterAfterBagFull = Flags.ResetCharacterAfterBagFull == true
 Flags.StayUndergroundAfterBagFull = Flags.StayUndergroundAfterBagFull == true
 
-UI.AddSection(UI.AutoFarmPage,"Auto Farm","Coin Farm V13.3 contact re-arm fallback")
+UI.AddSection(UI.AutoFarmPage,"Auto Farm","Coin Farm V13.4 predictive vertical pickup")
 
 UI.CreateToggle(
 	UI.AutoFarmPage,
@@ -103,6 +103,18 @@ local FARM_LOOP_DELAY = 0.02
 local FARM_MAX_START_DISTANCE = 500
 
 --============================================================
+-- V13.4 Predictive Vertical Pickup
+-- Only affects steep upward targets that are already nearby.
+-- Normal coins keep the exact V13.3 direct path.
+--============================================================
+
+local FARM_PREDICTIVE_MIN_UPWARD_RISE = 10
+local FARM_PREDICTIVE_MAX_HORIZONTAL = 20
+local FARM_PREDICTIVE_STAGE_Y_TOLERANCE = 0.65
+local FARM_PREDICTIVE_MIN_STAGE_HORIZONTAL = 8
+local FARM_PREDICTIVE_STAGE_TIMEOUT = 1.50
+
+--============================================================
 -- V13.3 Contact Re-Arm
 --============================================================
 
@@ -177,6 +189,11 @@ local FarmRearmState = "idle"
 local FarmRearmCloseStartedAt = nil
 local FarmRearmStateStartedAt = 0
 local FarmRearmAttempts = 0
+
+-- V13.4 predictive staging state.
+local FarmPredictiveStageActive = false
+local FarmPredictiveStageXZ = nil
+local FarmPredictiveStageStartedAt = 0
 
 local FarmCoinSkipUntil =
 	setmetatable({}, {__mode = "k"})
@@ -593,10 +610,17 @@ local function FarmResetRearm()
 	FarmRearmAttempts = 0
 end
 
+local function FarmResetPredictiveStage()
+	FarmPredictiveStageActive = false
+	FarmPredictiveStageXZ = nil
+	FarmPredictiveStageStartedAt = 0
+end
+
 local function FarmReleaseTarget()
 	FarmCurrentCoin = nil
 	FarmCurrentTouch = nil
 	FarmResetRearm()
+	FarmResetPredictiveStage()
 end
 
 local function FarmGetCoinTargetWithOffset(coinPos,yOffset)
@@ -627,7 +651,74 @@ local function FarmSelectTarget(coin)
 	FarmCurrentCoin = coin
 	FarmCurrentTouch = FarmGetTouchObject(coin)
 	FarmResetRearm()
-	FarmPositionAlign.Position = FarmGetCoinTarget(coinPos)
+	FarmResetPredictiveStage()
+
+	local targetY = coinPos.Y + FARM_COIN_Y_OFFSET
+	local dx = FarmHRP.Position.X - coinPos.X
+	local dz = FarmHRP.Position.Z - coinPos.Z
+	local horizontal = math.sqrt(dx*dx + dz*dz)
+	local upwardRise = targetY - FarmHRP.Position.Y
+
+	local riskyVerticalPickup =
+		upwardRise >= FARM_PREDICTIVE_MIN_UPWARD_RISE
+		and horizontal <= FARM_PREDICTIVE_MAX_HORIZONTAL
+
+	if riskyVerticalPickup then
+		local stageX = FarmHRP.Position.X
+		local stageZ = FarmHRP.Position.Z
+
+		if horizontal < FARM_PREDICTIVE_MIN_STAGE_HORIZONTAL then
+			local awayX = dx
+			local awayZ = dz
+			local awayMagnitude = math.sqrt(awayX*awayX + awayZ*awayZ)
+
+			if awayMagnitude < 0.05 then
+				local look = FarmHRP.CFrame.LookVector
+				awayX = look.X
+				awayZ = look.Z
+				awayMagnitude = math.sqrt(awayX*awayX + awayZ*awayZ)
+			end
+
+			if awayMagnitude < 0.05 then
+				awayX = 1
+				awayZ = 0
+				awayMagnitude = 1
+			end
+
+			awayX /= awayMagnitude
+			awayZ /= awayMagnitude
+
+			stageX = coinPos.X + awayX*FARM_PREDICTIVE_MIN_STAGE_HORIZONTAL
+			stageZ = coinPos.Z + awayZ*FARM_PREDICTIVE_MIN_STAGE_HORIZONTAL
+		end
+
+		FarmPredictiveStageActive = true
+		FarmPredictiveStageXZ = Vector2.new(stageX,stageZ)
+		FarmPredictiveStageStartedAt = os.clock()
+
+		FarmPositionAlign.Position =
+			Vector3.new(
+				stageX,
+				targetY,
+				stageZ
+			)
+
+		FarmDiagAdd(
+			string.format(
+				"PREDICTIVE STAGE | H=%.3f | Rise=%.3f | StageH=%.3f",
+				horizontal,
+				upwardRise,
+				math.sqrt(
+					(stageX-coinPos.X)^2
+					+
+					(stageZ-coinPos.Z)^2
+				)
+			)
+		)
+	else
+		FarmPositionAlign.Position = FarmGetCoinTarget(coinPos)
+	end
+
 	FarmDiagTargetStart(coinPos)
 
 	return true
@@ -672,6 +763,47 @@ local function FarmVerticalBelowCoin(coinPos)
 		return math.huge
 	end
 	return coinPos.Y-FarmHRP.Position.Y
+end
+
+local function FarmUpdatePredictiveStage(coinPos)
+	if not FarmPredictiveStageActive
+		or not FarmPredictiveStageXZ
+		or not FarmPositionAlign
+		or not FarmHRP then
+		return false
+	end
+
+	local targetY = coinPos.Y + FARM_COIN_Y_OFFSET
+	local yError = math.abs(FarmHRP.Position.Y-targetY)
+	local timedOut =
+		os.clock()-FarmPredictiveStageStartedAt
+		>= FARM_PREDICTIVE_STAGE_TIMEOUT
+
+	if yError <= FARM_PREDICTIVE_STAGE_Y_TOLERANCE or timedOut then
+		FarmPredictiveStageActive = false
+		FarmPredictiveStageXZ = nil
+		FarmPredictiveStageStartedAt = 0
+		FarmPositionAlign.Position = FarmGetCoinTarget(coinPos)
+
+		FarmDiagAdd(
+			string.format(
+				"PREDICTIVE APPROACH | YErr=%.3f | Timeout=%s",
+				yError,
+				tostring(timedOut)
+			)
+		)
+
+		return false
+	end
+
+	FarmPositionAlign.Position =
+		Vector3.new(
+			FarmPredictiveStageXZ.X,
+			targetY,
+			FarmPredictiveStageXZ.Y
+		)
+
+	return true
 end
 
 local function FarmDiagTrack(coin,coinPos)
@@ -811,8 +943,11 @@ local function FarmUpdateRearm(coinPos)
 		local outsideContact = verticalBelow >= FARM_REARM_EXIT_REACHED_V
 		local timedOut = now-FarmRearmStateStartedAt >= FARM_REARM_EXIT_TIMEOUT
 
-		if outsideContact or timedOut then
+		if outsideContact then
 			FarmRearmState = "hold"
+			FarmRearmStateStartedAt = now
+		elseif timedOut then
+			-- Timeout alone is not treated as successful separation.
 			FarmRearmStateStartedAt = now
 		end
 
@@ -1410,7 +1545,9 @@ local function FarmLoop()
 					FARM_MAX_VELOCITY
 				)
 
-			FarmUpdateRearm(coinPos)
+			if not FarmUpdatePredictiveStage(coinPos) then
+				FarmUpdateRearm(coinPos)
+			end
 		end
 
 		task.wait(FARM_LOOP_DELAY)
@@ -1452,6 +1589,7 @@ function MM2.Functions.StartAutoFarm()
 	FarmCurrentTouch = nil
 
 	FarmResetRearm()
+	FarmResetPredictiveStage()
 	table.clear(FarmCoinSkipUntil)
 	FarmUpdateCharacter()
 	FarmApplyHRPSize()
@@ -1817,7 +1955,7 @@ local Title = Instance.new("TextLabel")
 Title.Size = UDim2.new(1,-28,0,20)
 Title.Position = UDim2.fromOffset(14,7)
 Title.BackgroundTransparency = 1
-Title.Text = "Auto Farm Diagnostic"
+Title.Text = "Auto Farm V13.4 Diagnostic"
 Title.TextColor3 = UI.COLORS.Text
 Title.TextSize = 14
 Title.Font = Enum.Font.GothamBold
