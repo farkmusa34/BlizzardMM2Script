@@ -1,6 +1,6 @@
 --============================================================
 -- MM2 V8.8.4 - AutoFarm.lua
--- Coin Farm V13.4 predictive vertical pickup + GUI Diagnostic
+-- Coin Farm V13.5 contact retry + reduced diagnostic
 --============================================================
 
 local MM2 = getgenv and getgenv().MM2_V85_SPLIT or _G.MM2_V85_SPLIT
@@ -20,7 +20,7 @@ Flags.FlingMurdererAfterBagFull = Flags.FlingMurdererAfterBagFull == true
 Flags.ResetCharacterAfterBagFull = Flags.ResetCharacterAfterBagFull == true
 Flags.StayUndergroundAfterBagFull = Flags.StayUndergroundAfterBagFull == true
 
-UI.AddSection(UI.AutoFarmPage,"Auto Farm","Coin Farm V13.4 predictive vertical pickup")
+UI.AddSection(UI.AutoFarmPage,"Auto Farm","Coin Farm V13.5 contact retry")
 
 UI.CreateToggle(
 	UI.AutoFarmPage,
@@ -115,6 +115,18 @@ local FARM_PREDICTIVE_MIN_STAGE_HORIZONTAL = 8
 local FARM_PREDICTIVE_STAGE_TIMEOUT = 1.50
 
 --============================================================
+-- V13.5 Horizontal Contact Retry
+-- Runs only after a normal pickup has settled under the coin
+-- without registering. The existing vertical re-arm remains backup.
+--============================================================
+
+local FARM_CONTACT_RETRY_DISTANCE = 2.00
+local FARM_CONTACT_RETRY_REACHED = 1.70
+local FARM_CONTACT_RETRY_EXIT_TIMEOUT = 0.40
+local FARM_CONTACT_RETRY_CROSS_TIMEOUT = 0.55
+local FARM_CONTACT_RETRY_VERIFY_DELAY = 0.25
+
+--============================================================
 -- V13.3 Contact Re-Arm
 --============================================================
 
@@ -190,6 +202,10 @@ local FarmRearmCloseStartedAt = nil
 local FarmRearmStateStartedAt = 0
 local FarmRearmAttempts = 0
 
+-- V13.5 one-shot horizontal contact retry state.
+local FarmContactRetryUsed = false
+local FarmContactRetryDirection = nil
+
 -- V13.4 predictive staging state.
 local FarmPredictiveStageActive = false
 local FarmPredictiveStageXZ = nil
@@ -203,7 +219,7 @@ local FarmCoinSkipUntil =
 --============================================================
 
 local FarmDiagLogs = {}
-local FarmDiagMaxLogs = 500
+local FarmDiagMaxLogs = 250
 local FarmDiagStartedAt = os.clock()
 
 local FarmDiagTargetStartedAt = nil
@@ -608,6 +624,8 @@ local function FarmResetRearm()
 	FarmRearmCloseStartedAt = nil
 	FarmRearmStateStartedAt = 0
 	FarmRearmAttempts = 0
+	FarmContactRetryUsed = false
+	FarmContactRetryDirection = nil
 end
 
 local function FarmResetPredictiveStage()
@@ -811,7 +829,6 @@ local function FarmDiagTrack(coin,coinPos)
 		return
 	end
 
-	local now = os.clock()
 	local currentY = FarmHRP.Position.Y
 
 	if FarmDiagLastY then
@@ -847,11 +864,6 @@ local function FarmDiagTrack(coin,coinPos)
 
 	FarmDiagLastY = currentY
 
-	local horizontal = FarmHorizontalDistanceToCoin(coinPos)
-	local verticalBelow = FarmVerticalBelowCoin(coinPos)
-	local targetY = coinPos.Y+FARM_COIN_Y_OFFSET
-	local yError = math.abs(FarmHRP.Position.Y-targetY)
-
 	if FarmDiagLastState ~= FarmRearmState then
 		FarmDiagAdd(
 			string.format(
@@ -863,25 +875,53 @@ local function FarmDiagTrack(coin,coinPos)
 		)
 		FarmDiagLastState = FarmRearmState
 	end
+end
 
-	local interval = (horizontal <= 2 or yError <= 2) and 0.12 or 0.35
-	if now-FarmDiagLastTrackAt < interval then
-		return
+local function FarmGetContactRetryDirection(coinPos)
+	if not FarmHRP then
+		return Vector2.new(1,0)
 	end
-	FarmDiagLastTrackAt = now
+
+	local dx = FarmHRP.Position.X-coinPos.X
+	local dz = FarmHRP.Position.Z-coinPos.Z
+	local magnitude = math.sqrt(dx*dx + dz*dz)
+
+	if magnitude >= 0.10 then
+		return Vector2.new(dx/magnitude,dz/magnitude)
+	end
+
+	local right = FarmHRP.CFrame.RightVector
+	local rx = right.X
+	local rz = right.Z
+	local rightMagnitude = math.sqrt(rx*rx + rz*rz)
+
+	if rightMagnitude >= 0.10 then
+		return Vector2.new(rx/rightMagnitude,rz/rightMagnitude)
+	end
+
+	return Vector2.new(1,0)
+end
+
+local function FarmGetContactRetryTarget(coinPos,side)
+	local direction = FarmContactRetryDirection or Vector2.new(1,0)
+	return Vector3.new(
+		coinPos.X + direction.X*FARM_CONTACT_RETRY_DISTANCE*side,
+		coinPos.Y + FARM_COIN_Y_OFFSET,
+		coinPos.Z + direction.Y*FARM_CONTACT_RETRY_DISTANCE*side
+	)
+end
+
+local function FarmBeginContactRetry(coinPos)
+	FarmContactRetryUsed = true
+	FarmContactRetryDirection = FarmGetContactRetryDirection(coinPos)
+	FarmRearmState = "contactExit"
+	FarmRearmStateStartedAt = os.clock()
+	FarmRearmCloseStartedAt = nil
 
 	FarmDiagAdd(
 		string.format(
-			"TRACK | H=%.3f | VBelow=%.3f | YErr=%.3f | HRPY=%.3f | CoinY=%.3f | State=%s | Attempt=%d | Touch=%s | Reversals=%d",
-			horizontal,
-			verticalBelow,
-			yError,
-			FarmHRP.Position.Y,
-			coinPos.Y,
-			tostring(FarmRearmState),
-			FarmRearmAttempts,
-			FarmGetTouchObject(coin) and "YES" or "NO",
-			FarmDiagVerticalReversals
+			"CONTACT RETRY START | Distance=%.2f",
+			FARM_CONTACT_RETRY_DISTANCE
 		)
 	)
 end
@@ -924,12 +964,84 @@ local function FarmUpdateRearm(coinPos)
 			end
 
 			if now-FarmRearmCloseStartedAt >= FARM_REARM_STUCK_DELAY then
-				FarmBeginRearm()
+				if not FarmContactRetryUsed then
+					FarmBeginContactRetry(coinPos)
+				else
+					FarmBeginRearm()
+				end
 			end
 		else
 			FarmRearmCloseStartedAt = nil
 		end
 
+		return
+	end
+
+	if FarmRearmState == "contactExit" then
+		FarmPositionAlign.Position = FarmGetContactRetryTarget(coinPos,1)
+
+		local reached =
+			FarmHorizontalDistanceToCoin(coinPos)
+			>= FARM_CONTACT_RETRY_REACHED
+		local timedOut =
+			now-FarmRearmStateStartedAt
+			>= FARM_CONTACT_RETRY_EXIT_TIMEOUT
+
+		if reached or timedOut then
+			FarmRearmState = "contactCross"
+			FarmRearmStateStartedAt = now
+			FarmDiagAdd(
+				string.format(
+					"CONTACT RETRY CROSS | ExitH=%.3f | Timeout=%s",
+					FarmHorizontalDistanceToCoin(coinPos),
+					tostring(timedOut)
+				)
+			)
+		end
+
+		return
+	end
+
+	if FarmRearmState == "contactCross" then
+		FarmPositionAlign.Position = FarmGetContactRetryTarget(coinPos,-1)
+
+		local direction = FarmContactRetryDirection or Vector2.new(1,0)
+		local relX = FarmHRP.Position.X-coinPos.X
+		local relZ = FarmHRP.Position.Z-coinPos.Z
+		local signedAlong =
+			relX*direction.X + relZ*direction.Y
+		local reachedOtherSide =
+			signedAlong <= -FARM_CONTACT_RETRY_REACHED
+		local timedOut =
+			now-FarmRearmStateStartedAt
+			>= FARM_CONTACT_RETRY_CROSS_TIMEOUT
+
+		if reachedOtherSide or timedOut then
+			FarmRearmState = "contactVerify"
+			FarmRearmStateStartedAt = now
+			FarmPositionAlign.Position = FarmGetCoinTarget(coinPos)
+
+			FarmDiagAdd(
+				string.format(
+					"CONTACT RETRY VERIFY | Cross=%.3f | Timeout=%s",
+					signedAlong,
+					tostring(timedOut)
+				)
+			)
+		end
+
+		return
+	end
+
+	if FarmRearmState == "contactVerify" then
+		FarmPositionAlign.Position = FarmGetCoinTarget(coinPos)
+
+		if now-FarmRearmStateStartedAt < FARM_CONTACT_RETRY_VERIFY_DELAY then
+			return
+		end
+
+		FarmDiagAdd("CONTACT RETRY MISSED | Falling back to vertical re-arm")
+		FarmBeginRearm()
 		return
 	end
 
@@ -1955,7 +2067,7 @@ local Title = Instance.new("TextLabel")
 Title.Size = UDim2.new(1,-28,0,20)
 Title.Position = UDim2.fromOffset(14,7)
 Title.BackgroundTransparency = 1
-Title.Text = "Auto Farm V13.4 Diagnostic"
+Title.Text = "Auto Farm V13.5 Diagnostic"
 Title.TextColor3 = UI.COLORS.Text
 Title.TextSize = 14
 Title.Font = Enum.Font.GothamBold
@@ -2129,7 +2241,7 @@ UIS.InputChanged:Connect(function(input)
 		)
 end)
 
-FarmDiagAdd("Diagnostic ready")
-FarmDiagAdd("Press START FARM and wait for a bad pickup")
+FarmDiagAdd("V13.5 diagnostic ready")
+FarmDiagAdd("Reduced logs: target/contact retry/re-arm/collection/failure")
 
 return MM2
