@@ -1,6 +1,6 @@
 --============================================================
 -- MM2 V8.8.4 - AutoFarm.lua
--- Coin Farm V13.5 contact retry + reduced diagnostic
+-- Coin Farm V13.5 contact retry
 --============================================================
 
 local MM2 = getgenv and getgenv().MM2_V85_SPLIT or _G.MM2_V85_SPLIT
@@ -213,124 +213,6 @@ local FarmPredictiveStageStartedAt = 0
 
 local FarmCoinSkipUntil =
 	setmetatable({}, {__mode = "k"})
-
---============================================================
--- V13.3 Diagnostic State
---============================================================
-
-local FarmDiagLogs = {}
-local FarmDiagMaxLogs = 250
-local FarmDiagStartedAt = os.clock()
-
-local FarmDiagTargetStartedAt = nil
-local FarmDiagLastTrackAt = 0
-local FarmDiagLastState = "idle"
-local FarmDiagLastY = nil
-local FarmDiagLastVerticalDirection = 0
-local FarmDiagVerticalReversals = 0
-
-local FarmDiagGui = nil
-local FarmDiagWindow = nil
-local FarmDiagLogLabel = nil
-local FarmDiagScroll = nil
-local FarmDiagStatus = nil
-
-local function FarmDiagRefresh()
-	if not FarmDiagLogLabel then
-		return
-	end
-
-	FarmDiagLogLabel.Text = table.concat(FarmDiagLogs,"\n")
-
-	task.defer(function()
-		if not FarmDiagScroll or not FarmDiagLogLabel then
-			return
-		end
-		FarmDiagScroll.CanvasPosition =
-			Vector2.new(
-				0,
-				math.max(
-					0,
-					FarmDiagLogLabel.AbsoluteSize.Y - FarmDiagScroll.AbsoluteSize.Y
-				)
-			)
-	end)
-end
-
-local function FarmDiagAdd(text)
-	local elapsed = os.clock()-FarmDiagStartedAt
-	table.insert(
-		FarmDiagLogs,
-		string.format("[%.3f] %s",elapsed,tostring(text))
-	)
-
-	while #FarmDiagLogs > FarmDiagMaxLogs do
-		table.remove(FarmDiagLogs,1)
-	end
-
-	FarmDiagRefresh()
-end
-
-local function FarmDiagClear()
-	table.clear(FarmDiagLogs)
-	FarmDiagStartedAt = os.clock()
-	FarmDiagTargetStartedAt = nil
-	FarmDiagLastTrackAt = 0
-	FarmDiagLastState = "idle"
-	FarmDiagLastY = nil
-	FarmDiagLastVerticalDirection = 0
-	FarmDiagVerticalReversals = 0
-	FarmDiagAdd("Logs cleared")
-end
-
-local function FarmDiagCopy()
-	local text = table.concat(FarmDiagLogs,"\n")
-	local clipboard = setclipboard or toclipboard
-
-	if clipboard then
-		local ok = pcall(clipboard,text)
-		if ok then
-			if FarmDiagStatus then
-				FarmDiagStatus.Text = "Status: Logs copied"
-			end
-			return
-		end
-	end
-
-	if FarmDiagStatus then
-		FarmDiagStatus.Text = "Status: Clipboard unavailable"
-	end
-end
-
-local function FarmDiagTargetStart(coinPos)
-	if not FarmHRP or not coinPos then
-		return
-	end
-
-	FarmDiagTargetStartedAt = os.clock()
-	FarmDiagLastTrackAt = 0
-	FarmDiagLastState = FarmRearmState
-	FarmDiagLastY = FarmHRP.Position.Y
-	FarmDiagLastVerticalDirection = 0
-	FarmDiagVerticalReversals = 0
-
-	local dx = FarmHRP.Position.X-coinPos.X
-	local dz = FarmHRP.Position.Z-coinPos.Z
-	local horizontal = math.sqrt(dx*dx + dz*dz)
-	local targetY = coinPos.Y+FARM_COIN_Y_OFFSET
-	local yGap = math.abs(FarmHRP.Position.Y-targetY)
-
-	FarmDiagAdd(
-		string.format(
-			"TARGET | StartH=%.3f | StartYGap=%.3f | HRPY=%.3f | CoinY=%.3f | TargetY=%.3f",
-			horizontal,
-			yGap,
-			FarmHRP.Position.Y,
-			coinPos.Y,
-			targetY
-		)
-	)
-end
 
 --============================================================
 -- Character
@@ -720,24 +602,9 @@ local function FarmSelectTarget(coin)
 				targetY,
 				stageZ
 			)
-
-		FarmDiagAdd(
-			string.format(
-				"PREDICTIVE STAGE | H=%.3f | Rise=%.3f | StageH=%.3f",
-				horizontal,
-				upwardRise,
-				math.sqrt(
-					(stageX-coinPos.X)^2
-					+
-					(stageZ-coinPos.Z)^2
-				)
-			)
-		)
 	else
 		FarmPositionAlign.Position = FarmGetCoinTarget(coinPos)
 	end
-
-	FarmDiagTargetStart(coinPos)
 
 	return true
 end
@@ -803,14 +670,6 @@ local function FarmUpdatePredictiveStage(coinPos)
 		FarmPredictiveStageStartedAt = 0
 		FarmPositionAlign.Position = FarmGetCoinTarget(coinPos)
 
-		FarmDiagAdd(
-			string.format(
-				"PREDICTIVE APPROACH | YErr=%.3f | Timeout=%s",
-				yError,
-				tostring(timedOut)
-			)
-		)
-
 		return false
 	end
 
@@ -823,60 +682,6 @@ local function FarmUpdatePredictiveStage(coinPos)
 
 	return true
 end
-
-local function FarmDiagTrack(coin,coinPos)
-	if not FarmHRP or not coin or not coinPos then
-		return
-	end
-
-	local currentY = FarmHRP.Position.Y
-
-	if FarmDiagLastY then
-		local deltaY = currentY-FarmDiagLastY
-		local direction = 0
-
-		if deltaY > 0.08 then
-			direction = 1
-		elseif deltaY < -0.08 then
-			direction = -1
-		end
-
-		if direction ~= 0
-			and FarmDiagLastVerticalDirection ~= 0
-			and direction ~= FarmDiagLastVerticalDirection then
-
-			FarmDiagVerticalReversals += 1
-
-			FarmDiagAdd(
-				string.format(
-					"VERTICAL REVERSAL #%d | %s | HRPY=%.3f",
-					FarmDiagVerticalReversals,
-					direction == 1 and "UP" or "DOWN",
-					currentY
-				)
-			)
-		end
-
-		if direction ~= 0 then
-			FarmDiagLastVerticalDirection = direction
-		end
-	end
-
-	FarmDiagLastY = currentY
-
-	if FarmDiagLastState ~= FarmRearmState then
-		FarmDiagAdd(
-			string.format(
-				"STATE | %s -> %s | Attempt=%d",
-				tostring(FarmDiagLastState),
-				tostring(FarmRearmState),
-				FarmRearmAttempts
-			)
-		)
-		FarmDiagLastState = FarmRearmState
-	end
-end
-
 local function FarmGetContactRetryDirection(coinPos)
 	if not FarmHRP then
 		return Vector2.new(1,0)
@@ -917,13 +722,6 @@ local function FarmBeginContactRetry(coinPos)
 	FarmRearmState = "contactExit"
 	FarmRearmStateStartedAt = os.clock()
 	FarmRearmCloseStartedAt = nil
-
-	FarmDiagAdd(
-		string.format(
-			"CONTACT RETRY START | Distance=%.2f",
-			FARM_CONTACT_RETRY_DISTANCE
-		)
-	)
 end
 
 local function FarmBeginRearm()
@@ -931,14 +729,6 @@ local function FarmBeginRearm()
 	FarmRearmState = "exit"
 	FarmRearmStateStartedAt = os.clock()
 	FarmRearmCloseStartedAt = nil
-
-	FarmDiagAdd(
-		string.format(
-			"REARM START | Attempt=%d | Reversals=%d",
-			FarmRearmAttempts,
-			FarmDiagVerticalReversals
-		)
-	)
 end
 
 local function FarmUpdateRearm(coinPos)
@@ -990,13 +780,6 @@ local function FarmUpdateRearm(coinPos)
 		if reached or timedOut then
 			FarmRearmState = "contactCross"
 			FarmRearmStateStartedAt = now
-			FarmDiagAdd(
-				string.format(
-					"CONTACT RETRY CROSS | ExitH=%.3f | Timeout=%s",
-					FarmHorizontalDistanceToCoin(coinPos),
-					tostring(timedOut)
-				)
-			)
 		end
 
 		return
@@ -1020,14 +803,6 @@ local function FarmUpdateRearm(coinPos)
 			FarmRearmState = "contactVerify"
 			FarmRearmStateStartedAt = now
 			FarmPositionAlign.Position = FarmGetCoinTarget(coinPos)
-
-			FarmDiagAdd(
-				string.format(
-					"CONTACT RETRY VERIFY | Cross=%.3f | Timeout=%s",
-					signedAlong,
-					tostring(timedOut)
-				)
-			)
 		end
 
 		return
@@ -1040,7 +815,6 @@ local function FarmUpdateRearm(coinPos)
 			return
 		end
 
-		FarmDiagAdd("CONTACT RETRY MISSED | Falling back to vertical re-arm")
 		FarmBeginRearm()
 		return
 	end
@@ -1113,15 +887,6 @@ local function FarmUpdateRearm(coinPos)
 		if failedCoin then
 			FarmCoinSkipUntil[failedCoin] = now + FARM_REARM_SKIP_TIME
 		end
-
-		FarmDiagAdd(
-			string.format(
-				"FAILED | Attempts=%d | Reversals=%d | Skip=%.2fs",
-				FarmRearmAttempts,
-				FarmDiagVerticalReversals,
-				FARM_REARM_SKIP_TIME
-			)
-		)
 
 		FarmReleaseTarget()
 		return
@@ -1631,11 +1396,6 @@ local function FarmLoop()
 			continue
 		end
 
-		FarmDiagTrack(
-			FarmCurrentCoin,
-			coinPos
-		)
-
 		local collection =
 			FarmCheckCollection(
 				FarmCurrentCoin,
@@ -1674,10 +1434,6 @@ local function FarmLoop()
 	FarmStopNoclip()
 	FarmDestroyMovement()
 	FarmRestoreHRPSize()
-
-	if FarmDiagStatus then
-		FarmDiagStatus.Text = "Status: Farm stopped"
-	end
 end
 
 --============================================================
@@ -1706,10 +1462,6 @@ function MM2.Functions.StartAutoFarm()
 	FarmUpdateCharacter()
 	FarmApplyHRPSize()
 
-	if FarmDiagStatus then
-		FarmDiagStatus.Text = "Status: Farming"
-	end
-
 	task.spawn(FarmLoop)
 end
 
@@ -1730,10 +1482,6 @@ function MM2.Functions.StopAutoFarm()
 
 	table.clear(FarmCoinSkipUntil)
 	FarmSafeReturnCFrame = nil
-
-	if FarmDiagStatus then
-		FarmDiagStatus.Text = "Status: Farm stopped"
-	end
 end
 
 function MM2.Functions.UpdateAutoFarm()
@@ -1946,19 +1694,6 @@ if FarmCoinCollected and FarmCoinCollected:IsA("RemoteEvent") then
 					FarmStatsStartedAt = FarmStatsStartedAt or os.clock()
 
 					if AutoFarmRunning and not FarmBagFull then
-						FarmDiagAdd(
-							string.format(
-								"COLLECTED | Bag=%d/%d | Attempt=%d | Reversals=%d | Time=%.3f",
-								current,
-								FarmBagMax,
-								FarmRearmAttempts,
-								FarmDiagVerticalReversals,
-								FarmDiagTargetStartedAt
-									and (os.clock()-FarmDiagTargetStartedAt)
-									or 0
-							)
-						)
-
 						FarmReleaseTarget()
 					end
 				end
@@ -1994,8 +1729,6 @@ local function FarmResetBag()
 
 	table.clear(FarmCoinSkipUntil)
 	FarmReleaseTarget()
-
-	FarmDiagAdd("ROUND RESET")
 end
 
 if FarmRoundStart and FarmRoundStart:IsA("RemoteEvent") then
@@ -2023,225 +1756,5 @@ if FarmVictoryScreen and FarmVictoryScreen:IsA("RemoteEvent") then
 		end)
 	)
 end
-
---============================================================
--- Auto Farm Diagnostic GUI
---============================================================
-
-local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
-
-local OldDiag = PlayerGui:FindFirstChild("MM2_AutoFarmDiagnostic")
-if OldDiag then
-	OldDiag:Destroy()
-end
-
-FarmDiagGui = Instance.new("ScreenGui")
-FarmDiagGui.Name = "MM2_AutoFarmDiagnostic"
-FarmDiagGui.ResetOnSpawn = false
-FarmDiagGui.DisplayOrder = 100
-FarmDiagGui.Parent = PlayerGui
-
-FarmDiagWindow = Instance.new("Frame")
-FarmDiagWindow.Size = UDim2.fromOffset(500,310)
-FarmDiagWindow.Position = UDim2.new(0.5,-250,0.5,-155)
-FarmDiagWindow.BackgroundColor3 = UI.COLORS.Background
-FarmDiagWindow.BorderSizePixel = 0
-FarmDiagWindow.Parent = FarmDiagGui
-
-local WindowCorner = Instance.new("UICorner")
-WindowCorner.CornerRadius = UDim.new(0,14)
-WindowCorner.Parent = FarmDiagWindow
-
-local WindowStroke = Instance.new("UIStroke")
-WindowStroke.Color = UI.COLORS.Stroke
-WindowStroke.Transparency = 0.25
-WindowStroke.Parent = FarmDiagWindow
-
-local Header = Instance.new("Frame")
-Header.Size = UDim2.new(1,0,0,52)
-Header.BackgroundTransparency = 1
-Header.Active = true
-Header.Parent = FarmDiagWindow
-
-local Title = Instance.new("TextLabel")
-Title.Size = UDim2.new(1,-28,0,20)
-Title.Position = UDim2.fromOffset(14,7)
-Title.BackgroundTransparency = 1
-Title.Text = "Auto Farm V13.5 Diagnostic"
-Title.TextColor3 = UI.COLORS.Text
-Title.TextSize = 14
-Title.Font = Enum.Font.GothamBold
-Title.TextXAlignment = Enum.TextXAlignment.Left
-Title.Parent = Header
-
-FarmDiagStatus = Instance.new("TextLabel")
-FarmDiagStatus.Size = UDim2.new(1,-28,0,18)
-FarmDiagStatus.Position = UDim2.fromOffset(14,28)
-FarmDiagStatus.BackgroundTransparency = 1
-FarmDiagStatus.Text = "Status: Ready"
-FarmDiagStatus.TextColor3 = UI.COLORS.Muted
-FarmDiagStatus.TextSize = 10
-FarmDiagStatus.Font = Enum.Font.Gotham
-FarmDiagStatus.TextXAlignment = Enum.TextXAlignment.Left
-FarmDiagStatus.Parent = Header
-
-local ButtonRow = Instance.new("Frame")
-ButtonRow.Size = UDim2.new(1,-24,0,34)
-ButtonRow.Position = UDim2.fromOffset(12,55)
-ButtonRow.BackgroundTransparency = 1
-ButtonRow.Parent = FarmDiagWindow
-
-local ButtonLayout = Instance.new("UIListLayout")
-ButtonLayout.FillDirection = Enum.FillDirection.Horizontal
-ButtonLayout.Padding = UDim.new(0,8)
-ButtonLayout.Parent = ButtonRow
-
-local function CreateDiagButton(text,callback)
-	local Button = Instance.new("TextButton")
-	Button.Size = UDim2.new(0,153,1,0)
-	Button.BackgroundColor3 = UI.COLORS.Card
-	Button.BorderSizePixel = 0
-	Button.AutoButtonColor = false
-	Button.Text = text
-	Button.TextColor3 = UI.COLORS.Text
-	Button.TextSize = 10
-	Button.Font = Enum.Font.GothamBold
-	Button.Parent = ButtonRow
-
-	local Corner = Instance.new("UICorner")
-	Corner.CornerRadius = UDim.new(0,8)
-	Corner.Parent = Button
-
-	Button.MouseButton1Click:Connect(function()
-		Button.BackgroundColor3 = UI.COLORS.Accent
-
-		task.delay(0.10,function()
-			if Button.Parent then
-				Button.BackgroundColor3 = UI.COLORS.Card
-			end
-		end)
-
-		callback()
-	end)
-
-	return Button
-end
-
-CreateDiagButton(
-	"START FARM",
-	function()
-		if AutoFarmRunning then
-			FarmDiagStatus.Text = "Status: Already farming"
-			FarmDiagAdd("Start pressed while already farming")
-			return
-		end
-
-		Flags.AutoFarm = true
-
-		if UI.SetToggleState then
-			UI.SetToggleState(
-				"AutoFarm",
-				true,
-				false
-			)
-		end
-
-		MM2.Functions.StartAutoFarm()
-		FarmDiagStatus.Text = "Status: Farming"
-		FarmDiagAdd("AUTO FARM STARTED")
-	end
-)
-
-CreateDiagButton(
-	"CLEAR LOGS",
-	function()
-		FarmDiagClear()
-		FarmDiagStatus.Text = "Status: Logs cleared"
-	end
-)
-
-CreateDiagButton(
-	"COPY LOGS",
-	function()
-		FarmDiagCopy()
-	end
-)
-
-FarmDiagScroll = Instance.new("ScrollingFrame")
-FarmDiagScroll.Size = UDim2.new(1,-24,1,-106)
-FarmDiagScroll.Position = UDim2.fromOffset(12,96)
-FarmDiagScroll.BackgroundColor3 = UI.COLORS.Card
-FarmDiagScroll.BorderSizePixel = 0
-FarmDiagScroll.ScrollBarThickness = 5
-FarmDiagScroll.ScrollBarImageColor3 = UI.COLORS.Muted
-FarmDiagScroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
-FarmDiagScroll.CanvasSize = UDim2.new()
-FarmDiagScroll.Parent = FarmDiagWindow
-
-local LogCorner = Instance.new("UICorner")
-LogCorner.CornerRadius = UDim.new(0,9)
-LogCorner.Parent = FarmDiagScroll
-
-FarmDiagLogLabel = Instance.new("TextLabel")
-FarmDiagLogLabel.Size = UDim2.new(1,-18,0,0)
-FarmDiagLogLabel.Position = UDim2.fromOffset(9,8)
-FarmDiagLogLabel.AutomaticSize = Enum.AutomaticSize.Y
-FarmDiagLogLabel.BackgroundTransparency = 1
-FarmDiagLogLabel.Text = ""
-FarmDiagLogLabel.TextColor3 = UI.COLORS.Text
-FarmDiagLogLabel.TextSize = 10
-FarmDiagLogLabel.Font = Enum.Font.Code
-FarmDiagLogLabel.TextWrapped = false
-FarmDiagLogLabel.TextXAlignment = Enum.TextXAlignment.Left
-FarmDiagLogLabel.TextYAlignment = Enum.TextYAlignment.Top
-FarmDiagLogLabel.Parent = FarmDiagScroll
-
-local UIS = MM2.Services.UserInputService
-local dragging = false
-local dragInput = nil
-local dragStart = nil
-local startingPosition = nil
-
-Header.InputBegan:Connect(function(input)
-	if input.UserInputType == Enum.UserInputType.MouseButton1
-		or input.UserInputType == Enum.UserInputType.Touch then
-
-		dragging = true
-		dragStart = input.Position
-		startingPosition = FarmDiagWindow.Position
-
-		input.Changed:Connect(function()
-			if input.UserInputState == Enum.UserInputState.End then
-				dragging = false
-			end
-		end)
-	end
-end)
-
-Header.InputChanged:Connect(function(input)
-	if input.UserInputType == Enum.UserInputType.MouseMovement
-		or input.UserInputType == Enum.UserInputType.Touch then
-		dragInput = input
-	end
-end)
-
-UIS.InputChanged:Connect(function(input)
-	if not dragging or input ~= dragInput then
-		return
-	end
-
-	local delta = input.Position-dragStart
-
-	FarmDiagWindow.Position =
-		UDim2.new(
-			startingPosition.X.Scale,
-			startingPosition.X.Offset + delta.X,
-			startingPosition.Y.Scale,
-			startingPosition.Y.Offset + delta.Y
-		)
-end)
-
-FarmDiagAdd("V13.5 diagnostic ready")
-FarmDiagAdd("Reduced logs: target/contact retry/re-arm/collection/failure")
 
 return MM2
