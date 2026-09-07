@@ -25,6 +25,9 @@ local FlyAttachment = nil
 local FlyVelocity = nil
 local FlyOrientation = nil
 local FlyHumanoid = nil
+local MobileFlyUp = false
+local MobileFlyDown = false
+local MobileFlyDownButton = nil
 
 local PlayerNoclipConnection = nil
 
@@ -33,6 +36,80 @@ local VoidFallStarted = nil
 
 local BombJumpBusy = false
 local FloatingBombButton = nil
+
+--============================================================
+-- MOBILE FLY DOWN BUTTON
+--============================================================
+
+local function CreateMobileFlyDownButton()
+	if not UIS.TouchEnabled then
+		return
+	end
+
+	if MobileFlyDownButton then
+		MobileFlyDownButton.Visible = true
+		return
+	end
+
+	local overlay = UI.TracerGui or UI.ScreenGui
+	if not overlay then
+		return
+	end
+
+	MobileFlyDownButton = Instance.new("TextButton")
+	MobileFlyDownButton.Name = "MM2_MobileFlyDownButton"
+	MobileFlyDownButton.AnchorPoint = Vector2.new(1,1)
+	MobileFlyDownButton.Size = UDim2.fromOffset(58,58)
+	MobileFlyDownButton.Position = UDim2.new(1,-150,1,-85)
+	MobileFlyDownButton.BackgroundColor3 = Color3.fromRGB(18,18,24)
+	MobileFlyDownButton.BackgroundTransparency = 0.08
+	MobileFlyDownButton.Text = "▼"
+	MobileFlyDownButton.TextSize = 28
+	MobileFlyDownButton.Font = Enum.Font.GothamBold
+	MobileFlyDownButton.TextColor3 = Color3.fromRGB(255,255,255)
+	MobileFlyDownButton.AutoButtonColor = true
+	MobileFlyDownButton.ZIndex = 60
+	MobileFlyDownButton.Parent = overlay
+
+	local corner = Instance.new("UICorner")
+	corner.CornerRadius = UDim.new(1,0)
+	corner.Parent = MobileFlyDownButton
+
+	local stroke = Instance.new("UIStroke")
+	stroke.Thickness = 2
+	stroke.Color = Color3.fromRGB(80,220,255)
+	stroke.Parent = MobileFlyDownButton
+
+	MobileFlyDownButton.InputBegan:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.Touch
+			or input.UserInputType == Enum.UserInputType.MouseButton1
+		then
+			MobileFlyDown = true
+		end
+	end)
+
+	MobileFlyDownButton.InputEnded:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.Touch
+			or input.UserInputType == Enum.UserInputType.MouseButton1
+		then
+			MobileFlyDown = false
+		end
+	end)
+end
+
+local function SetMobileFlyDownButtonVisible(on)
+	MobileFlyDown = false
+
+	if not UIS.TouchEnabled then
+		return
+	end
+
+	if on then
+		CreateMobileFlyDownButton()
+	elseif MobileFlyDownButton then
+		MobileFlyDownButton.Visible = false
+	end
+end
 
 --============================================================
 -- FLY
@@ -74,6 +151,9 @@ local function StopFly()
 	end
 
 	FlyHumanoid = nil
+	MobileFlyUp = false
+	MobileFlyDown = false
+	SetMobileFlyDownButtonVisible(false)
 
 	local _,_,hrp = MM2.GetLocalCharacter()
 
@@ -134,6 +214,10 @@ local function StartFly()
 	FlyOrientation.RigidityEnabled = false
 	FlyOrientation.Parent = hrp
 
+	if UIS.TouchEnabled then
+		SetMobileFlyDownButtonVisible(true)
+	end
+
 	FlyConnection = RunService.RenderStepped:Connect(function()
 		if not Flags.Fly then
 			return
@@ -186,32 +270,56 @@ local function StartFly()
 
 		local move = Vector3.zero
 
-		if UIS:IsKeyDown(Enum.KeyCode.W) then
-			move += flatLook
-		end
+		if UIS.TouchEnabled then
+			-- Roblox's normal mobile thumbstick controls
+			-- horizontal flight through MoveDirection.
+			local mobileMove = currentHumanoid.MoveDirection
 
-		if UIS:IsKeyDown(Enum.KeyCode.S) then
-			move -= flatLook
-		end
+			if mobileMove.Magnitude > 0.01 then
+				move += Vector3.new(
+					mobileMove.X,
+					0,
+					mobileMove.Z
+				)
+			end
 
-		if UIS:IsKeyDown(Enum.KeyCode.A) then
-			move -= flatRight
-		end
+			-- Normal Roblox Jump button = fly up.
+			if MobileFlyUp then
+				move += Vector3.yAxis
+			end
 
-		if UIS:IsKeyDown(Enum.KeyCode.D) then
-			move += flatRight
-		end
+			-- Added ▼ button = fly down.
+			if MobileFlyDown then
+				move -= Vector3.yAxis
+			end
+		else
+			if UIS:IsKeyDown(Enum.KeyCode.W) then
+				move += flatLook
+			end
 
-		-- SPACE = FLY UP
-		if UIS:IsKeyDown(Enum.KeyCode.Space) then
-			move += Vector3.yAxis
-		end
+			if UIS:IsKeyDown(Enum.KeyCode.S) then
+				move -= flatLook
+			end
 
-		-- CTRL / SHIFT = FLY DOWN
-		if UIS:IsKeyDown(Enum.KeyCode.LeftControl)
-			or UIS:IsKeyDown(Enum.KeyCode.LeftShift)
-		then
-			move -= Vector3.yAxis
+			if UIS:IsKeyDown(Enum.KeyCode.A) then
+				move -= flatRight
+			end
+
+			if UIS:IsKeyDown(Enum.KeyCode.D) then
+				move += flatRight
+			end
+
+			-- SPACE = FLY UP
+			if UIS:IsKeyDown(Enum.KeyCode.Space) then
+				move += Vector3.yAxis
+			end
+
+			-- CTRL / SHIFT = FLY DOWN
+			if UIS:IsKeyDown(Enum.KeyCode.LeftControl)
+				or UIS:IsKeyDown(Enum.KeyCode.LeftShift)
+			then
+				move -= Vector3.yAxis
+			end
 		end
 
 		if move.Magnitude > 0 then
@@ -772,7 +880,7 @@ UI.AddSection(
 UI.CreateToggle(
 	UI.PlayerPage,
 	"Fly",
-	"WASD + Space / Ctrl to fly",
+	"PC: WASD + Space/Ctrl. Mobile: joystick + Jump/Down",
 	"Fly",
 	function(on)
 		if on then
@@ -939,8 +1047,16 @@ UI.CreateActionFeature(
 --============================================================
 
 Track(UIS.JumpRequest:Connect(function()
-	-- Fly owns Space while enabled.
+	-- Fly owns Jump while enabled.
 	if Flags.Fly then
+		if UIS.TouchEnabled then
+			MobileFlyUp = true
+
+			task.delay(0.12,function()
+				MobileFlyUp = false
+			end)
+		end
+
 		return
 	end
 
@@ -976,6 +1092,8 @@ Track(LocalPlayer.CharacterAdded:Connect(function(char)
 	LastSafeCFrame = nil
 	VoidFallStarted = nil
 	BombJumpBusy = false
+	MobileFlyUp = false
+	MobileFlyDown = false
 
 	task.wait(0.25)
 
