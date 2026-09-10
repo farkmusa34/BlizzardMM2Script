@@ -269,35 +269,179 @@ local Flags = MM2.Flags
 Flags.ShowFlingMurdererButton = Flags.ShowFlingMurdererButton == true
 Flags.ShowFlingSheriffButton = Flags.ShowFlingSheriffButton == true
 Flags.AntiFling = Flags.AntiFling == true
+Flags.FlingNotify = Flags.FlingNotify == true
 
 local ANTI_FLING_LINEAR_LIMIT = 80
 local ANTI_FLING_ANGULAR_LIMIT = 25
 
--- Anti Fling intentionally pauses while ExecuteYeet is running so it never
--- fights the user's own fling physics.
-Track(RunService.Heartbeat:Connect(function()
-	if not Flags.AntiFling or FlingRunning then return end
+-- Conservative fling-attempt detection for the optional notifier.
+local FLING_NOTIFY_LINEAR_LIMIT = 220
+local FLING_NOTIFY_ANGULAR_LIMIT = 45
+local FLING_NOTIFY_NEAR_DISTANCE = 10
+local FLING_NOTIFY_CONFIRM_TIME = 0.06
+local FLING_NOTIFY_COOLDOWN = 4
 
-	local _,humanoid,hrp = MM2.GetLocalCharacter()
-	if not hrp then return end
+-- Anti Fling changes only OTHER player-character collision locally.
+-- World/map collision is never changed.
+local AntiFlingCollisionOriginal = {}
+local FlingNotifySuspiciousSince = {}
+local FlingNotifyLastAlert = {}
 
-	local linear = hrp.AssemblyLinearVelocity
-	local angular = hrp.AssemblyAngularVelocity
-
-	if angular.Magnitude > ANTI_FLING_ANGULAR_LIMIT then
-		hrp.AssemblyAngularVelocity = Vector3.zero
-	end
-
-	if linear.Magnitude > ANTI_FLING_LINEAR_LIMIT then
-		hrp.AssemblyLinearVelocity = Vector3.zero
-		hrp.AssemblyAngularVelocity = Vector3.zero
-
-		if humanoid then
+local function RestoreAntiFlingPlayerCollisions()
+	for part,oldCanCollide in pairs(AntiFlingCollisionOriginal) do
+		if part and part.Parent then
 			pcall(function()
-				humanoid:ChangeState(Enum.HumanoidStateType.GettingUp)
+				part.CanCollide = oldCanCollide
 			end)
 		end
 	end
+	table.clear(AntiFlingCollisionOriginal)
+end
+
+local function DisableOtherPlayerCollisions()
+	for _,player in ipairs(Players:GetPlayers()) do
+		if player ~= LocalPlayer then
+			local character = player.Character
+			if character then
+				for _,part in ipairs(character:GetDescendants()) do
+					if part:IsA("BasePart") then
+						if AntiFlingCollisionOriginal[part] == nil then
+							AntiFlingCollisionOriginal[part] = part.CanCollide
+						end
+						part.CanCollide = false
+					end
+				end
+			end
+		end
+	end
+end
+
+local function KillLocalFlingVelocity(character,humanoid,hrp)
+	if not character or not hrp then return end
+
+	local killedLinear = false
+	for _,part in ipairs(character:GetDescendants()) do
+		if part:IsA("BasePart") then
+			if part.AssemblyAngularVelocity.Magnitude > ANTI_FLING_ANGULAR_LIMIT then
+				part.AssemblyAngularVelocity = Vector3.zero
+			end
+
+			-- Keep Anti Fling from fighting the separate Fly feature.
+			if not Flags.Fly and part.AssemblyLinearVelocity.Magnitude > ANTI_FLING_LINEAR_LIMIT then
+				part.AssemblyLinearVelocity = Vector3.zero
+				part.AssemblyAngularVelocity = Vector3.zero
+				killedLinear = true
+			end
+		end
+	end
+
+	-- Never let root spin persist while protection is active.
+	hrp.AssemblyAngularVelocity = Vector3.zero
+
+	if killedLinear and humanoid and not Flags.Fly then
+		pcall(function()
+			humanoid:ChangeState(Enum.HumanoidStateType.GettingUp)
+		end)
+	end
+end
+
+local function GetNearestOtherPlayerTo(rootPart,excludePlayer)
+	if not rootPart then return nil,math.huge end
+
+	local nearestPlayer = nil
+	local nearestDistance = math.huge
+	for _,player in ipairs(Players:GetPlayers()) do
+		if player ~= excludePlayer then
+			local character = player.Character
+			local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+			local otherHRP = character and character:FindFirstChild("HumanoidRootPart")
+			if humanoid and humanoid.Health > 0 and otherHRP then
+				local distance = (otherHRP.Position-rootPart.Position).Magnitude
+				if distance < nearestDistance then
+					nearestDistance = distance
+					nearestPlayer = player
+				end
+			end
+		end
+	end
+
+	return nearestPlayer,nearestDistance
+end
+
+local function UpdateFlingNotify()
+	if not Flags.FlingNotify or FlingRunning then
+		table.clear(FlingNotifySuspiciousSince)
+		return
+	end
+
+	local now = os.clock()
+	for _,suspect in ipairs(Players:GetPlayers()) do
+		if suspect ~= LocalPlayer then
+			local character = suspect.Character
+			local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+			local hrp = character and character:FindFirstChild("HumanoidRootPart")
+
+			if humanoid and humanoid.Health > 0 and hrp then
+				local linear = hrp.AssemblyLinearVelocity.Magnitude
+				local angular = hrp.AssemblyAngularVelocity.Magnitude
+				local victim,distance = GetNearestOtherPlayerTo(hrp,suspect)
+				local suspicious = victim ~= nil
+					and distance <= FLING_NOTIFY_NEAR_DISTANCE
+					and (linear >= FLING_NOTIFY_LINEAR_LIMIT or angular >= FLING_NOTIFY_ANGULAR_LIMIT)
+
+				if suspicious then
+					local since = FlingNotifySuspiciousSince[suspect]
+					if not since then
+						FlingNotifySuspiciousSince[suspect] = now
+					elseif now-since >= FLING_NOTIFY_CONFIRM_TIME then
+						local lastAlert = FlingNotifyLastAlert[suspect] or 0
+						if now-lastAlert >= FLING_NOTIFY_COOLDOWN then
+							FlingNotifyLastAlert[suspect] = now
+							if victim == LocalPlayer then
+								MM2.Notify("Possible fling attempt by "..suspect.Name,3)
+							else
+								MM2.Notify("Possible fling: "..suspect.Name.." -> "..victim.Name,3)
+							end
+						end
+					end
+				else
+					FlingNotifySuspiciousSince[suspect] = nil
+				end
+			else
+				FlingNotifySuspiciousSince[suspect] = nil
+			end
+		end
+	end
+end
+
+-- Before physics: remove player-vs-player collision while Anti Fling is active.
+-- During your own fling, collisions are restored so ExecuteYeet still works.
+Track(RunService.Stepped:Connect(function()
+	if not Flags.AntiFling or FlingRunning then
+		if next(AntiFlingCollisionOriginal) then
+			RestoreAntiFlingPlayerCollisions()
+		end
+		return
+	end
+
+	DisableOtherPlayerCollisions()
+end))
+
+-- After physics: cancel any fling velocity that still gets through and run
+-- the independent Fling Notify detector.
+Track(RunService.Heartbeat:Connect(function()
+	UpdateFlingNotify()
+
+	if not Flags.AntiFling or FlingRunning then return end
+	local character,humanoid,hrp = MM2.GetLocalCharacter()
+	if not character or not hrp then return end
+
+	KillLocalFlingVelocity(character,humanoid,hrp)
+end))
+
+Track(Players.PlayerRemoving:Connect(function(player)
+	FlingNotifySuspiciousSince[player] = nil
+	FlingNotifyLastAlert[player] = nil
 end))
 
 local TargetCard = Instance.new("Frame")
@@ -468,20 +612,29 @@ UI.CreateToggle(
 	"Prevents you from getting thrown away",
 	"AntiFling",
 	function(on)
-		if not on or FlingRunning then return end
-
-		local _,humanoid,hrp = MM2.GetLocalCharacter()
-		if hrp then
-			hrp.AssemblyAngularVelocity = Vector3.zero
-			if hrp.AssemblyLinearVelocity.Magnitude > ANTI_FLING_LINEAR_LIMIT then
-				hrp.AssemblyLinearVelocity = Vector3.zero
-			end
+		if not on then
+			RestoreAntiFlingPlayerCollisions()
+			return
 		end
 
-		if humanoid then
-			pcall(function()
-				humanoid:ChangeState(Enum.HumanoidStateType.GettingUp)
-			end)
+		if FlingRunning then return end
+		DisableOtherPlayerCollisions()
+
+		local character,humanoid,hrp = MM2.GetLocalCharacter()
+		if character and hrp then
+			KillLocalFlingVelocity(character,humanoid,hrp)
+		end
+	end
+)
+
+UI.CreateToggle(
+	UI.FlingPage,
+	"Fling Notify",
+	"Get notified when players attempt to fling you or other players",
+	"FlingNotify",
+	function(on)
+		if not on then
+			table.clear(FlingNotifySuspiciousSince)
 		end
 	end
 )
