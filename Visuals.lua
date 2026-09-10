@@ -36,20 +36,54 @@ local function CreateNativeToggle(title, desc, flagName, callback)
 			Title = title,
 			Desc = desc,
 			Value = Flags[flagName],
+
 			Callback = function(value)
 				value = value == true
 				Flags[flagName] = value
 
+				-- Ignore programmatic Set() changes.
 				if suppressCallback then
 					return
 				end
 
+				-- Run the actual feature logic.
 				if callback then
-					local ok, err = pcall(callback, value)
+					local ok, err = pcall(
+						callback,
+						value
+					)
+
 					if not ok then
-						warn("[Blizzard Visuals] Toggle callback error:", flagName, err)
+						warn(
+							"[Blizzard Visuals] Toggle callback error:",
+							flagName,
+							err
+						)
 					end
 				end
+
+				-- WindUI notification.
+				pcall(function()
+					UI.WindUI:Notify({
+						Title = tostring(
+							title
+							or flagName
+							or "Feature"
+						),
+
+						Content =
+							value
+							and "Enabled!"
+							or "Disabled!",
+
+						Icon =
+							value
+							and "check"
+							or "x",
+
+						Duration = 2.5,
+					})
+				end)
 			end,
 		})
 	end)
@@ -70,14 +104,19 @@ local function CreateNativeToggle(title, desc, flagName, callback)
 
 		if control and control.Set then
 			suppressCallback = true
+
 			pcall(function()
 				control:Set(value)
 			end)
+
 			suppressCallback = false
 		end
 
 		if runCallback and callback then
-			pcall(callback, value)
+			pcall(
+				callback,
+				value
+			)
 		end
 	end
 
