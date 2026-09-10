@@ -1205,7 +1205,7 @@ MM2.Functions.UpdateAutoGrab = function()
 					break
 				end
 			else
-				-- Original order: HRP -> torso.
+				-- Original order: HRP -> torso
 				TouchAutoGrabPart(hrp,targetPart)
 				if MM2.HasGunAnywhere() or not gunDrop.Parent then
 					break
