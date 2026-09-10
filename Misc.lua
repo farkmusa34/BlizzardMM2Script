@@ -7,6 +7,11 @@
 --   Server
 --   Config
 --   UI
+--
+-- Fixes:
+--   * Theme dropdown is created through the WindUI bridge.
+--   * Theme control appears inside the visible Appearance section.
+--   * Legacy Blizzard theme names map to real WindUI themes.
 --============================================================
 
 local MM2 = getgenv and getgenv().MM2_V85_SPLIT or _G.MM2_V85_SPLIT
@@ -78,10 +83,6 @@ local DefaultPlayerSettings = CopyTable(MM2.PlayerSettings or {})
 
 --============================================================
 -- THEMES
---
--- WindUI owns the actual window styling now. We keep your old
--- theme names/config values for config compatibility and map
--- them to WindUI themes when a matching built-in theme exists.
 --============================================================
 
 local ThemeOrder = {
@@ -97,47 +98,58 @@ local ThemeOrder = {
 	"Sunset",
 }
 
--- Safe built-in mapping. Custom legacy names fall back to Dark until
--- you decide to create dedicated WindUI custom themes for each one.
+-- Mapped to real WindUI built-in themes.
 local WindThemeMap = {
 	["Dark"] = "Dark",
-	["Summer Event"] = "Dark",
-	["Ocean Blue"] = "Dark",
-	["Crimson"] = "Dark",
-	["Midnight Purple"] = "Dark",
-	["Emerald"] = "Dark",
-	["Rose Pink"] = "Dark",
-	["Cyber Neon"] = "Dark",
-	["Arctic"] = "Dark",
-	["Sunset"] = "Dark",
+	["Summer Event"] = "Amber",
+	["Ocean Blue"] = "Sky",
+	["Crimson"] = "Crimson",
+	["Midnight Purple"] = "Violet",
+	["Emerald"] = "Emerald",
+	["Rose Pink"] = "Rose",
+	["Cyber Neon"] = "Rainbow",
+	["Arctic"] = "Light",
+	["Sunset"] = "Amber",
 }
 
 local ThemeDropdown = nil
 local ApplyingTheme = false
 
 local function ApplyTheme(themeName)
-	if not WindThemeMap[themeName] then
+	if typeof(themeName) ~= "string"
+		or not WindThemeMap[themeName]
+	then
 		themeName = "Dark"
 	end
 
 	Flags.Theme = themeName
 
-	-- WindUI exposes theme changes through the library. Keep this guarded
-	-- so a library update cannot break the rest of Misc.lua.
-	local windTheme = WindThemeMap[themeName] or "Dark"
+	local windTheme =
+		WindThemeMap[themeName]
+		or "Dark"
 
-	if UI.WindUI then
-		pcall(function()
-			if UI.WindUI.SetTheme then
-				UI.WindUI:SetTheme(windTheme)
-			elseif UI.WindUI.SetCurrentTheme then
-				UI.WindUI:SetCurrentTheme(windTheme)
-			end
-		end)
+	if UI.WindUI
+		and UI.WindUI.SetTheme
+	then
+		local success,err =
+			pcall(function()
+				UI.WindUI:SetTheme(
+					windTheme
+				)
+			end)
+
+		if not success then
+			warn(
+				"[Blizzard Misc] Theme failed:",
+				themeName,
+				windTheme,
+				err
+			)
+
+			return false
+		end
 	end
 
-	-- Keep special legacy overlay buttons visually consistent enough.
-	-- Their blue/cyan stroke remains intentionally branded.
 	return true
 end
 
@@ -153,24 +165,24 @@ UI.AddSection(
 	"Customize the Blizzard MM2 interface"
 )
 
-ThemeDropdown = UI.MiscPage:Dropdown({
-	Title = "Theme",
-	Desc = "Choose your menu color theme",
-	Values = ThemeOrder,
-	Value = Flags.Theme,
-	Multi = false,
-	AllowNone = false,
-	Callback = function(value)
-		if ApplyingTheme then
-			return
-		end
+ThemeDropdown =
+	UI.CreateDropdown(
+		UI.MiscPage,
+		"Theme",
+		"Choose your menu color theme",
+		ThemeOrder,
+		Flags.Theme,
+		function(value)
 
-		-- Some WindUI builds return the selected string directly.
-		if typeof(value) == "string" then
-			ApplyTheme(value)
+			if ApplyingTheme then
+				return
+			end
+
+			if typeof(value) == "string" then
+				ApplyTheme(value)
+			end
 		end
-	end,
-})
+	)
 
 --============================================================
 -- SERVER
@@ -552,6 +564,7 @@ local function LoadConfig()
 
 		if ThemeDropdown then
 			ApplyingTheme = true
+
 			pcall(function()
 				if ThemeDropdown.Select then
 					ThemeDropdown:Select(Flags.Theme or "Dark")
@@ -559,6 +572,7 @@ local function LoadConfig()
 					ThemeDropdown:Set(Flags.Theme or "Dark")
 				end
 			end)
+
 			ApplyingTheme = false
 		end
 	end
@@ -633,6 +647,7 @@ local function ResetConfig()
 
 	if ThemeDropdown then
 		ApplyingTheme = true
+
 		pcall(function()
 			if ThemeDropdown.Select then
 				ThemeDropdown:Select("Dark")
@@ -640,6 +655,7 @@ local function ResetConfig()
 				ThemeDropdown:Set("Dark")
 			end
 		end)
+
 		ApplyingTheme = false
 	end
 
@@ -723,7 +739,6 @@ local function HideMenu()
 		return false
 	end
 
-	-- WindUI window API first.
 	local success = pcall(function()
 		if window.Toggle then
 			window:Toggle()
