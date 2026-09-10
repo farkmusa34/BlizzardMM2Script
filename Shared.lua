@@ -32,6 +32,9 @@ function MM2.Track(connection)
 end
 
 MM2.Flags = {
+	Theme = "Summer Event",
+	AntiFling = true,
+
 	MatchESP = false,
 	GunESP = false,
 	TriggerBot = false,
