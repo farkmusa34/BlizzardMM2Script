@@ -9,9 +9,10 @@
 --   UI
 --
 -- Fixes:
---   * Theme dropdown is created through the WindUI bridge.
---   * Theme control appears inside the visible Appearance section.
---   * Legacy Blizzard theme names map to real WindUI themes.
+--   * Theme dropdown uses the WindUI bridge.
+--   * Theme control appears inside Appearance.
+--   * Cyber Neon is a real custom theme.
+--   * Summer Event is the factory/default theme.
 --============================================================
 
 local MM2 = getgenv and getgenv().MM2_V85_SPLIT or _G.MM2_V85_SPLIT
@@ -44,7 +45,7 @@ local VirtualUser = game:GetService("VirtualUser")
 Flags.Theme =
 	typeof(Flags.Theme) == "string"
 	and Flags.Theme
-	or "Dark"
+	or "Summer Event"
 
 Flags.AntiAFK = Flags.AntiAFK == true
 Flags.AntiDisconnect = Flags.AntiDisconnect == true
@@ -98,7 +99,6 @@ local ThemeOrder = {
 	"Sunset",
 }
 
--- Mapped to real WindUI built-in themes.
 local WindThemeMap = {
 	["Dark"] = "Dark",
 	["Summer Event"] = "Amber",
@@ -107,10 +107,49 @@ local WindThemeMap = {
 	["Midnight Purple"] = "Violet",
 	["Emerald"] = "Emerald",
 	["Rose Pink"] = "Rose",
-	["Cyber Neon"] = "Rainbow",
+
+	-- Custom theme
+	["Cyber Neon"] = "Cyber Neon",
+
 	["Arctic"] = "Light",
 	["Sunset"] = "Amber",
 }
+
+--============================================================
+-- CUSTOM CYBER NEON THEME
+--============================================================
+
+if UI.WindUI and UI.WindUI.AddTheme then
+	pcall(function()
+		UI.WindUI:AddTheme({
+			Name = "Cyber Neon",
+
+			-- Main cyan accent
+			Accent = "#00F0FF",
+
+			-- Dark purple/black dialog areas
+			Dialog = "#13051F",
+
+			-- Bright neon cyan outlines
+			Outline = "#00F0FF",
+
+			-- Main text
+			Text = "#F6F4FF",
+
+			-- Secondary text
+			Placeholder = "#B58ACF",
+
+			-- Main background
+			Background = "#07070D",
+
+			-- Hot-magenta controls/buttons
+			Button = "#FF0080",
+
+			-- Neon purple icons
+			Icon = "#B000FF",
+		})
+	end)
+end
 
 local ThemeDropdown = nil
 local ApplyingTheme = false
@@ -119,14 +158,14 @@ local function ApplyTheme(themeName)
 	if typeof(themeName) ~= "string"
 		or not WindThemeMap[themeName]
 	then
-		themeName = "Dark"
+		themeName = "Summer Event"
 	end
 
 	Flags.Theme = themeName
 
 	local windTheme =
 		WindThemeMap[themeName]
-		or "Dark"
+		or "Amber"
 
 	if UI.WindUI
 		and UI.WindUI.SetTheme
@@ -545,7 +584,7 @@ local function LoadConfig()
 	end)
 
 	if success then
-		ApplyTheme(Flags.Theme or "Dark")
+		ApplyTheme(Flags.Theme or "Summer Event")
 
 		if UI.SetToggleState then
 			for key, value in pairs(Flags) do
@@ -567,9 +606,13 @@ local function LoadConfig()
 
 			pcall(function()
 				if ThemeDropdown.Select then
-					ThemeDropdown:Select(Flags.Theme or "Dark")
+					ThemeDropdown:Select(
+						Flags.Theme or "Summer Event"
+					)
 				elseif ThemeDropdown.Set then
-					ThemeDropdown:Set(Flags.Theme or "Dark")
+					ThemeDropdown:Set(
+						Flags.Theme or "Summer Event"
+					)
 				end
 			end)
 
@@ -632,27 +675,34 @@ local function ResetConfig()
 
 	if humanoid then
 		if DefaultPlayerSettings.WalkSpeed then
-			humanoid.WalkSpeed = DefaultPlayerSettings.WalkSpeed
+			humanoid.WalkSpeed =
+				DefaultPlayerSettings.WalkSpeed
 		end
 
 		if DefaultPlayerSettings.JumpPower then
-			humanoid.JumpPower = DefaultPlayerSettings.JumpPower
+			humanoid.JumpPower =
+				DefaultPlayerSettings.JumpPower
 		end
 	end
 
 	SetAntiAFK(false)
 
-	Flags.Theme = "Dark"
-	ApplyTheme("Dark")
+	-- Factory theme is now Summer Event.
+	Flags.Theme = "Summer Event"
+	ApplyTheme("Summer Event")
 
 	if ThemeDropdown then
 		ApplyingTheme = true
 
 		pcall(function()
 			if ThemeDropdown.Select then
-				ThemeDropdown:Select("Dark")
+				ThemeDropdown:Select(
+					"Summer Event"
+				)
 			elseif ThemeDropdown.Set then
-				ThemeDropdown:Set("Dark")
+				ThemeDropdown:Set(
+					"Summer Event"
+				)
 			end
 		end)
 
@@ -709,7 +759,10 @@ task.spawn(function()
 			local encoded = nil
 
 			local ok = pcall(function()
-				encoded = HttpService:JSONEncode(currentConfig)
+				encoded =
+					HttpService:JSONEncode(
+						currentConfig
+					)
 			end)
 
 			if ok
@@ -733,7 +786,9 @@ UI.AddSection(
 )
 
 local function HideMenu()
-	local window = UI.Window or UI.MainFrame
+	local window =
+		UI.Window
+		or UI.MainFrame
 
 	if not window then
 		return false
@@ -769,23 +824,34 @@ local function UnloadMenu()
 	MM2.Running = false
 
 	if MM2.Functions.StopAutoFarm then
-		pcall(MM2.Functions.StopAutoFarm)
+		pcall(
+			MM2.Functions.StopAutoFarm
+		)
 	end
 
 	if MM2.Functions.StopFly then
-		pcall(MM2.Functions.StopFly)
+		pcall(
+			MM2.Functions.StopFly
+		)
 	end
 
 	if MM2.Functions.StopPlayerNoclip then
-		pcall(MM2.Functions.StopPlayerNoclip)
+		pcall(
+			MM2.Functions.StopPlayerNoclip
+		)
 	end
 
 	if Flags.AutoSaveConfig then
-		pcall(SaveConfig)
+		pcall(
+			SaveConfig
+		)
 	end
 
 	if MM2.Functions.Unload then
-		pcall(MM2.Functions.Unload)
+		pcall(
+			MM2.Functions.Unload
+		)
+
 		return
 	end
 
@@ -826,10 +892,14 @@ UI.CreateActionFeature(
 -- INITIALIZE
 --============================================================
 
-local loadedConfig = LoadConfig()
+local loadedConfig =
+	LoadConfig()
 
 if not loadedConfig then
-	ApplyTheme(Flags.Theme or "Dark")
+	ApplyTheme(
+		Flags.Theme
+		or "Summer Event"
+	)
 end
 
 if ThemeDropdown then
@@ -837,9 +907,15 @@ if ThemeDropdown then
 
 	pcall(function()
 		if ThemeDropdown.Select then
-			ThemeDropdown:Select(Flags.Theme or "Dark")
+			ThemeDropdown:Select(
+				Flags.Theme
+				or "Summer Event"
+			)
 		elseif ThemeDropdown.Set then
-			ThemeDropdown:Set(Flags.Theme or "Dark")
+			ThemeDropdown:Set(
+				Flags.Theme
+				or "Summer Event"
+			)
 		end
 	end)
 
