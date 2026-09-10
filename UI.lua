@@ -1,6 +1,6 @@
 --============================================================
 -- Blizzard MM2 V8.8.4 - UI.lua
--- WindUI front-end + legacy compatibility layer.
+-- WindUI front-end + legacy compatibility layer V2.
 --
 -- Goal:
 --   Keep Visuals.lua / Combat.lua / AutoFarm.lua / Player.lua /
@@ -284,7 +284,8 @@ LegacyContentHolder.Position = UDim2.fromOffset(170,58)
 LegacyContentHolder.Size = UDim2.new(1,-184,1,-72)
 LegacyContentHolder.ClipsDescendants = true
 LegacyContentHolder.Active = false
-LegacyContentHolder.Parent = CompatMainFrame
+LegacyContentHolder.Visible = false
+LegacyContentHolder.Parent = ScreenGui
 
 local function MakeLegacyPage(name)
 	local page = Instance.new("ScrollingFrame")
@@ -298,7 +299,8 @@ local function MakeLegacyPage(name)
 	page.AutomaticCanvasSize = Enum.AutomaticSize.Y
 	page.Visible = false
 	page.Active = false
-	page.ZIndex = 90
+	page.Position = UDim2.fromOffset(-10000,-10000)
+	page.ZIndex = 1
 	page.Parent = LegacyContentHolder
 
 	local padding = Instance.new("UIPadding")
@@ -319,25 +321,14 @@ local function MakeLegacyPage(name)
 end
 
 local function AddLegacySpacer(page,height)
-	if typeof(page) ~= "Instance" then return end
-	if not page:IsA("ScrollingFrame") then return end
-
-	local spacer = Instance.new("Frame")
-	spacer.Name = "_WindUISpacer"
-	spacer.Size = UDim2.new(1,0,0,height or 54)
-	spacer.BackgroundTransparency = 1
-	spacer.BorderSizePixel = 0
-	spacer.Active = false
-	spacer.ZIndex = 1
-	spacer.Parent = page
+	-- Compatibility pages are storage-only in V2.
+	-- Visible spacing is handled entirely by WindUI.
+	return nil
 end
 
 local function SetLegacyPageVisible(name)
 	ActivePageName = name
-
-	for pageName,page in pairs(NameToPage) do
-		page.Visible = pageName == name
-	end
+	-- Legacy page Instances intentionally remain hidden.
 end
 
 for _,info in ipairs(PAGE_ORDER) do
@@ -355,17 +346,6 @@ for _,info in ipairs(PAGE_ORDER) do
 
 	UI[name.."Page"] = page
 
-	-- Most WindUI builds call Tab:Select() from their sidebar click.
-	-- Wrap it so our legacy Instance overlay follows the WindUI tab.
-	pcall(function()
-		local rawSelect = tab.Select
-		if type(rawSelect) == "function" then
-			tab.Select = function(self,...)
-				SetLegacyPageVisible(name)
-				return rawSelect(self,...)
-			end
-		end
-	end)
 end
 
 --============================================================
@@ -421,10 +401,9 @@ end
 function UI.AddSection(parent,titleText,subtitleText)
 	local tab = ResolveTab(parent)
 	if not tab then
+		warn("[Blizzard MM2 UI] Missing WindUI tab for section:",titleText)
 		return nil
 	end
-
-	AddLegacySpacer(parent,42)
 
 	local section
 	local ok,result = pcall(function()
@@ -432,24 +411,32 @@ function UI.AddSection(parent,titleText,subtitleText)
 			Title = tostring(titleText or ""),
 			Desc = tostring(subtitleText or ""),
 			Box = true,
-			BoxBorder = true,
 			Opened = true,
 		})
 	end)
 
-	if ok then
+	if ok and result then
 		section = result
 	else
-		-- Fallback for WindUI builds with a smaller Section option set.
-		pcall(function()
-			section = tab:Section({
+		local ok2,result2 = pcall(function()
+			return tab:Section({
 				Title = tostring(titleText or ""),
+				Box = true,
+				Opened = true,
 			})
 		end)
+
+		if ok2 and result2 then
+			section = result2
+		else
+			warn("[Blizzard MM2 UI] Section create failed:",titleText,result,result2)
+			section = tab
+		end
 	end
 
-	CurrentSection[parent] = section or tab
+	CurrentSection[parent] = section
 	return section
+end
 end
 
 --============================================================
@@ -756,39 +743,12 @@ function UI.CreateValueControl(
 end
 
 --============================================================
--- LEGACY PAGE CHILD NORMALIZATION
+-- LEGACY PAGE HOSTS
 --
--- Older modules parent their own Frames / ScrollingFrames directly to
--- UI.*Page. Keep those objects above the transparent compatibility
--- layer and let the page's UIListLayout place them among spacer slots.
+-- Direct-instance UI created by older modules is retained here so
+-- their code does not error. These hosts are intentionally hidden;
+-- WindUI is the only visible main-menu renderer.
 --============================================================
-
-for _,page in pairs(NameToPage) do
-	Track(page.ChildAdded:Connect(function(child)
-		if child.Name == "_WindUISpacer"
-			or child:IsA("UIListLayout")
-			or child:IsA("UIPadding")
-		then
-			return
-		end
-
-		if child:IsA("GuiObject") then
-			child.ZIndex = math.max(child.ZIndex,95)
-
-			-- Existing modules often use Size = UDim2.new(1,0,...).
-			-- Leave their authored height/width intact.
-			task.defer(function()
-				if child and child.Parent == page then
-					for _,desc in ipairs(child:GetDescendants()) do
-						if desc:IsA("GuiObject") then
-							desc.ZIndex = math.max(desc.ZIndex,96)
-						end
-					end
-				end
-			end)
-		end
-	end))
-end
 
 --============================================================
 -- FLOATING / MOVABLE CIRCLE BUTTONS
@@ -1059,117 +1019,40 @@ do
 			end
 		end)
 
-		CompatMainFrame.Visible = not CompatMainFrame.Visible
 	end))
 end
 
 --============================================================
--- HEADER SNOWFLAKE OVERLAY + WINDOW POSITION SYNC
---
--- The WindUI shell is rendered by the library. This compatibility
--- holder follows the discovered WindUI window so the exact old
--- snowflake and direct-parent legacy controls move with it.
+-- HEADER BRANDING COMPATIBILITY
 --============================================================
 
+-- Keep the exact old snowflake available to the compatibility layer.
+-- WindUI itself remains unobstructed; no transparent overlay is placed
+-- over its window.
 local HeaderSnowflake = CreateSnowflake(CompatMainFrame,22,COLORS.Text)
 HeaderSnowflake.Name = "HeaderBlizzardSnowflake"
 HeaderSnowflake.Position = UDim2.fromOffset(16,15)
-HeaderSnowflake.ZIndex = 120
+HeaderSnowflake.Visible = false
 
-local function FindWindWindowRoot()
-	local roots = {PlayerGui,CoreGui}
-
-	for _,root in ipairs(roots) do
-		for _,obj in ipairs(root:GetDescendants()) do
-			if (obj:IsA("TextLabel") or obj:IsA("TextButton"))
-				and tostring(obj.Text) == "Blizzard MM2"
-			then
-				local current = obj.Parent
-				local best = nil
-
-				while current and current ~= root do
-					if current:IsA("GuiObject") then
-						local size = current.AbsoluteSize
-						if size.X >= 500 and size.Y >= 340 then
-							best = current
-						end
-					end
-					current = current.Parent
-				end
-
-				if best then
-					return best
-				end
-			end
-		end
-	end
-
-	return nil
-end
-
-local WindWindowRoot = nil
-task.spawn(function()
-	local deadline = os.clock()+8
-	repeat
-		WindWindowRoot = FindWindWindowRoot()
-		if WindWindowRoot then break end
-		task.wait(0.20)
-	until os.clock() >= deadline
-end)
-
-Track(RunService.RenderStepped:Connect(function()
-	if WindWindowRoot and WindWindowRoot.Parent then
-		local pos = WindWindowRoot.AbsolutePosition
-		local size = WindWindowRoot.AbsoluteSize
-
-		CompatMainFrame.AnchorPoint = Vector2.zero
-		CompatMainFrame.Position = UDim2.fromOffset(pos.X,pos.Y)
-		CompatMainFrame.Size = UDim2.fromOffset(size.X,size.Y)
-
-		-- Scale the legacy content bridge to the actual WindUI shell.
-		LegacyContentHolder.Position = UDim2.fromOffset(
-			math.floor(size.X*0.285),
-			math.floor(size.Y*0.135)
-		)
-		LegacyContentHolder.Size = UDim2.fromOffset(
-			math.max(100,math.floor(size.X*0.69)),
-			math.max(100,math.floor(size.Y*0.82))
-		)
-	end
-
-	-- Extra fallback for WindUI builds exposing a current-tab field.
-	for name,tab in pairs(NameToTab) do
-		if Window.CurrentTab == tab
-			or Window.SelectedTab == tab
-			or Window.TabSelected == tab
-		then
-			if ActivePageName ~= name then
-				SetLegacyPageVisible(name)
-			end
-			break
-		end
-	end
-end))
-
--- Old Misc.lua can hide the menu with UI.MainFrame.Visible = false.
-local changingCompatVisible = false
+-- Old Misc.lua may write UI.MainFrame.Visible = false. Mirror that into
+-- WindUI only when it transitions from visible -> hidden.
+local lastCompatVisible = CompatMainFrame.Visible
 
 Track(CompatMainFrame:GetPropertyChangedSignal("Visible"):Connect(function()
-	if changingCompatVisible then return end
-
-	LegacyContentHolder.Visible = CompatMainFrame.Visible
-	HeaderSnowflake.Visible = CompatMainFrame.Visible
-
-	if CompatMainFrame.Visible == false then
+	local nowVisible = CompatMainFrame.Visible
+	if lastCompatVisible and not nowVisible then
 		pcall(function()
 			if Window.Toggle then
 				Window:Toggle()
+			elseif Window.Close then
+				Window:Close()
 			end
 		end)
 	end
+	lastCompatVisible = nowVisible
 end))
 
--- If Main.lua / Misc.lua destroys ScreenGui, destroy WindUI too.
+-- Main.lua destroys UI.ScreenGui during cleanup. Ensure WindUI follows.
 Track(ScreenGui.Destroying:Connect(function()
 	pcall(function()
 		if Window and Window.Destroy then
@@ -1184,6 +1067,6 @@ end))
 
 UI.ShowPage("Visuals")
 
-print("[Blizzard MM2 UI] WindUI compatibility layer V8.8.4 loaded")
+print("[Blizzard MM2 UI] WindUI compatibility layer V8.8.4 V2 loaded")
 
 return MM2
