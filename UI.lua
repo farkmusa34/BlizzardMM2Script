@@ -1028,7 +1028,7 @@ function UI.CreateMovableCircleButton(
 end
 
 --============================================================
--- OG CONTROLLER / RGB TOOLBAR
+-- ORIGINAL CONTROLLER / RGB TOOLBAR
 --============================================================
 
 local ToolbarGui = Instance.new("ScreenGui")
@@ -1040,27 +1040,87 @@ ToolbarGui.Parent = PlayerGui
 
 UI.ToolbarGui = ToolbarGui
 
+-- Main compact controller panel.
 local FloatingOutline = Instance.new("Frame")
 FloatingOutline.Name = "FloatingOutline"
-FloatingOutline.AnchorPoint = Vector2.new(0.5,0)
-FloatingOutline.Position = UDim2.new(0.5,0,0,12)
-FloatingOutline.Size = UDim2.fromOffset(170,46)
+FloatingOutline.AnchorPoint = Vector2.new(1,1)
+FloatingOutline.Position = UDim2.new(1,-70,1,-50)
+FloatingOutline.Size = UDim2.fromOffset(170,105)
 FloatingOutline.BackgroundColor3 = Color3.fromRGB(14,16,22)
-FloatingOutline.BackgroundTransparency = 0.06
+FloatingOutline.BackgroundTransparency = 0.04
 FloatingOutline.BorderSizePixel = 0
 FloatingOutline.Active = true
 FloatingOutline.ZIndex = 100
 FloatingOutline.Parent = ToolbarGui
 
-local outlineCorner = Instance.new("UICorner")
-outlineCorner.CornerRadius = UDim.new(1,0)
-outlineCorner.Parent = FloatingOutline
+local OutlineCorner = Instance.new("UICorner")
+OutlineCorner.CornerRadius = UDim.new(0,12)
+OutlineCorner.Parent = FloatingOutline
 
-UI.CreateBlueCyanStroke(
-	FloatingOutline,
-	1.5,
-	0.08
-)
+--============================================================
+-- ORIGINAL RGB BORDER
+--============================================================
+
+local RGBStroke = Instance.new("UIStroke")
+RGBStroke.Name = "RGBStroke"
+RGBStroke.Thickness = 2
+RGBStroke.Transparency = 0
+RGBStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+RGBStroke.Parent = FloatingOutline
+
+local RGBGradient = Instance.new("UIGradient")
+RGBGradient.Color = ColorSequence.new({
+	ColorSequenceKeypoint.new(
+		0.00,
+		Color3.fromRGB(255,0,0)
+	),
+
+	ColorSequenceKeypoint.new(
+		0.16,
+		Color3.fromRGB(255,170,0)
+	),
+
+	ColorSequenceKeypoint.new(
+		0.33,
+		Color3.fromRGB(255,255,0)
+	),
+
+	ColorSequenceKeypoint.new(
+		0.50,
+		Color3.fromRGB(0,255,120)
+	),
+
+	ColorSequenceKeypoint.new(
+		0.66,
+		Color3.fromRGB(0,180,255)
+	),
+
+	ColorSequenceKeypoint.new(
+		0.83,
+		Color3.fromRGB(110,70,255)
+	),
+
+	ColorSequenceKeypoint.new(
+		1.00,
+		Color3.fromRGB(255,0,190)
+	),
+})
+RGBGradient.Parent = RGBStroke
+
+task.spawn(function()
+	while MM2.Running
+		and RGBGradient.Parent
+	do
+		RGBGradient.Rotation =
+			(RGBGradient.Rotation + 2) % 360
+
+		task.wait(0.03)
+	end
+end)
+
+--============================================================
+-- CLICK / DRAG BUTTON
+--============================================================
 
 local ToolbarButton = Instance.new("TextButton")
 ToolbarButton.Name = "OpenMenu"
@@ -1073,29 +1133,194 @@ ToolbarButton.AutoButtonColor = false
 ToolbarButton.ZIndex = 101
 ToolbarButton.Parent = FloatingOutline
 
-local Controller = Instance.new("TextLabel")
-Controller.Name = "ControllerIcon"
-Controller.Position = UDim2.fromOffset(13,0)
-Controller.Size = UDim2.fromOffset(30,46)
-Controller.BackgroundTransparency = 1
-Controller.Text = "🎮"
-Controller.TextSize = 21
-Controller.Font = Enum.Font.GothamBold
-Controller.TextColor3 = COLORS.Text
-Controller.ZIndex = 102
-Controller.Parent = ToolbarButton
+--============================================================
+-- HEADER
+--============================================================
+
+local Header = Instance.new("Frame")
+Header.Name = "Header"
+Header.Position = UDim2.fromOffset(6,6)
+Header.Size = UDim2.new(1,-12,0,31)
+Header.BackgroundColor3 = Color3.fromRGB(18,20,27)
+Header.BorderSizePixel = 0
+Header.ZIndex = 102
+Header.Parent = FloatingOutline
+
+local HeaderCorner = Instance.new("UICorner")
+HeaderCorner.CornerRadius = UDim.new(0,8)
+HeaderCorner.Parent = Header
+
+local HeaderGradient = Instance.new("UIGradient")
+HeaderGradient.Color = ColorSequence.new({
+	ColorSequenceKeypoint.new(
+		0,
+		Color3.fromRGB(35,190,125)
+	),
+
+	ColorSequenceKeypoint.new(
+		1,
+		Color3.fromRGB(40,120,255)
+	),
+})
+HeaderGradient.Rotation = 0
+HeaderGradient.Parent = Header
 
 local ToolbarTitle = Instance.new("TextLabel")
-ToolbarTitle.Position = UDim2.fromOffset(47,0)
-ToolbarTitle.Size = UDim2.new(1,-53,1,0)
+ToolbarTitle.Name = "ToolbarTitle"
+ToolbarTitle.Size = UDim2.fromScale(1,1)
 ToolbarTitle.BackgroundTransparency = 1
 ToolbarTitle.Text = "Blizzard MM2"
-ToolbarTitle.TextColor3 = COLORS.Text
-ToolbarTitle.TextSize = 12
+ToolbarTitle.TextColor3 = Color3.fromRGB(255,255,255)
+ToolbarTitle.TextSize = 13
 ToolbarTitle.Font = Enum.Font.GothamBold
-ToolbarTitle.TextXAlignment = Enum.TextXAlignment.Left
-ToolbarTitle.ZIndex = 102
-ToolbarTitle.Parent = ToolbarButton
+ToolbarTitle.TextXAlignment = Enum.TextXAlignment.Center
+ToolbarTitle.TextYAlignment = Enum.TextYAlignment.Center
+ToolbarTitle.ZIndex = 103
+ToolbarTitle.Parent = Header
+
+--============================================================
+-- DIVIDER
+--============================================================
+
+local Divider = Instance.new("Frame")
+Divider.Name = "Divider"
+Divider.Position = UDim2.fromOffset(10,43)
+Divider.Size = UDim2.new(1,-20,0,2)
+Divider.BackgroundColor3 = Color3.fromRGB(65,70,82)
+Divider.BackgroundTransparency = 0.15
+Divider.BorderSizePixel = 0
+Divider.ZIndex = 102
+Divider.Parent = FloatingOutline
+
+local DividerCorner = Instance.new("UICorner")
+DividerCorner.CornerRadius = UDim.new(1,0)
+DividerCorner.Parent = Divider
+
+--============================================================
+-- CONTROLLER AREA
+--============================================================
+
+local ControllerIcon = Instance.new("ImageLabel")
+ControllerIcon.Name = "ControllerIcon"
+ControllerIcon.AnchorPoint = Vector2.new(0.5,0.5)
+ControllerIcon.Position = UDim2.new(0.5,0,0,70)
+ControllerIcon.Size = UDim2.fromOffset(28,28)
+ControllerIcon.BackgroundTransparency = 1
+ControllerIcon.Image = "rbxassetid://6031094671"
+ControllerIcon.ImageColor3 = Color3.fromRGB(245,247,255)
+ControllerIcon.ScaleType = Enum.ScaleType.Fit
+ControllerIcon.ZIndex = 103
+ControllerIcon.Parent = FloatingOutline
+
+local OpenText = Instance.new("TextLabel")
+OpenText.Name = "OpenText"
+OpenText.AnchorPoint = Vector2.new(0.5,0)
+OpenText.Position = UDim2.new(0.5,0,0,87)
+OpenText.Size = UDim2.new(1,-20,0,14)
+OpenText.BackgroundTransparency = 1
+OpenText.Text = "OPEN MENU"
+OpenText.TextColor3 = Color3.fromRGB(190,196,210)
+OpenText.TextSize = 9
+OpenText.Font = Enum.Font.GothamBold
+OpenText.TextXAlignment = Enum.TextXAlignment.Center
+OpenText.ZIndex = 103
+OpenText.Parent = FloatingOutline
+
+--============================================================
+-- DRAGGABLE TOOLBAR
+--============================================================
+
+do
+	local dragging = false
+	local moved = false
+	local dragStart
+	local startPosition
+	local dragInput
+
+	Track(
+		ToolbarButton.InputBegan:Connect(function(input)
+			if input.UserInputType
+				== Enum.UserInputType.MouseButton1
+				or input.UserInputType
+				== Enum.UserInputType.Touch
+			then
+				dragging = true
+				moved = false
+				dragStart = input.Position
+				startPosition = FloatingOutline.Position
+
+				Track(
+					input.Changed:Connect(function()
+						if input.UserInputState
+							== Enum.UserInputState.End
+						then
+							dragging = false
+						end
+					end)
+				)
+			end
+		end)
+	)
+
+	Track(
+		ToolbarButton.InputChanged:Connect(function(input)
+			if input.UserInputType
+				== Enum.UserInputType.MouseMovement
+				or input.UserInputType
+				== Enum.UserInputType.Touch
+			then
+				dragInput = input
+			end
+		end)
+	)
+
+	Track(
+		UIS.InputChanged:Connect(function(input)
+			if not dragging
+				or input ~= dragInput
+				or not dragStart
+				or not startPosition
+			then
+				return
+			end
+
+			local delta =
+				input.Position - dragStart
+
+			if delta.Magnitude >= 5 then
+				moved = true
+			end
+
+			if moved then
+				FloatingOutline.Position =
+					UDim2.new(
+						startPosition.X.Scale,
+						startPosition.X.Offset
+							+ delta.X,
+
+						startPosition.Y.Scale,
+						startPosition.Y.Offset
+							+ delta.Y
+					)
+			end
+		end)
+	)
+
+	Track(
+		ToolbarButton.MouseButton1Click:Connect(function()
+			if moved then
+				moved = false
+				return
+			end
+
+			pcall(function()
+				if Window.Toggle then
+					Window:Toggle()
+				end
+			end)
+		end)
+	)
+end
 
 --============================================================
 -- DRAGGABLE TOOLBAR
