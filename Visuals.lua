@@ -1,12 +1,120 @@
---============================================================
+[source: 1]--============================================================
 -- Blizzard MM2 V8.8.4 VISUALS - Visuals.lua
 -- Native WindUI UI + existing visual feature logic
 -- Match ESP, Gun ESP, Coin ESP, Tracers, Round Timer.
 --============================================================
 
+--============================================================
+-- BLIZZARD MM2 VISUALS - STANDALONE GUI DIAGNOSTIC
+-- This panel appears even if the WindUI Visuals tab is broken.
+--============================================================
+
+local PlayersService = game:GetService("Players")
+local DiagnosticLocalPlayer = PlayersService.LocalPlayer
+local DiagnosticPlayerGui = DiagnosticLocalPlayer and DiagnosticLocalPlayer:FindFirstChildOfClass("PlayerGui")
+
+local oldDiagnostic = DiagnosticPlayerGui and DiagnosticPlayerGui:FindFirstChild("BlizzardVisualsDiagnostic")
+if oldDiagnostic then
+	oldDiagnostic:Destroy()
+end
+
+local DiagnosticGui = Instance.new("ScreenGui")
+DiagnosticGui.Name = "BlizzardVisualsDiagnostic"
+DiagnosticGui.ResetOnSpawn = false
+DiagnosticGui.IgnoreGuiInset = false
+DiagnosticGui.DisplayOrder = 999999
+DiagnosticGui.Parent = DiagnosticPlayerGui
+
+local DiagnosticFrame = Instance.new("Frame")
+DiagnosticFrame.Name = "Panel"
+DiagnosticFrame.Position = UDim2.fromOffset(16, 80)
+DiagnosticFrame.Size = UDim2.fromOffset(430, 260)
+DiagnosticFrame.BackgroundColor3 = Color3.fromRGB(16, 19, 26)
+DiagnosticFrame.BackgroundTransparency = 0.06
+DiagnosticFrame.BorderSizePixel = 0
+DiagnosticFrame.Parent = DiagnosticGui
+
+local DiagnosticCorner = Instance.new("UICorner")
+DiagnosticCorner.CornerRadius = UDim.new(0, 10)
+DiagnosticCorner.Parent = DiagnosticFrame
+
+local DiagnosticStroke = Instance.new("UIStroke")
+DiagnosticStroke.Color = Color3.fromRGB(55, 170, 255)
+DiagnosticStroke.Thickness = 1.5
+DiagnosticStroke.Parent = DiagnosticFrame
+
+local DiagnosticTitle = Instance.new("TextLabel")
+DiagnosticTitle.BackgroundTransparency = 1
+DiagnosticTitle.Position = UDim2.fromOffset(12, 8)
+DiagnosticTitle.Size = UDim2.new(1, -24, 0, 28)
+DiagnosticTitle.Font = Enum.Font.GothamBold
+DiagnosticTitle.TextSize = 16
+DiagnosticTitle.TextXAlignment = Enum.TextXAlignment.Left
+DiagnosticTitle.TextColor3 = Color3.fromRGB(240, 245, 255)
+DiagnosticTitle.Text = "Blizzard Visuals Diagnostic"
+DiagnosticTitle.Parent = DiagnosticFrame
+
+local DiagnosticText = Instance.new("TextLabel")
+DiagnosticText.BackgroundTransparency = 1
+DiagnosticText.Position = UDim2.fromOffset(12, 42)
+DiagnosticText.Size = UDim2.new(1, -24, 1, -54)
+DiagnosticText.Font = Enum.Font.Code
+DiagnosticText.TextSize = 13
+DiagnosticText.TextWrapped = true
+DiagnosticText.TextXAlignment = Enum.TextXAlignment.Left
+DiagnosticText.TextYAlignment = Enum.TextYAlignment.Top
+DiagnosticText.TextColor3 = Color3.fromRGB(220, 230, 242)
+DiagnosticText.Text = "Starting..."
+DiagnosticText.Parent = DiagnosticFrame
+
+local DiagnosticLines = {}
+
+local function PushDiagnostic(message)
+	message = tostring(message)
+	table.insert(DiagnosticLines, message)
+
+	while #DiagnosticLines > 14 do
+		table.remove(DiagnosticLines, 1)
+	end
+
+	DiagnosticText.Text = table.concat(DiagnosticLines, "\n")
+	print("[Blizzard Visuals]", message)
+end
+
+PushDiagnostic("Visuals.lua file: EXECUTING")
+
 local MM2 = getgenv and getgenv().MM2_V85_SPLIT or _G.MM2_V85_SPLIT
-assert(MM2 and MM2.UI and MM2.UI.WindTabs and MM2.UI.WindTabs.Visuals,
-	"Load Shared.lua + native WindUI UI.lua first")
+
+if not MM2 then
+	PushDiagnostic("ERROR: MM2 table is missing")
+	PushDiagnostic("Shared.lua did not load or key differs")
+	return
+end
+
+PushDiagnostic("MM2 table: FOUND")
+
+if not MM2.UI then
+	PushDiagnostic("ERROR: MM2.UI is missing")
+	return
+end
+
+PushDiagnostic("MM2.UI: FOUND")
+
+if not MM2.UI.WindTabs then
+	PushDiagnostic("ERROR: UI.WindTabs is missing")
+	PushDiagnostic("Current UI.lua is not exposing WindTabs")
+	return
+end
+
+PushDiagnostic("UI.WindTabs: FOUND")
+
+if not MM2.UI.WindTabs.Visuals then
+	PushDiagnostic("ERROR: WindTabs.Visuals is missing")
+	PushDiagnostic("Visuals tab key/name does not match")
+	return
+end
+
+PushDiagnostic("WindTabs.Visuals: FOUND")
 
 local Players = MM2.Services.Players
 local RunService = MM2.Services.RunService
@@ -18,41 +126,18 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local VisualsTab = UI.WindTabs.Visuals
 
-local DiagnosticLines = {}
-local DiagnosticParagraph
-
-local function PushDiagnostic(message)
-	message = tostring(message)
-	table.insert(DiagnosticLines, message)
-	print("[Blizzard Visuals]", message)
-
-	if DiagnosticParagraph and DiagnosticParagraph.SetDesc then
-		pcall(function()
-			DiagnosticParagraph:SetDesc(table.concat(DiagnosticLines, "\n"))
-		end)
-	elseif DiagnosticParagraph and DiagnosticParagraph.Set then
-		pcall(function()
-			DiagnosticParagraph:Set(table.concat(DiagnosticLines, "\n"))
-		end)
-	end
-end
-
-PushDiagnostic("Visuals.lua: LOADED")
-PushDiagnostic("WindTabs.Visuals: FOUND")
-
 local diagOK, diagResult = pcall(function()
 	return VisualsTab:Paragraph({
 		Title = "Visuals Diagnostic",
-		Desc = "Starting diagnostic...",
+		Desc = "Standalone diagnostic active",
 	})
 end)
 
 if diagOK then
-	DiagnosticParagraph = diagResult
-	PushDiagnostic("Diagnostic GUI: OK")
+	PushDiagnostic("WindUI Paragraph: OK")
 else
-	PushDiagnostic("Diagnostic GUI: FAILED")
-	PushDiagnostic("Paragraph error: " .. tostring(diagResult))
+	PushDiagnostic("WindUI Paragraph: FAILED")
+	PushDiagnostic(tostring(diagResult))
 end
 
 --============================================================
