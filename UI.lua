@@ -3,8 +3,9 @@
 -- SIMPLE WINDUI BRIDGE
 --
 -- WindUI owns the visible menu and toolbar.
--- Category headings are non-collapsible.
--- Dropdowns keep their normal dropdown arrow.
+-- WindUI sections keep their original appearance,
+-- stay permanently open, and hide only the section chevron.
+-- Real Dropdown() controls keep their normal dropdown arrow.
 --============================================================
 
 local MM2 =
@@ -520,10 +521,7 @@ UI.Window =
 
 --============================================================
 -- IMPORTANT:
--- DO NOT DISABLE WINDUI OPEN BUTTON
---
--- The visual prototype leaves WindUI's built-in
--- controller / RGB open button enabled.
+-- WINDUI BUILT-IN OPEN BUTTON STAYS ENABLED
 --============================================================
 
 --============================================================
@@ -744,16 +742,87 @@ function UI.ShowPage(name)
 end
 
 --============================================================
--- NON-COLLAPSIBLE CATEGORY HEADING
+-- WINDUI SECTION PATCH
 --
--- This replaces WindUI Section().
--- No chevron.
--- No dropdown arrow.
--- No collapsing.
+-- Keep original WindUI sections such as:
+-- Aim / Sheriff / Murderer / Movement / Jump / Utility
 --
--- Actual feature controls continue to parent
--- directly to the WindUI tab.
+-- Only hide their collapse chevron and force them open.
+-- Real Dropdown() controls are untouched.
 --============================================================
+
+local function LockSectionOpenAndHideArrow(section)
+	if not section then
+		return
+	end
+
+	section.Opened = true
+
+	local function HideChevron()
+		local main = section.ElementFrame
+		if not main then
+			return
+		end
+
+		local outline =
+			main:FindFirstChild("Outline")
+
+		local top =
+			outline
+			and outline:FindFirstChild("Top")
+
+		if not top then
+			return
+		end
+
+		-- WindUI's section chevron lives inside a child Frame
+		-- in the top header. This does not touch Dropdown()
+		-- controls, so Fling player selection keeps its arrow.
+		for _,child in ipairs(top:GetChildren()) do
+			if child:IsA("Frame") then
+				for _,descendant in ipairs(
+					child:GetDescendants()
+				) do
+					if descendant:IsA("ImageLabel")
+						or descendant:IsA("ImageButton")
+					then
+						descendant.Visible = false
+					end
+				end
+			end
+		end
+	end
+
+	HideChevron()
+
+	-- WindUI can finish some UI setup on deferred tasks.
+	-- Re-hide the chevron after that setup completes.
+	task.defer(function()
+		HideChevron()
+	end)
+
+	-- Keep the section open.
+	if section.Open then
+		pcall(function()
+			section:Open(true)
+		end)
+	end
+
+	-- Prevent later Close() calls from collapsing it.
+	if section.Close then
+		section.Close = function(self)
+			self.Opened = true
+
+			if self.Open then
+				pcall(function()
+					self:Open(true)
+				end)
+			end
+
+			HideChevron()
+		end
+	end
+end
 
 function UI.AddSection(
 	page,
@@ -767,51 +836,77 @@ function UI.AddSection(
 	if not tab then
 
 		warn(
-			"[Blizzard UI] No mapped tab for heading:",
+			"[Blizzard UI] No mapped tab for section:",
 			titleText
 		)
 
 		return nil
 	end
 
-	local heading
-
-	local title =
-		tostring(
-			titleText or ""
-		)
-
-	local desc =
-		tostring(
-			subtitleText or ""
-		)
+	local section
 
 	local ok,result =
 		pcall(function()
 
-			return tab:Paragraph({
-				Title = title,
-				Desc = desc,
+			return tab:Section({
+				Title =
+					tostring(
+						titleText or ""
+					),
+
+				Desc =
+					tostring(
+						subtitleText or ""
+					),
+
+				Opened = true,
 			})
 		end)
 
-	if ok then
-		heading = result
+	if ok and result then
+		section = result
 	else
 
-		warn(
-			"[Blizzard UI] Heading failed:",
-			titleText,
-			result
+		local ok2,result2 =
+			pcall(function()
+
+				return tab:Section({
+					Title =
+						tostring(
+							titleText or ""
+						),
+
+					Opened = true,
+				})
+			end)
+
+		if ok2 and result2 then
+			section = result2
+		else
+
+			warn(
+				"[Blizzard UI] Section failed:",
+				titleText,
+				result,
+				result2
+			)
+
+			section = tab
+		end
+	end
+
+	if section ~= tab then
+		LockSectionOpenAndHideArrow(
+			section
 		)
 	end
 
-	-- Controls go directly onto the actual tab.
-	-- This prevents category-arrow / collapse behavior.
+	-- Feature controls remain parented to the real WindUI
+	-- section, preserving the old grouped layout.
 	UI.ActiveSection[page] =
-		tab
+		section
 
-	return heading
+	return section
 end
 
 local function GetControlParent(page)
@@ -824,8 +919,8 @@ end
 --============================================================
 -- DROPDOWN
 --
--- Real dropdowns still use WindUI Dropdown().
--- Therefore Select Player to Target keeps its arrow.
+-- Real dropdowns remain unchanged.
+-- Fling -> Select Player to Target keeps its arrow.
 --============================================================
 
 function UI.CreateDropdown(
