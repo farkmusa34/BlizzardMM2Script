@@ -1,6 +1,7 @@
 --============================================================
 -- MM2 V8.8.4 STABLE - Fling.lua
 -- WindUI dropdown migration + existing fling logic
+-- Fling status notifications + 50-stud success detection
 --============================================================
 
 local MM2 = getgenv and getgenv().MM2_V85_SPLIT or _G.MM2_V85_SPLIT
@@ -21,6 +22,11 @@ UI.AddSection(
 local FLING_DURATION = 1.30
 local FLING_HUGE = 900000000
 local FLING_FORCE_NAME = "MarbegFlingVelocity"
+
+-- Hidden success requirement.
+-- The target must move at least this far from where
+-- they were when the fling started.
+local FLING_SUCCESS_DISTANCE = 50
 
 local FLING_POSITION_PATTERN = {
 	Vector3.new(0, 1.5, -12.80),
@@ -103,29 +109,55 @@ MM2.Functions.StopFling = StopFling
 
 --============================================================
 -- EXECUTE FLING
+--
+-- successLabel examples:
+--
+-- "Murderer"
+-- "Sheriff"
+-- "Hero"
+-- "PlayerUsername"
 --============================================================
 
-local function ExecuteYeet(targetPlayer)
+local function ExecuteYeet(
+	targetPlayer,
+	successLabel
+)
+
 	if FlingRunning then
 		MM2.Notify(
-			"Fling already running.",
-			2
+			"Another fling is already running.",
+			2,
+			"x",
+			"Fling Busy"
 		)
 
-		return
+		return false
 	end
 
 	if not targetPlayer
 		or targetPlayer == LocalPlayer
 	then
-		return
+		return false
 	end
+
+	successLabel =
+		tostring(
+			successLabel
+			or targetPlayer.Name
+		)
 
 	local character,humanoid,hrp =
 		MM2.GetLocalCharacter()
 
 	if not character then
-		return
+		MM2.Notify(
+			"Local character unavailable.",
+			2,
+			"x",
+			"Fling Failed"
+		)
+
+		return false
 	end
 
 	local targetCharacter,
@@ -138,16 +170,37 @@ local function ExecuteYeet(targetPlayer)
 	if not targetCharacter then
 		MM2.Notify(
 			"Target character unavailable.",
-			2
+			2,
+			"x",
+			"Fling Failed"
 		)
 
-		return
+		return false
 	end
+
+	--========================================================
+	-- START NOTIFICATION
+	--========================================================
+
+	MM2.Notify(
+		targetPlayer.Name,
+		2,
+		"wind",
+		"Flinging"
+	)
 
 	FlingRunning = true
 
 	local originalCFrame =
 		hrp.CFrame
+
+	-- Save target's starting position for the hidden
+	-- 50-stud success check.
+	local startTargetPosition =
+		targetHRP.Position
+
+	local targetMovedEnough =
+		false
 
 	local oldForce =
 		hrp:FindFirstChild(
@@ -199,6 +252,7 @@ local function ExecuteYeet(targetPlayer)
 		and os.clock() - startTime
 			< FLING_DURATION
 	do
+
 		targetCharacter,
 		targetHumanoid,
 		targetHRP =
@@ -208,6 +262,21 @@ local function ExecuteYeet(targetPlayer)
 
 		if not targetHRP then
 			break
+		end
+
+		--====================================================
+		-- HIDDEN SUCCESS CHECK
+		--====================================================
+
+		if (
+			targetHRP.Position
+			- startTargetPosition
+		).Magnitude
+			>= FLING_SUCCESS_DISTANCE
+		then
+
+			targetMovedEnough =
+				true
 		end
 
 		frame += 1
@@ -231,6 +300,7 @@ local function ExecuteYeet(targetPlayer)
 			) % 3
 
 		if phase == 0 then
+
 			hrp.CFrame =
 				CFrame.new(
 					hrp.Position
@@ -244,6 +314,7 @@ local function ExecuteYeet(targetPlayer)
 				)
 
 		elseif phase == 1 then
+
 			hrp.CFrame =
 				CFrame.new(
 					hrp.Position
@@ -255,6 +326,7 @@ local function ExecuteYeet(targetPlayer)
 				)
 
 		else
+
 			hrp.CFrame =
 				CFrame.new(
 					hrp.Position
@@ -274,6 +346,7 @@ local function ExecuteYeet(targetPlayer)
 			)
 
 		if velocityPhase == 1 then
+
 			hrp.AssemblyLinearVelocity =
 				Vector3.new(
 					387791264,
@@ -282,6 +355,7 @@ local function ExecuteYeet(targetPlayer)
 				)
 
 		elseif velocityPhase == 2 then
+
 			hrp.AssemblyLinearVelocity =
 				Vector3.new(
 					233146464,
@@ -290,6 +364,7 @@ local function ExecuteYeet(targetPlayer)
 				)
 
 		else
+
 			hrp.AssemblyLinearVelocity =
 				Vector3.new(
 					-350938112,
@@ -303,6 +378,7 @@ local function ExecuteYeet(targetPlayer)
 		if patternIndex
 			> #FLING_POSITION_PATTERN
 		then
+
 			patternIndex = 1
 			velocityPhase += 1
 
@@ -314,6 +390,38 @@ local function ExecuteYeet(targetPlayer)
 		RunService.Heartbeat:Wait()
 	end
 
+	--========================================================
+	-- FINAL DISTANCE CHECK
+	--
+	-- Check once more after the fling loop in case the target
+	-- crossed 50 studs on the final frame.
+	--========================================================
+
+	local finalTargetCharacter,
+		finalTargetHumanoid,
+		finalTargetHRP =
+		GetTargetFlingCharacter(
+			targetPlayer
+		)
+
+	if finalTargetHRP then
+
+		if (
+			finalTargetHRP.Position
+			- startTargetPosition
+		).Magnitude
+			>= FLING_SUCCESS_DISTANCE
+		then
+
+			targetMovedEnough =
+				true
+		end
+	end
+
+	--========================================================
+	-- CLEANUP
+	--========================================================
+
 	if CurrentFlingForce then
 		pcall(function()
 			CurrentFlingForce:Destroy()
@@ -323,6 +431,7 @@ local function ExecuteYeet(targetPlayer)
 	end
 
 	pcall(function()
+
 		hrp.AssemblyLinearVelocity =
 			Vector3.zero
 
@@ -340,31 +449,73 @@ local function ExecuteYeet(targetPlayer)
 	end)
 
 	pcall(function()
+
 		humanoid:ChangeState(
 			Enum.HumanoidStateType.GettingUp
 		)
 	end)
 
-	FlingRunning = false
+	FlingRunning =
+		false
+
+	--========================================================
+	-- RESULT NOTIFICATION
+	--========================================================
+
+	if targetMovedEnough then
+
+		MM2.Notify(
+			successLabel
+				.. " successfully flinged!",
+
+			2.5,
+			"check",
+			"Fling Worked"
+		)
+
+		return true
+
+	else
+
+		MM2.Notify(
+			"Server blocked CFrame movement.",
+			2.5,
+			"x",
+			"Fling Failed"
+		)
+
+		return false
+	end
 end
 
-MM2.Functions.ExecuteYeet = ExecuteYeet
+MM2.Functions.ExecuteYeet =
+	ExecuteYeet
 
 --============================================================
 -- ROLE FLING HELPERS
 --============================================================
 
-local function FlingRole(role,label)
+local function FlingRole(
+	role,
+	label
+)
+
 	for _,player in ipairs(
 		Players:GetPlayers()
 	) do
+
 		if player ~= LocalPlayer
 			and MM2.State.ServerRolesCache[
 				player.Name
 			] == role
 		then
+
 			task.spawn(function()
-				ExecuteYeet(player)
+
+				ExecuteYeet(
+					player,
+					label
+				)
 			end)
 
 			return
@@ -372,22 +523,31 @@ local function FlingRole(role,label)
 	end
 
 	MM2.Notify(
-		"No "..label.." target found.",
-		2
+		"No "..string.lower(label).." target found.",
+		2,
+		"x",
+		"Fling Failed"
 	)
 end
 
 local function FlingSheriffOrHero()
+
 	for _,player in ipairs(
 		Players:GetPlayers()
 	) do
+
 		if player ~= LocalPlayer
 			and MM2.State.ServerRolesCache[
 				player.Name
 			] == "Sheriff"
 		then
+
 			task.spawn(function()
-				ExecuteYeet(player)
+
+				ExecuteYeet(
+					player,
+					"Sheriff"
+				)
 			end)
 
 			return
@@ -397,13 +557,19 @@ local function FlingSheriffOrHero()
 	for _,player in ipairs(
 		Players:GetPlayers()
 	) do
+
 		if player ~= LocalPlayer
 			and MM2.State.ServerRolesCache[
 				player.Name
 			] == "Hero"
 		then
+
 			task.spawn(function()
-				ExecuteYeet(player)
+
+				ExecuteYeet(
+					player,
+					"Hero"
+				)
 			end)
 
 			return
@@ -412,7 +578,9 @@ local function FlingSheriffOrHero()
 
 	MM2.Notify(
 		"No sheriff/hero target found.",
-		2
+		2,
+		"x",
+		"Fling Failed"
 	)
 end
 
@@ -425,9 +593,10 @@ UI.CreateActionFeature(
 	"Fling Murderer",
 	"Flings the current murderer",
 	function()
+
 		FlingRole(
 			"Murderer",
-			"murderer"
+			"Murderer"
 		)
 	end
 )
@@ -437,9 +606,10 @@ UI.CreateActionFeature(
 	"Fling Sheriff",
 	"Flings the current sheriff",
 	function()
+
 		FlingRole(
 			"Sheriff",
-			"sheriff"
+			"Sheriff"
 		)
 	end
 )
@@ -449,9 +619,10 @@ UI.CreateActionFeature(
 	"Fling Hero",
 	"Flings the current hero",
 	function()
+
 		FlingRole(
 			"Hero",
-			"hero"
+			"Hero"
 		)
 	end
 )
@@ -475,6 +646,7 @@ if UI.CreateMovableCircleButton then
 				-42
 			),
 			function()
+
 				FlingSheriffOrHero()
 			end
 		)
@@ -501,9 +673,10 @@ if UI.CreateMovableCircleButton then
 				-42
 			),
 			function()
+
 				FlingRole(
 					"Murderer",
-					"murderer"
+					"Murderer"
 				)
 			end
 		)
@@ -558,11 +731,14 @@ local FlingNotifyLastAlert = {}
 --============================================================
 
 local function RestoreAntiFlingPlayerCollisions()
+
 	for part,oldCanCollide in pairs(
 		AntiFlingCollisionOriginal
 	) do
+
 		if part and part.Parent then
 			pcall(function()
+
 				part.CanCollide =
 					oldCanCollide
 			end)
@@ -575,23 +751,29 @@ local function RestoreAntiFlingPlayerCollisions()
 end
 
 local function DisableOtherPlayerCollisions()
+
 	for _,player in ipairs(
 		Players:GetPlayers()
 	) do
+
 		if player ~= LocalPlayer then
+
 			local character =
 				player.Character
 
 			if character then
+
 				for _,part in ipairs(
 					character:GetDescendants()
 				) do
+
 					if part:IsA("BasePart") then
 
 						if AntiFlingCollisionOriginal[
 							part
 						] == nil
 						then
+
 							AntiFlingCollisionOriginal[
 								part
 							] =
@@ -616,20 +798,24 @@ local function KillLocalFlingVelocity(
 	humanoid,
 	hrp
 )
+
 	if not character or not hrp then
 		return
 	end
 
-	local killedLinear = false
+	local killedLinear =
+		false
 
 	for _,part in ipairs(
 		character:GetDescendants()
 	) do
+
 		if part:IsA("BasePart") then
 
 			if part.AssemblyAngularVelocity.Magnitude
 				> ANTI_FLING_ANGULAR_LIMIT
 			then
+
 				part.AssemblyAngularVelocity =
 					Vector3.zero
 			end
@@ -638,13 +824,15 @@ local function KillLocalFlingVelocity(
 				and part.AssemblyLinearVelocity.Magnitude
 					> ANTI_FLING_LINEAR_LIMIT
 			then
+
 				part.AssemblyLinearVelocity =
 					Vector3.zero
 
 				part.AssemblyAngularVelocity =
 					Vector3.zero
 
-				killedLinear = true
+				killedLinear =
+					true
 			end
 		end
 	end
@@ -656,7 +844,9 @@ local function KillLocalFlingVelocity(
 		and humanoid
 		and not Flags.Fly
 	then
+
 		pcall(function()
+
 			humanoid:ChangeState(
 				Enum.HumanoidStateType.GettingUp
 			)
@@ -672,17 +862,23 @@ local function GetNearestOtherPlayerTo(
 	rootPart,
 	excludePlayer
 )
+
 	if not rootPart then
 		return nil,math.huge
 	end
 
-	local nearestPlayer = nil
-	local nearestDistance = math.huge
+	local nearestPlayer =
+		nil
+
+	local nearestDistance =
+		math.huge
 
 	for _,player in ipairs(
 		Players:GetPlayers()
 	) do
+
 		if player ~= excludePlayer then
+
 			local character =
 				player.Character
 
@@ -704,6 +900,7 @@ local function GetNearestOtherPlayerTo(
 				and humanoid.Health > 0
 				and otherHRP
 			then
+
 				local distance =
 					(
 						otherHRP.Position
@@ -713,6 +910,7 @@ local function GetNearestOtherPlayerTo(
 				if distance
 					< nearestDistance
 				then
+
 					nearestDistance =
 						distance
 
@@ -727,9 +925,11 @@ local function GetNearestOtherPlayerTo(
 end
 
 local function UpdateFlingNotify()
+
 	if not Flags.FlingNotify
 		or FlingRunning
 	then
+
 		table.clear(
 			FlingNotifySuspiciousSince
 		)
@@ -737,11 +937,13 @@ local function UpdateFlingNotify()
 		return
 	end
 
-	local now = os.clock()
+	local now =
+		os.clock()
 
 	for _,suspect in ipairs(
 		Players:GetPlayers()
 	) do
+
 		if suspect ~= LocalPlayer then
 
 			local character =
@@ -765,6 +967,7 @@ local function UpdateFlingNotify()
 				and humanoid.Health > 0
 				and hrp
 			then
+
 				local linear =
 					hrp.AssemblyLinearVelocity.Magnitude
 
@@ -796,13 +999,16 @@ local function UpdateFlingNotify()
 						]
 
 					if not since then
+
 						FlingNotifySuspiciousSince[
 							suspect
-						] = now
+						] =
+							now
 
 					elseif now - since
 						>= FLING_NOTIFY_CONFIRM_TIME
 					then
+
 						local lastAlert =
 							FlingNotifyLastAlert[
 								suspect
@@ -812,38 +1018,53 @@ local function UpdateFlingNotify()
 						if now - lastAlert
 							>= FLING_NOTIFY_COOLDOWN
 						then
+
 							FlingNotifyLastAlert[
 								suspect
-							] = now
+							] =
+								now
 
 							if victim
 								== LocalPlayer
 							then
+
 								MM2.Notify(
 									"Possible fling attempt by "
 									.. suspect.Name,
-									3
+									3,
+									"triangle-alert",
+									"Fling Warning"
 								)
+
 							else
+
 								MM2.Notify(
 									"Possible fling: "
 									.. suspect.Name
 									.. " -> "
 									.. victim.Name,
-									3
+									3,
+									"triangle-alert",
+									"Fling Warning"
 								)
 							end
 						end
 					end
+
 				else
+
 					FlingNotifySuspiciousSince[
 						suspect
-					] = nil
+					] =
+						nil
 				end
+
 			else
+
 				FlingNotifySuspiciousSince[
 					suspect
-				] = nil
+				] =
+					nil
 			end
 		end
 	end
@@ -859,9 +1080,11 @@ Track(
 		if not Flags.AntiFling
 			or FlingRunning
 		then
+
 			if next(
 				AntiFlingCollisionOriginal
 			) then
+
 				RestoreAntiFlingPlayerCollisions()
 			end
 
@@ -907,12 +1130,16 @@ Track(
 --============================================================
 
 local function GetPlayerNames()
-	local names = {}
+
+	local names =
+		{}
 
 	for _,player in ipairs(
 		Players:GetPlayers()
 	) do
+
 		if player ~= LocalPlayer then
+
 			table.insert(
 				names,
 				player.Name
@@ -920,7 +1147,9 @@ local function GetPlayerNames()
 		end
 	end
 
-	table.sort(names)
+	table.sort(
+		names
+	)
 
 	return names
 end
@@ -936,7 +1165,10 @@ PlayerDropdown =
 		nil,
 		function(playerName)
 
-			if typeof(playerName) ~= "string" then
+			if typeof(playerName)
+				~= "string"
+			then
+
 				MM2.State.SelectedFlingTarget =
 					nil
 
@@ -951,9 +1183,12 @@ PlayerDropdown =
 			if player
 				and player ~= LocalPlayer
 			then
+
 				MM2.State.SelectedFlingTarget =
 					player
+
 			else
+
 				MM2.State.SelectedFlingTarget =
 					nil
 			end
@@ -977,6 +1212,7 @@ local function RefreshPlayerDropdown()
 		GetPlayerNames()
 
 	pcall(function()
+
 		PlayerDropdown:Refresh(
 			names
 		)
@@ -986,12 +1222,14 @@ local function RefreshPlayerDropdown()
 		MM2.State.SelectedFlingTarget
 
 	if selected then
+
 		local stillExists =
 			Players:FindFirstChild(
 				selected.Name
 			)
 
 		if not stillExists then
+
 			MM2.State.SelectedFlingTarget =
 				nil
 		end
@@ -1005,6 +1243,7 @@ end
 Track(
 	Players.PlayerAdded:Connect(
 		function()
+
 			task.defer(
 				RefreshPlayerDropdown
 			)
@@ -1018,15 +1257,18 @@ Track(
 
 			FlingNotifySuspiciousSince[
 				player
-			] = nil
+			] =
+				nil
 
 			FlingNotifyLastAlert[
 				player
-			] = nil
+			] =
+				nil
 
 			if MM2.State.SelectedFlingTarget
 				== player
 			then
+
 				MM2.State.SelectedFlingTarget =
 					nil
 			end
@@ -1054,18 +1296,26 @@ UI.CreateActionFeature(
 		if not target
 			or not target.Parent
 		then
+
 			MM2.State.SelectedFlingTarget =
 				nil
 
 			MM2.Notify(
 				"Select a target first.",
-				2
+				2,
+				"x",
+				"Fling Failed"
 			)
 
 			return
 		end
 
-		ExecuteYeet(target)
+		-- Selected Player uses their username
+		-- in the success notification.
+		ExecuteYeet(
+			target,
+			target.Name
+		)
 	end
 )
 
@@ -1086,7 +1336,9 @@ UI.CreateActionFeature(
 
 		MM2.Notify(
 			"Player list refreshed.",
-			1.5
+			1.5,
+			"refresh-cw",
+			"Player List"
 		)
 	end
 )
@@ -1109,6 +1361,7 @@ UI.CreateToggle(
 	function(on)
 
 		if MM2.UI.FloatingFlingMurdererHolder then
+
 			MM2.UI.FloatingFlingMurdererHolder.Visible =
 				on
 		end
@@ -1123,6 +1376,7 @@ UI.CreateToggle(
 	function(on)
 
 		if MM2.UI.FloatingFlingSheriffHolder then
+
 			MM2.UI.FloatingFlingSheriffHolder.Visible =
 				on
 		end
@@ -1147,7 +1401,9 @@ UI.CreateToggle(
 	function(on)
 
 		if not on then
+
 			RestoreAntiFlingPlayerCollisions()
+
 			return
 		end
 
@@ -1163,6 +1419,7 @@ UI.CreateToggle(
 			MM2.GetLocalCharacter()
 
 		if character and hrp then
+
 			KillLocalFlingVelocity(
 				character,
 				humanoid,
@@ -1180,6 +1437,7 @@ UI.CreateToggle(
 	function(on)
 
 		if not on then
+
 			table.clear(
 				FlingNotifySuspiciousSince
 			)
