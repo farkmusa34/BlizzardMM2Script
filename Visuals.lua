@@ -1,4 +1,4 @@
-============================================================
+--============================================================
 -- Blizzard MM2 V8.8.4 VISUALS - Visuals.lua
 -- Native WindUI UI + existing visual feature logic
 -- Match ESP, Gun ESP, Coin ESP, Tracers, Round Timer.
