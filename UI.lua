@@ -30,11 +30,17 @@ for _,name in ipairs({
 	"BlizzardMM2_LegacyHost",
 }) do
 	local p = PlayerGui:FindFirstChild(name)
-	if p then pcall(function() p:Destroy() end) end
+	if p then
+		pcall(function()
+			p:Destroy()
+		end)
+	end
 
 	pcall(function()
 		local c = CoreGui:FindFirstChild(name)
-		if c then c:Destroy() end
+		if c then
+			c:Destroy()
+		end
 	end)
 end
 
@@ -55,6 +61,7 @@ local COLORS = {
 	Success = Color3.fromRGB(80,215,135),
 	Danger = Color3.fromRGB(255,92,105),
 }
+
 UI.COLORS = COLORS
 
 --============================================================
@@ -196,7 +203,9 @@ UI.Window = Window
 
 pcall(function()
 	if Window.EditOpenButton then
-		Window:EditOpenButton({Enabled = false})
+		Window:EditOpenButton({
+			Enabled = false
+		})
 	end
 end)
 
@@ -206,18 +215,38 @@ end)
 
 UI.WindTabs = {}
 
-UI.WindTabs.Visuals = Window:Tab({Title="Visuals",Icon="eye"})
-UI.WindTabs.Combat = Window:Tab({Title="Combat",Icon="crosshair"})
-UI.WindTabs.Player = Window:Tab({Title="Player",Icon="shield"})
-UI.WindTabs.Fling = Window:Tab({Title="Fling",Icon="wind"})
-UI.WindTabs.AutoFarm = Window:Tab({Title="Auto Farm",Icon="bot"})
-UI.WindTabs.Misc = Window:Tab({Title="Misc",Icon="settings"})
+UI.WindTabs.Visuals = Window:Tab({
+	Title = "Visuals",
+	Icon = "eye"
+})
+
+UI.WindTabs.Combat = Window:Tab({
+	Title = "Combat",
+	Icon = "crosshair"
+})
+
+UI.WindTabs.Player = Window:Tab({
+	Title = "Player",
+	Icon = "shield"
+})
+
+UI.WindTabs.Fling = Window:Tab({
+	Title = "Fling",
+	Icon = "wind"
+})
+
+UI.WindTabs.AutoFarm = Window:Tab({
+	Title = "Auto Farm",
+	Icon = "bot"
+})
+
+UI.WindTabs.Misc = Window:Tab({
+	Title = "Misc",
+	Icon = "settings"
+})
 
 --============================================================
 -- HIDDEN LEGACY PAGES
---
--- These remain REAL ScrollingFrames for AutoFarm/Fling/Misc direct
--- Instance parenting. They are never placed over WindUI.
 --============================================================
 
 local LegacyHost = Instance.new("Frame")
@@ -264,7 +293,6 @@ UI.Pages = {
 	Misc = UI.MiscPage,
 }
 
--- EXPLICIT mapping. No guessing.
 UI.PageMap = {
 	[UI.VisualsPage] = UI.WindTabs.Visuals,
 	[UI.CombatPage] = UI.WindTabs.Combat,
@@ -282,7 +310,9 @@ UI.ActiveSection = {}
 
 function UI.ShowPage(name)
 	local tab = UI.WindTabs[tostring(name or "Visuals")]
-	if not tab then return false end
+	if not tab then
+		return false
+	end
 
 	pcall(function()
 		tab:Select()
@@ -297,8 +327,12 @@ end
 
 function UI.AddSection(page,titleText,subtitleText)
 	local tab = UI.PageMap[page]
+
 	if not tab then
-		warn("[Blizzard UI] No mapped tab for section:",titleText)
+		warn(
+			"[Blizzard UI] No mapped tab for section:",
+			titleText
+		)
 		return nil
 	end
 
@@ -308,33 +342,173 @@ function UI.AddSection(page,titleText,subtitleText)
 		return tab:Section({
 			Title = tostring(titleText or ""),
 			Desc = tostring(subtitleText or ""),
+			Opened = true,
 		})
 	end)
 
 	if ok and result then
 		section = result
 	else
-		-- fallback accepted by simpler WindUI builds
 		local ok2,result2 = pcall(function()
 			return tab:Section({
 				Title = tostring(titleText or ""),
+				Opened = true,
 			})
 		end)
 
 		if ok2 and result2 then
 			section = result2
 		else
-			warn("[Blizzard UI] Section failed:",titleText,result,result2)
+			warn(
+				"[Blizzard UI] Section failed:",
+				titleText,
+				result,
+				result2
+			)
+
 			section = tab
 		end
 	end
 
 	UI.ActiveSection[page] = section
+
 	return section
 end
 
 local function GetControlParent(page)
 	return UI.ActiveSection[page] or UI.PageMap[page]
+end
+
+--============================================================
+-- DROPDOWN
+--============================================================
+
+function UI.CreateDropdown(
+	page,
+	titleText,
+	description,
+	values,
+	defaultValue,
+	callback
+)
+	local parent = GetControlParent(page)
+
+	if not parent then
+		warn(
+			"[Blizzard UI] Dropdown has no parent:",
+			titleText
+		)
+		return nil
+	end
+
+	local dropdown
+
+	local config = {
+		Title = tostring(titleText or ""),
+		Desc = tostring(description or ""),
+		Values = values or {},
+		AllowNone = true,
+		SearchBarEnabled = true,
+
+		Callback = function(value)
+			if callback then
+				local cbOk,cbErr = pcall(
+					callback,
+					value
+				)
+
+				if not cbOk then
+					warn(
+						"[Blizzard UI Dropdown]",
+						titleText,
+						cbErr
+					)
+				end
+			end
+		end,
+	}
+
+	if defaultValue ~= nil then
+		config.Value = defaultValue
+	end
+
+	local ok,result = pcall(function()
+		return parent:Dropdown(config)
+	end)
+
+	if ok then
+		dropdown = result
+	else
+		warn(
+			"[Blizzard UI] Dropdown create failed:",
+			titleText,
+			result
+		)
+	end
+
+	return dropdown
+end
+
+--============================================================
+-- DYNAMIC INFO / PARAGRAPH
+--============================================================
+
+function UI.CreateInfo(
+	page,
+	titleText,
+	description
+)
+	local parent = GetControlParent(page)
+
+	if not parent then
+		warn(
+			"[Blizzard UI] Info has no parent:",
+			titleText
+		)
+		return nil,function() end
+	end
+
+	local control
+
+	local ok,result = pcall(function()
+		return parent:Paragraph({
+			Title = tostring(titleText or ""),
+			Desc = tostring(description or ""),
+		})
+	end)
+
+	if ok then
+		control = result
+	else
+		warn(
+			"[Blizzard UI] Info create failed:",
+			titleText,
+			result
+		)
+	end
+
+	local function SetText(newText)
+		newText = tostring(newText or "")
+
+		if not control then
+			return
+		end
+
+		if control.SetDesc then
+			pcall(function()
+				control:SetDesc(newText)
+			end)
+			return
+		end
+
+		pcall(function()
+			if control.Desc ~= nil then
+				control.Desc = newText
+			end
+		end)
+	end
+
+	return control,SetText
 end
 
 --============================================================
@@ -345,13 +519,24 @@ UI.ToggleRegistry = {}
 
 function UI.SetToggleState(flagName,value,runCallback)
 	local entry = UI.ToggleRegistry[flagName]
+
 	value = value == true
 	Flags[flagName] = value
 
 	if entry and entry.Render then
-		entry.Render(value,runCallback == true)
-	elseif runCallback == true and entry and entry.Callback then
-		pcall(entry.Callback,value)
+		entry.Render(
+			value,
+			runCallback == true
+		)
+
+	elseif runCallback == true
+		and entry
+		and entry.Callback then
+
+		pcall(
+			entry.Callback,
+			value
+		)
 	end
 
 	return value
@@ -361,16 +546,23 @@ UI.SetToggle = UI.SetToggleState
 
 --============================================================
 -- CREATE TOGGLE
---
--- exact old return shape preserved:
--- control, control, render
 --============================================================
 
-function UI.CreateToggle(page,titleText,description,flagName,callback)
+function UI.CreateToggle(
+	page,
+	titleText,
+	description,
+	flagName,
+	callback
+)
 	local parent = GetControlParent(page)
 
 	if not parent then
-		warn("[Blizzard UI] Toggle has no parent:",titleText)
+		warn(
+			"[Blizzard UI] Toggle has no parent:",
+			titleText
+		)
+
 		return nil,nil,function() end
 	end
 
@@ -384,6 +576,7 @@ function UI.CreateToggle(page,titleText,description,flagName,callback)
 			Title = tostring(titleText or ""),
 			Desc = tostring(description or ""),
 			Value = Flags[flagName],
+
 			Callback = function(value)
 				value = value == true
 				Flags[flagName] = value
@@ -393,9 +586,17 @@ function UI.CreateToggle(page,titleText,description,flagName,callback)
 				end
 
 				if callback then
-					local cbOk,cbErr = pcall(callback,value)
+					local cbOk,cbErr = pcall(
+						callback,
+						value
+					)
+
 					if not cbOk then
-						warn("[Blizzard UI Toggle Callback]",flagName,cbErr)
+						warn(
+							"[Blizzard UI Toggle Callback]",
+							flagName,
+							cbErr
+						)
 					end
 				end
 			end,
@@ -405,7 +606,11 @@ function UI.CreateToggle(page,titleText,description,flagName,callback)
 	if ok then
 		control = result
 	else
-		warn("[Blizzard UI] Toggle create failed:",titleText,result)
+		warn(
+			"[Blizzard UI] Toggle create failed:",
+			titleText,
+			result
+		)
 	end
 
 	local function render(value,runCallback)
@@ -414,14 +619,19 @@ function UI.CreateToggle(page,titleText,description,flagName,callback)
 
 		if control and control.Set then
 			ignoreNextCallback = true
+
 			pcall(function()
 				control:Set(value)
 			end)
+
 			ignoreNextCallback = false
 		end
 
 		if runCallback and callback then
-			pcall(callback,value)
+			pcall(
+				callback,
+				value
+			)
 		end
 	end
 
@@ -438,23 +648,39 @@ end
 -- ACTIONS
 --============================================================
 
-function UI.CreateActionFeature(page,titleText,description,callback)
+function UI.CreateActionFeature(
+	page,
+	titleText,
+	description,
+	callback
+)
 	local parent = GetControlParent(page)
+
 	if not parent then
-		warn("[Blizzard UI] Action has no parent:",titleText)
+		warn(
+			"[Blizzard UI] Action has no parent:",
+			titleText
+		)
 		return nil
 	end
 
 	local control
+
 	local ok,result = pcall(function()
 		return parent:Button({
 			Title = tostring(titleText or ""),
 			Desc = tostring(description or ""),
+
 			Callback = function()
 				if callback then
 					local cbOk,cbErr = pcall(callback)
+
 					if not cbOk then
-						warn("[Blizzard UI Action]",titleText,cbErr)
+						warn(
+							"[Blizzard UI Action]",
+							titleText,
+							cbErr
+						)
 					end
 				end
 			end,
@@ -464,15 +690,29 @@ function UI.CreateActionFeature(page,titleText,description,callback)
 	if ok then
 		control = result
 	else
-		warn("[Blizzard UI] Action create failed:",titleText,result)
+		warn(
+			"[Blizzard UI] Action create failed:",
+			titleText,
+			result
+		)
 	end
 
 	return control
 end
 
-function UI.CreateActionButton(parent,text,callback,style)
+function UI.CreateActionButton(
+	parent,
+	text,
+	callback,
+	style
+)
 	if UI.PageMap[parent] then
-		return UI.CreateActionFeature(parent,text,"",callback)
+		return UI.CreateActionFeature(
+			parent,
+			text,
+			"",
+			callback
+		)
 	end
 
 	if typeof(parent) ~= "Instance" then
@@ -482,7 +722,10 @@ function UI.CreateActionButton(parent,text,callback,style)
 	local button = Instance.new("TextButton")
 	button.Size = UDim2.new(1,0,0,34)
 	button.BackgroundColor3 =
-		style == "danger" and COLORS.Danger or COLORS.Card
+		style == "danger"
+		and COLORS.Danger
+		or COLORS.Card
+
 	button.BorderSizePixel = 0
 	button.Text = tostring(text or "")
 	button.TextColor3 = COLORS.Text
@@ -494,9 +737,13 @@ function UI.CreateActionButton(parent,text,callback,style)
 	corner.CornerRadius = UDim.new(0,9)
 	corner.Parent = button
 
-	Track(button.MouseButton1Click:Connect(function()
-		if callback then pcall(callback) end
-	end))
+	Track(
+		button.MouseButton1Click:Connect(function()
+			if callback then
+				pcall(callback)
+			end
+		end)
+	)
 
 	return button
 end
@@ -516,8 +763,12 @@ local function CreateMappedSlider(
 	step
 )
 	local parent = GetControlParent(page)
+
 	if not parent then
-		warn("[Blizzard UI] Slider has no parent:",labelText)
+		warn(
+			"[Blizzard UI] Slider has no parent:",
+			labelText
+		)
 		return nil
 	end
 
@@ -529,31 +780,47 @@ local function CreateMappedSlider(
 
 	if getter then
 		local ok,value = pcall(getter)
+
 		if ok and tonumber(value) then
 			defaultValue = tonumber(value)
 		end
 	end
 
-	defaultValue = math.clamp(defaultValue,minValue,maxValue)
+	defaultValue = math.clamp(
+		defaultValue,
+		minValue,
+		maxValue
+	)
 
 	local slider
+
 	local ok,result = pcall(function()
 		return parent:Slider({
 			Title = tostring(labelText or ""),
 			Desc = tostring(description or ""),
 			Step = step,
+
 			Value = {
 				Min = minValue,
 				Max = maxValue,
 				Default = defaultValue,
 			},
+
 			Callback = function(value)
 				value = tonumber(value) or defaultValue
 
 				if setter then
-					local setOk,setErr = pcall(setter,value)
+					local setOk,setErr = pcall(
+						setter,
+						value
+					)
+
 					if not setOk then
-						warn("[Blizzard UI Slider]",labelText,setErr)
+						warn(
+							"[Blizzard UI Slider]",
+							labelText,
+							setErr
+						)
 					end
 				end
 			end,
@@ -563,7 +830,11 @@ local function CreateMappedSlider(
 	if ok then
 		slider = result
 	else
-		warn("[Blizzard UI] Slider create failed:",labelText,result)
+		warn(
+			"[Blizzard UI] Slider create failed:",
+			labelText,
+			result
+		)
 	end
 
 	return slider
@@ -653,7 +924,11 @@ function UI.CreateMovableCircleButton(
 	corner.CornerRadius = UDim.new(1,0)
 	corner.Parent = button
 
-	UI.CreateBlueCyanStroke(button,1.5,0.12)
+	UI.CreateBlueCyanStroke(
+		button,
+		1.5,
+		0.12
+	)
 
 	local label = Instance.new("TextLabel")
 	label.AnchorPoint = Vector2.new(0.5,0)
@@ -673,61 +948,81 @@ function UI.CreateMovableCircleButton(
 	local startPos
 	local dragInput
 
-	Track(button.InputBegan:Connect(function(input)
-		if input.UserInputType == Enum.UserInputType.MouseButton1
-			or input.UserInputType == Enum.UserInputType.Touch then
+	Track(
+		button.InputBegan:Connect(function(input)
+			if input.UserInputType
+				== Enum.UserInputType.MouseButton1
+				or input.UserInputType
+				== Enum.UserInputType.Touch then
 
-			dragging = true
-			moved = false
-			dragStart = input.Position
-			startPos = holder.Position
+				dragging = true
+				moved = false
+				dragStart = input.Position
+				startPos = holder.Position
 
-			Track(input.Changed:Connect(function()
-				if input.UserInputState == Enum.UserInputState.End then
-					dragging = false
-				end
-			end))
-		end
-	end))
+				Track(
+					input.Changed:Connect(function()
+						if input.UserInputState
+							== Enum.UserInputState.End then
+							dragging = false
+						end
+					end)
+				)
+			end
+		end)
+	)
 
-	Track(button.InputChanged:Connect(function(input)
-		if input.UserInputType == Enum.UserInputType.MouseMovement
-			or input.UserInputType == Enum.UserInputType.Touch then
-			dragInput = input
-		end
-	end))
+	Track(
+		button.InputChanged:Connect(function(input)
+			if input.UserInputType
+				== Enum.UserInputType.MouseMovement
+				or input.UserInputType
+				== Enum.UserInputType.Touch then
 
-	Track(UIS.InputChanged:Connect(function(input)
-		if not dragging or input ~= dragInput or not dragStart or not startPos then
-			return
-		end
+				dragInput = input
+			end
+		end)
+	)
 
-		local delta = input.Position-dragStart
+	Track(
+		UIS.InputChanged:Connect(function(input)
+			if not dragging
+				or input ~= dragInput
+				or not dragStart
+				or not startPos then
 
-		if delta.Magnitude >= 4 then
-			moved = true
-		end
+				return
+			end
 
-		if moved then
-			holder.Position = UDim2.new(
-				startPos.X.Scale,
-				startPos.X.Offset+delta.X,
-				startPos.Y.Scale,
-				startPos.Y.Offset+delta.Y
-			)
-		end
-	end))
+			local delta = input.Position-dragStart
 
-	Track(button.MouseButton1Click:Connect(function()
-		if moved then
-			moved = false
-			return
-		end
+			if delta.Magnitude >= 4 then
+				moved = true
+			end
 
-		if callback then
-			pcall(callback)
-		end
-	end))
+			if moved then
+				holder.Position = UDim2.new(
+					startPos.X.Scale,
+					startPos.X.Offset+delta.X,
+					startPos.Y.Scale,
+					startPos.Y.Offset+delta.Y
+				)
+			end
+		end)
+	)
+
+	Track(
+		button.MouseButton1Click:Connect(function()
+			if moved then
+				moved = false
+				return
+			end
+
+			if callback then
+				pcall(callback)
+			end
+		end)
+	)
 
 	return button,holder
 end
@@ -761,7 +1056,11 @@ local outlineCorner = Instance.new("UICorner")
 outlineCorner.CornerRadius = UDim.new(1,0)
 outlineCorner.Parent = FloatingOutline
 
-UI.CreateBlueCyanStroke(FloatingOutline,1.5,0.08)
+UI.CreateBlueCyanStroke(
+	FloatingOutline,
+	1.5,
+	0.08
+)
 
 local ToolbarButton = Instance.new("TextButton")
 ToolbarButton.Name = "OpenMenu"
@@ -774,7 +1073,6 @@ ToolbarButton.AutoButtonColor = false
 ToolbarButton.ZIndex = 101
 ToolbarButton.Parent = FloatingOutline
 
--- controller-style mark
 local Controller = Instance.new("TextLabel")
 Controller.Name = "ControllerIcon"
 Controller.Position = UDim2.fromOffset(13,0)
@@ -799,7 +1097,10 @@ ToolbarTitle.TextXAlignment = Enum.TextXAlignment.Left
 ToolbarTitle.ZIndex = 102
 ToolbarTitle.Parent = ToolbarButton
 
--- draggable toolbar
+--============================================================
+-- DRAGGABLE TOOLBAR
+--============================================================
+
 do
 	local dragging = false
 	local moved = false
@@ -807,90 +1108,115 @@ do
 	local startPosition
 	local dragInput
 
-	Track(ToolbarButton.InputBegan:Connect(function(input)
-		if input.UserInputType == Enum.UserInputType.MouseButton1
-			or input.UserInputType == Enum.UserInputType.Touch then
+	Track(
+		ToolbarButton.InputBegan:Connect(function(input)
+			if input.UserInputType
+				== Enum.UserInputType.MouseButton1
+				or input.UserInputType
+				== Enum.UserInputType.Touch then
 
-			dragging = true
-			moved = false
-			dragStart = input.Position
-			startPosition = FloatingOutline.Position
+				dragging = true
+				moved = false
+				dragStart = input.Position
+				startPosition = FloatingOutline.Position
 
-			Track(input.Changed:Connect(function()
-				if input.UserInputState == Enum.UserInputState.End then
-					dragging = false
-				end
-			end))
-		end
-	end))
+				Track(
+					input.Changed:Connect(function()
+						if input.UserInputState
+							== Enum.UserInputState.End then
 
-	Track(ToolbarButton.InputChanged:Connect(function(input)
-		if input.UserInputType == Enum.UserInputType.MouseMovement
-			or input.UserInputType == Enum.UserInputType.Touch then
-			dragInput = input
-		end
-	end))
-
-	Track(UIS.InputChanged:Connect(function(input)
-		if not dragging or input ~= dragInput or not dragStart or not startPosition then
-			return
-		end
-
-		local delta = input.Position-dragStart
-
-		if delta.Magnitude >= 5 then
-			moved = true
-		end
-
-		if moved then
-			FloatingOutline.Position = UDim2.new(
-				startPosition.X.Scale,
-				startPosition.X.Offset+delta.X,
-				startPosition.Y.Scale,
-				startPosition.Y.Offset+delta.Y
-			)
-		end
-	end))
-
-	Track(ToolbarButton.MouseButton1Click:Connect(function()
-		if moved then
-			moved = false
-			return
-		end
-
-		pcall(function()
-			if Window.Toggle then
-				Window:Toggle()
+							dragging = false
+						end
+					end)
+				)
 			end
 		end)
-	end))
+	)
+
+	Track(
+		ToolbarButton.InputChanged:Connect(function(input)
+			if input.UserInputType
+				== Enum.UserInputType.MouseMovement
+				or input.UserInputType
+				== Enum.UserInputType.Touch then
+
+				dragInput = input
+			end
+		end)
+	)
+
+	Track(
+		UIS.InputChanged:Connect(function(input)
+			if not dragging
+				or input ~= dragInput
+				or not dragStart
+				or not startPosition then
+
+				return
+			end
+
+			local delta = input.Position-dragStart
+
+			if delta.Magnitude >= 5 then
+				moved = true
+			end
+
+			if moved then
+				FloatingOutline.Position = UDim2.new(
+					startPosition.X.Scale,
+					startPosition.X.Offset+delta.X,
+					startPosition.Y.Scale,
+					startPosition.Y.Offset+delta.Y
+				)
+			end
+		end)
+	)
+
+	Track(
+		ToolbarButton.MouseButton1Click:Connect(function()
+			if moved then
+				moved = false
+				return
+			end
+
+			pcall(function()
+				if Window.Toggle then
+					Window:Toggle()
+				end
+			end)
+		end)
+	)
 end
 
 --============================================================
 -- MAINFRAME HIDE COMPATIBILITY
 --============================================================
 
-Track(MainFrame:GetPropertyChangedSignal("Visible"):Connect(function()
-	if MainFrame.Visible == false then
-		pcall(function()
-			if Window.Toggle then
-				Window:Toggle()
-			end
-		end)
-	end
-end))
+Track(
+	MainFrame:GetPropertyChangedSignal("Visible"):Connect(function()
+		if MainFrame.Visible == false then
+			pcall(function()
+				if Window.Toggle then
+					Window:Toggle()
+				end
+			end)
+		end
+	end)
+)
 
 --============================================================
 -- CLEANUP
 --============================================================
 
-Track(ScreenGui.Destroying:Connect(function()
-	pcall(function()
-		if Window and Window.Destroy then
-			Window:Destroy()
-		end
+Track(
+	ScreenGui.Destroying:Connect(function()
+		pcall(function()
+			if Window and Window.Destroy then
+				Window:Destroy()
+			end
+		end)
 	end)
-end))
+)
 
 --============================================================
 -- START
