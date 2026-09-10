@@ -1,10 +1,12 @@
---============================================================
--- MM2 V8.8 VISUALS - Visuals.lua
+[source: 1]--============================================================
+-- Blizzard MM2 V8.8.4 VISUALS - Visuals.lua
+-- Native WindUI UI + existing visual feature logic
 -- Match ESP, Gun ESP, Coin ESP, Tracers, Round Timer.
 --============================================================
 
 local MM2 = getgenv and getgenv().MM2_V85_SPLIT or _G.MM2_V85_SPLIT
-assert(MM2 and MM2.UI and MM2.UI.VisualsPage, "Load Shared.lua + UI.lua first")
+assert(MM2 and MM2.UI and MM2.UI.WindTabs and MM2.UI.WindTabs.Visuals,
+	"Load Shared.lua + native WindUI UI.lua first")
 
 local Players = MM2.Services.Players
 local RunService = MM2.Services.RunService
@@ -14,14 +16,79 @@ local UI = MM2.UI
 local Track = MM2.Track
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
+local VisualsTab = UI.WindTabs.Visuals
+
 --============================================================
--- VISUALS UI
+-- NATIVE WINDUI HELPERS
 --============================================================
 
-UI.AddSection(UI.VisualsPage, "Visuals", "ESP and tracer controls")
+UI.ToggleRegistry = UI.ToggleRegistry or {}
 
-UI.CreateToggle(
-	UI.VisualsPage,
+local function CreateNativeToggle(title, desc, flagName, callback)
+	Flags[flagName] = Flags[flagName] == true
+
+	local control
+	local suppressCallback = false
+
+	control = VisualsTab:Toggle({
+		Title = title,
+		Desc = desc,
+		Value = Flags[flagName],
+		Callback = function(value)
+			value = value == true
+			Flags[flagName] = value
+
+			if suppressCallback then
+				return
+			end
+
+			if callback then
+				local ok, err = pcall(callback, value)
+				if not ok then
+					warn("[Blizzard Visuals] Toggle callback error:", flagName, err)
+				end
+			end
+		end,
+	})
+
+	local function render(value, runCallback)
+		value = value == true
+		Flags[flagName] = value
+
+		if control and control.Set then
+			suppressCallback = true
+			pcall(function()
+				control:Set(value)
+			end)
+			suppressCallback = false
+		end
+
+		if runCallback and callback then
+			pcall(callback, value)
+		end
+	end
+
+	UI.ToggleRegistry[flagName] = {
+		Control = control,
+		Render = render,
+		Callback = callback,
+	}
+
+	return control, control, render
+end
+
+--============================================================
+-- VISUALS UI - DIRECT WINDUI
+-- Same style as the original working visual prototype:
+-- Section heading, then controls directly on the tab.
+--============================================================
+
+VisualsTab:Section({
+	Title = "Visuals",
+	TextSize = 18,
+})
+
+CreateNativeToggle(
 	"Coin ESP",
 	"Highlight uncollected coins",
 	"CoinESP",
@@ -32,8 +99,7 @@ UI.CreateToggle(
 	end
 )
 
-UI.CreateToggle(
-	UI.VisualsPage,
+CreateNativeToggle(
 	"Match ESP",
 	"Highlight players using detected roles",
 	"MatchESP",
@@ -44,8 +110,7 @@ UI.CreateToggle(
 	end
 )
 
-UI.CreateToggle(
-	UI.VisualsPage,
+CreateNativeToggle(
 	"Gun ESP",
 	"Highlight the dropped gun",
 	"GunESP",
@@ -62,14 +127,12 @@ UI.CreateToggle(
 
 Flags.RoundTimer = Flags.RoundTimer == true
 
-UI.AddSection(
-	UI.VisualsPage,
-	"Round",
-	"Round information"
-)
+VisualsTab:Section({
+	Title = "Round",
+	TextSize = 18,
+})
 
-UI.CreateToggle(
-	UI.VisualsPage,
+CreateNativeToggle(
 	"Round Timer",
 	"Shows the remaining time in the current round",
 	"RoundTimer",
@@ -86,7 +149,10 @@ UI.CreateToggle(
 -- TRACERS UI
 --============================================================
 
-UI.AddSection(UI.VisualsPage, "Tracers", "Role-based screen tracers")
+VisualsTab:Section({
+	Title = "Tracers",
+	TextSize = 18,
+})
 
 for _, item in ipairs({
 	{"Murderer Tracer", "Track the murderer", "MurdererTracer"},
@@ -94,8 +160,7 @@ for _, item in ipairs({
 	{"Hero Tracer", "Track the hero", "HeroTracer"},
 	{"Innocent Tracer", "Track innocents", "InnocentTracer"},
 }) do
-	UI.CreateToggle(
-		UI.VisualsPage,
+	CreateNativeToggle(
 		item[1],
 		item[2],
 		item[3],
@@ -705,99 +770,56 @@ local RoundTimerArmed = false
 MM2.State.RoundTimerRunning = false
 MM2.State.RoundTimerStartedAt = nil
 
-local ToolbarGui = UI.ToolbarGui
+-- Native WindUI uses its own opener, so the legacy toolbar is hidden.
+-- Keep the timer as its own small visible overlay instead.
+local RoundTimerHolder = Instance.new("Frame")
+RoundTimerHolder.Name = "RoundTimerHolder"
+RoundTimerHolder.AnchorPoint = Vector2.new(0.5,0)
+RoundTimerHolder.Position = UDim2.new(0.5,0,0,66)
+RoundTimerHolder.Size = UDim2.fromOffset(88,28)
+RoundTimerHolder.BackgroundColor3 = Color3.fromRGB(14,18,26)
+RoundTimerHolder.BackgroundTransparency = 0.12
+RoundTimerHolder.BorderSizePixel = 0
+RoundTimerHolder.Visible = false
+RoundTimerHolder.ZIndex = 150
+RoundTimerHolder.Parent = UI.ScreenGui
 
-local ToolbarOutline =
-	ToolbarGui
-	and ToolbarGui:FindFirstChild(
-		"FloatingOutline"
+local timerCorner = Instance.new("UICorner")
+timerCorner.CornerRadius = UDim.new(1,0)
+timerCorner.Parent = RoundTimerHolder
+
+if UI.CreateBlueCyanStroke then
+	UI.CreateBlueCyanStroke(
+		RoundTimerHolder,
+		1.4,
+		0.10
 	)
-
-local RoundTimerHolder
-local RoundTimerLabel
-
-if ToolbarOutline then
-	local oldTimer =
-		ToolbarOutline:FindFirstChild(
-			"RoundTimerHolder"
-		)
-
-	if oldTimer then
-		oldTimer:Destroy()
-	end
-
-	RoundTimerHolder = Instance.new("Frame")
-	RoundTimerHolder.Name = "RoundTimerHolder"
-	RoundTimerHolder.AnchorPoint = Vector2.new(0.5,0)
-	RoundTimerHolder.Position = UDim2.new(
-		0.5,
-		0,
-		1,
-		7
-	)
-	RoundTimerHolder.Size =
-		UDim2.fromOffset(88,28)
-
-	RoundTimerHolder.BackgroundColor3 =
-		Color3.fromRGB(14,18,26)
-
-	RoundTimerHolder.BackgroundTransparency =
-		0.12
-
-	RoundTimerHolder.BorderSizePixel = 0
-	RoundTimerHolder.Visible = false
-	RoundTimerHolder.ZIndex = 50
-	RoundTimerHolder.Parent = ToolbarOutline
-
-	local corner = Instance.new("UICorner")
-	corner.CornerRadius =
-		UDim.new(1,0)
-	corner.Parent = RoundTimerHolder
-
-	if UI.CreateBlueCyanStroke then
-		UI.CreateBlueCyanStroke(
-			RoundTimerHolder,
-			1.4,
-			0.10
-		)
-	else
-		local stroke = Instance.new("UIStroke")
-		stroke.Color =
-			Color3.fromRGB(45,140,255)
-		stroke.Thickness = 1.4
-		stroke.Transparency = 0.10
-		stroke.Parent = RoundTimerHolder
-	end
-
-	RoundTimerLabel = Instance.new("TextLabel")
-	RoundTimerLabel.Name = "Timer"
-	RoundTimerLabel.Size = UDim2.fromScale(1,1)
-	RoundTimerLabel.BackgroundTransparency = 1
-	RoundTimerLabel.Text = "3:00"
-	RoundTimerLabel.TextColor3 =
-		(UI.COLORS and UI.COLORS.Text)
-		or Color3.fromRGB(238,241,248)
-
-	RoundTimerLabel.TextSize = 12
-	RoundTimerLabel.Font =
-		Enum.Font.GothamBold
-
-	RoundTimerLabel.TextXAlignment =
-		Enum.TextXAlignment.Center
-
-	RoundTimerLabel.TextYAlignment =
-		Enum.TextYAlignment.Center
-
-	RoundTimerLabel.ZIndex = 51
-	RoundTimerLabel.Parent =
-		RoundTimerHolder
-
-	UI.RoundTimerHolder =
-		RoundTimerHolder
-
-	UI.RoundTimerLabel =
-		RoundTimerLabel
+else
+	local stroke = Instance.new("UIStroke")
+	stroke.Color = Color3.fromRGB(45,140,255)
+	stroke.Thickness = 1.4
+	stroke.Transparency = 0.10
+	stroke.Parent = RoundTimerHolder
 end
+
+local RoundTimerLabel = Instance.new("TextLabel")
+RoundTimerLabel.Name = "Timer"
+RoundTimerLabel.Size = UDim2.fromScale(1,1)
+RoundTimerLabel.BackgroundTransparency = 1
+RoundTimerLabel.Text = "3:00"
+RoundTimerLabel.TextColor3 =
+	(UI.COLORS and UI.COLORS.Text)
+	or Color3.fromRGB(238,241,248)
+
+RoundTimerLabel.TextSize = 12
+RoundTimerLabel.Font = Enum.Font.GothamBold
+RoundTimerLabel.TextXAlignment = Enum.TextXAlignment.Center
+RoundTimerLabel.TextYAlignment = Enum.TextYAlignment.Center
+RoundTimerLabel.ZIndex = 151
+RoundTimerLabel.Parent = RoundTimerHolder
+
+UI.RoundTimerHolder = RoundTimerHolder
+UI.RoundTimerLabel = RoundTimerLabel
 
 local function IsRoundWeapon(tool)
 	if not tool or not tool:IsA("Tool") then
@@ -937,14 +959,9 @@ local function StartRoundTimer()
 	end
 end
 
-MM2.Functions.HideRoundTimer =
-	HideRoundTimer
-
-MM2.Functions.StopRoundTimer =
-	StopRoundTimer
-
-MM2.Functions.StartRoundTimer =
-	StartRoundTimer
+MM2.Functions.HideRoundTimer = HideRoundTimer
+MM2.Functions.StopRoundTimer = StopRoundTimer
+MM2.Functions.StartRoundTimer = StartRoundTimer
 
 MM2.Functions.RefreshRoundTimer =
 	function()
@@ -1040,7 +1057,6 @@ task.spawn(function()
 		local hasRoundWeapon =
 			AnyLivePlayerHasRoundWeapon()
 
-		-- Weapon appearance is the actual round-start signal.
 		if hasRoundWeapon then
 			RoundTimerLastWeaponTime =
 				os.clock()
@@ -1071,9 +1087,6 @@ task.spawn(function()
 				- RoundTimerLastWeaponTime
 				>= ROUND_WEAPON_LOSS_GRACE
 			then
-				-- Round weapons are no longer in
-				-- any active player's Character
-				-- or Backpack.
 				StopRoundTimer()
 
 			else
