@@ -1581,48 +1581,21 @@ UI.AddSection(
 	"Coin farming statistics"
 )
 
-local CoinRateCard = Instance.new("Frame")
-CoinRateCard.Size = UDim2.new(1,0,0,64)
-CoinRateCard.BackgroundColor3 = UI.COLORS.Card
-CoinRateCard.BorderSizePixel = 0
-CoinRateCard.Parent = UI.AutoFarmPage
-
-local CoinRateCorner = Instance.new("UICorner")
-CoinRateCorner.CornerRadius = UDim.new(0,11)
-CoinRateCorner.Parent = CoinRateCard
-
-local CoinRateStroke = Instance.new("UIStroke")
-CoinRateStroke.Color = UI.COLORS.Stroke
-CoinRateStroke.Transparency = 0.45
-CoinRateStroke.Parent = CoinRateCard
-
-local CoinRateTitle = Instance.new("TextLabel")
-CoinRateTitle.Size = UDim2.new(1,-28,0,20)
-CoinRateTitle.Position = UDim2.fromOffset(14,10)
-CoinRateTitle.BackgroundTransparency = 1
-CoinRateTitle.TextXAlignment = Enum.TextXAlignment.Left
-CoinRateTitle.Text = "Coin Rate"
-CoinRateTitle.TextColor3 = UI.COLORS.Text
-CoinRateTitle.TextSize = 12
-CoinRateTitle.Font = Enum.Font.GothamBold
-CoinRateTitle.Parent = CoinRateCard
-
-local CoinRateValue = Instance.new("TextLabel")
-CoinRateValue.Size = UDim2.new(1,-28,0,18)
-CoinRateValue.Position = UDim2.fromOffset(14,34)
-CoinRateValue.BackgroundTransparency = 1
-CoinRateValue.TextXAlignment = Enum.TextXAlignment.Left
-CoinRateValue.Text = "0 coins/min"
-CoinRateValue.TextColor3 = UI.COLORS.Muted
-CoinRateValue.TextSize = 10
-CoinRateValue.Font = Enum.Font.Gotham
-CoinRateValue.Parent = CoinRateCard
+local CoinRateInfo, SetCoinRateText =
+	UI.CreateInfo(
+		UI.AutoFarmPage,
+		"Coin Rate",
+		"0 coins/min"
+	)
 
 local function FarmResetStats()
 	FarmStatsCoins = 0
 	FarmStatsStartedAt = nil
 	FarmLastReportedBagCount = FarmBagCount
-	CoinRateValue.Text = "0 coins/min"
+
+	SetCoinRateText(
+		"0 coins/min"
+	)
 end
 
 UI.CreateActionFeature(
@@ -1634,19 +1607,34 @@ UI.CreateActionFeature(
 
 MM2.Track(
 	RunService.Heartbeat:Connect(function()
-		if not FarmStatsStartedAt or FarmStatsCoins <= 0 then
-			CoinRateValue.Text = "0 coins/min"
+
+		if not FarmStatsStartedAt
+			or FarmStatsCoins <= 0
+		then
+			SetCoinRateText(
+				"0 coins/min"
+			)
+
 			return
 		end
 
-		local elapsed = math.max(os.clock()-FarmStatsStartedAt,1)
-		local rate = FarmStatsCoins/(elapsed/60)
+		local elapsed =
+			math.max(
+				os.clock()
+					- FarmStatsStartedAt,
+				1
+			)
 
-		CoinRateValue.Text =
+		local rate =
+			FarmStatsCoins
+			/ (elapsed / 60)
+
+		SetCoinRateText(
 			string.format(
 				"%.1f coins/min",
 				rate
 			)
+		)
 	end)
 )
 
