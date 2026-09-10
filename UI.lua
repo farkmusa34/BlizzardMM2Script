@@ -1,59 +1,231 @@
 --============================================================
--- Blizzard MM2 V8.8.4 UI
--- WindUI compatibility layer for the split MM2 project.
--- Replaces the old dashboard while preserving the existing UI API.
+-- Blizzard MM2 V8.8.4 - UI.lua
+-- WindUI front-end + legacy compatibility layer.
+--
+-- Goal:
+--   Keep Visuals.lua / Combat.lua / AutoFarm.lua / Player.lua /
+--   Fling.lua / Misc.lua / Main.lua unchanged while replacing the
+--   main menu controls with WindUI.
+--
+-- Important compatibility guarantees:
+--   * UI.ScreenGui is a real ScreenGui Instance.
+--   * UI.ToolbarGui is a real ScreenGui with FloatingOutline.
+--   * UI.*Page fields are real ScrollingFrame Instances so older
+--     modules can still do: SomeFrame.Parent = UI.FlingPage
+--   * Builder calls are routed to the matching WindUI tab/section.
+--   * CreateToggle still returns a third "render" function.
+--   * SetToggleState can update a WindUI toggle without firing its
+--     callback when runCallback == false.
 --============================================================
 
 local MM2 = getgenv and getgenv().MM2_V85_SPLIT or _G.MM2_V85_SPLIT
 assert(MM2, "Shared.lua must load first")
 
+local S = MM2.Services
 local Flags = MM2.Flags
 local Track = MM2.Track
 local PlayerGui = MM2.PlayerGui
-local CoreGui = MM2.Services.CoreGui
-local UIS = MM2.Services.UserInputService
+local CoreGui = S.CoreGui
+local UIS = S.UserInputService
+local TweenService = S.TweenService
 
 MM2.UI = MM2.UI or {}
 local UI = MM2.UI
 
--- Keep these for feature modules that use the old palette.
-local COLORS = {
-	Background = Color3.fromRGB(15,16,21),
-	Panel = Color3.fromRGB(20,22,28),
-	Sidebar = Color3.fromRGB(18,20,26),
-	Card = Color3.fromRGB(26,29,36),
-	CardHover = Color3.fromRGB(31,34,42),
-	Stroke = Color3.fromRGB(52,57,70),
-	Text = Color3.fromRGB(238,241,248),
-	Muted = Color3.fromRGB(150,157,171),
-	Accent = Color3.fromRGB(103,126,255),
-	Accent2 = Color3.fromRGB(160,92,255),
-	TrackOff = Color3.fromRGB(58,62,72),
-	Knob = Color3.fromRGB(244,246,251),
-	Danger = Color3.fromRGB(225,83,93),
-}
-UI.COLORS = COLORS
+--============================================================
+-- CLEAN OLD UI
+--============================================================
 
--- Clean up the legacy custom UI if this file is re-run.
-for _, guiName in ipairs({
+for _,guiName in ipairs({
 	"MM2_UTILITY_V8",
 	"MM2_V8_ToolbarGui",
+	"BlizzardMM2_Compat",
+	"BlizzardMM2_OverlayButtons",
 }) do
 	local old = PlayerGui:FindFirstChild(guiName)
-	if old then old:Destroy() end
+	if old then
+		pcall(function() old:Destroy() end)
+	end
+
 	pcall(function()
-		local coreOld = CoreGui:FindFirstChild(guiName)
-		if coreOld then coreOld:Destroy() end
+		local oldCore = CoreGui:FindFirstChild(guiName)
+		if oldCore then oldCore:Destroy() end
 	end)
+end
+
+--============================================================
+-- COLORS USED BY LEGACY DIRECT-INSTANCE UI
+--============================================================
+
+local COLORS = {
+	Background = Color3.fromRGB(15,16,20),
+	Sidebar = Color3.fromRGB(18,19,24),
+	Card = Color3.fromRGB(24,25,31),
+	CardHover = Color3.fromRGB(29,31,38),
+	Stroke = Color3.fromRGB(54,57,68),
+	Text = Color3.fromRGB(240,242,248),
+	Muted = Color3.fromRGB(157,163,178),
+	Accent = Color3.fromRGB(64,174,255),
+	Accent2 = Color3.fromRGB(75,230,255),
+	Success = Color3.fromRGB(80,215,135),
+	Danger = Color3.fromRGB(255,92,105),
+}
+
+UI.COLORS = COLORS
+
+--============================================================
+-- COMPATIBILITY SCREEN GUI
+--============================================================
+
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "MM2_UTILITY_V8"
+ScreenGui.ResetOnSpawn = false
+ScreenGui.IgnoreGuiInset = true
+ScreenGui.DisplayOrder = 80
+ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+ScreenGui.Parent = PlayerGui
+
+UI.ScreenGui = ScreenGui
+UI.Gui = ScreenGui
+
+-- MainFrame remains a REAL Frame because old Misc.lua directly writes
+-- UI.MainFrame.Visible = false.
+local CompatMainFrame = Instance.new("Frame")
+CompatMainFrame.Name = "CompatMainFrame"
+CompatMainFrame.BackgroundTransparency = 1
+CompatMainFrame.BorderSizePixel = 0
+CompatMainFrame.AnchorPoint = Vector2.new(0.5,0.5)
+CompatMainFrame.Position = UDim2.fromScale(0.5,0.5)
+CompatMainFrame.Size = UDim2.fromOffset(580,430)
+CompatMainFrame.Visible = true
+CompatMainFrame.Active = false
+CompatMainFrame.Parent = ScreenGui
+
+UI.MainFrame = CompatMainFrame
+UI.Main = CompatMainFrame
+
+--============================================================
+-- EXACT OLD HAND-DRAWN BLIZZARD SNOWFLAKE
+--============================================================
+
+local function NewLine(parent,w,h,x,y,rotation,color,z)
+	local line = Instance.new("Frame")
+	line.AnchorPoint = Vector2.new(0.5,0.5)
+	line.Size = UDim2.fromOffset(w,h)
+	line.Position = UDim2.fromOffset(x,y)
+	line.BackgroundColor3 = color
+	line.BorderSizePixel = 0
+	line.Rotation = rotation
+	line.ZIndex = z or 3
+	line.Parent = parent
+
+	local corner = Instance.new("UICorner")
+	corner.CornerRadius = UDim.new(1,0)
+	corner.Parent = line
+
+	return line
+end
+
+local function CreateSnowflake(parent,size,color)
+	local holder = Instance.new("Frame")
+	holder.Name = "BlizzardSnowflake"
+	holder.Size = UDim2.fromOffset(size,size)
+	holder.BackgroundTransparency = 1
+	holder.BorderSizePixel = 0
+	holder.Parent = parent
+
+	local cx = size/2
+	local cy = size/2
+	local armLength = size*0.82
+	local thickness = math.max(1,size*0.075)
+
+	for _,rotation in ipairs({0,60,120}) do
+		NewLine(holder,armLength,thickness,cx,cy,rotation,color,6)
+	end
+
+	local branchLength = size*0.25
+	local branchOffset = size*0.27
+
+	for _,rotation in ipairs({0,60,120,180,240,300}) do
+		local radians = math.rad(rotation)
+		local bx = cx + math.cos(radians)*branchOffset
+		local by = cy + math.sin(radians)*branchOffset
+
+		NewLine(
+			holder,
+			branchLength,
+			thickness,
+			bx,
+			by,
+			rotation+35,
+			color,
+			7
+		)
+
+		NewLine(
+			holder,
+			branchLength,
+			thickness,
+			bx,
+			by,
+			rotation-35,
+			color,
+			7
+		)
+	end
+
+	return holder
+end
+
+UI.CreateSnowflake = CreateSnowflake
+
+--============================================================
+-- BLUE / CYAN STROKE COMPATIBILITY
+--============================================================
+
+function UI.CreateBlueCyanStroke(parent,thickness,transparency)
+	local stroke = Instance.new("UIStroke")
+	stroke.Thickness = thickness or 1.4
+	stroke.Transparency = transparency or 0.10
+	stroke.Color = Color3.fromRGB(70,185,255)
+	stroke.Parent = parent
+
+	local gradient = Instance.new("UIGradient")
+	gradient.Color = ColorSequence.new({
+		ColorSequenceKeypoint.new(0,Color3.fromRGB(50,120,255)),
+		ColorSequenceKeypoint.new(0.5,Color3.fromRGB(65,230,255)),
+		ColorSequenceKeypoint.new(1,Color3.fromRGB(50,120,255)),
+	})
+	gradient.Parent = stroke
+
+	task.spawn(function()
+		while MM2.Running and gradient and gradient.Parent do
+			gradient.Rotation = (gradient.Rotation + 2) % 360
+			task.wait(0.03)
+		end
+	end)
+
+	return stroke,gradient
 end
 
 --============================================================
 -- WINDUI
 --============================================================
 
-local WindUI = loadstring(game:HttpGet(
-	"https://raw.githubusercontent.com/Footagesus/WindUI/main/dist/main.lua"
-))()
+local WindUI
+do
+	local ok,result = pcall(function()
+		return loadstring(game:HttpGet(
+			"https://raw.githubusercontent.com/Footagesus/WindUI/main/dist/main.lua"
+		))()
+	end)
+
+	if not ok or not result then
+		error("Blizzard MM2: failed to load WindUI: "..tostring(result))
+	end
+
+	WindUI = result
+end
 
 UI.WindUI = WindUI
 
@@ -61,7 +233,7 @@ local Window = WindUI:CreateWindow({
 	Title = "Blizzard MM2",
 	Author = "V8.8.4",
 	Folder = "BlizzardMM2",
-	Icon = "snowflake",
+	Icon = "", -- exact Blizzard snowflake is overlaid below.
 	Theme = "Dark",
 	Size = UDim2.fromOffset(580,430),
 	Transparent = true,
@@ -70,192 +242,474 @@ local Window = WindUI:CreateWindow({
 })
 
 UI.Window = Window
-UI.MainFrame = Window
 
--- WindUI owns the main ScreenGui. Keep this compatibility field available
--- for older modules, while special overlay buttons use a separate ScreenGui.
-UI.ScreenGui = nil
+-- Use our exact Blizzard toolbar instead of WindUI's generic opener.
+pcall(function()
+	if Window.EditOpenButton then
+		Window:EditOpenButton({Enabled = false})
+	end
+end)
 
 --============================================================
--- TABS / OLD PAGE COMPATIBILITY
+-- PAGE / TAB BRIDGE
+--
+-- UI.*Page MUST remain Instances for old direct-parent code.
+-- Each Instance page is mapped to one WindUI tab for builder calls.
 --============================================================
 
-local Pages = {}
-UI.Pages = Pages
-UI.TabButtons = {}
+local PAGE_ORDER = {
+	{"Visuals","Visuals","eye"},
+	{"Combat","Combat","crosshair"},
+	{"Player","Player","shield"},
+	{"Fling","Fling","wind"},
+	{"AutoFarm","Auto Farm","bot"},
+	{"Misc","Misc","settings"},
+}
 
-local function NewPage(name, title, icon)
+local PageToTab = {}
+local NameToPage = {}
+local NameToTab = {}
+local CurrentSection = {}
+local ActivePageName = "Visuals"
+
+UI.Pages = NameToPage
+UI.TabButtons = NameToTab
+
+local LegacyContentHolder = Instance.new("Frame")
+LegacyContentHolder.Name = "LegacyContentHolder"
+LegacyContentHolder.BackgroundTransparency = 1
+LegacyContentHolder.BorderSizePixel = 0
+LegacyContentHolder.AnchorPoint = Vector2.new(0,0)
+LegacyContentHolder.Position = UDim2.fromOffset(170,58)
+LegacyContentHolder.Size = UDim2.new(1,-184,1,-72)
+LegacyContentHolder.ClipsDescendants = true
+LegacyContentHolder.Active = false
+LegacyContentHolder.Parent = CompatMainFrame
+
+local function MakeLegacyPage(name)
+	local page = Instance.new("ScrollingFrame")
+	page.Name = name.."Page"
+	page.Size = UDim2.fromScale(1,1)
+	page.BackgroundTransparency = 1
+	page.BorderSizePixel = 0
+	page.ScrollBarThickness = 0
+	page.ScrollingEnabled = false
+	page.CanvasSize = UDim2.fromOffset(0,0)
+	page.AutomaticCanvasSize = Enum.AutomaticSize.Y
+	page.Visible = false
+	page.Active = false
+	page.ZIndex = 90
+	page.Parent = LegacyContentHolder
+
+	local padding = Instance.new("UIPadding")
+	padding.PaddingLeft = UDim.new(0,10)
+	padding.PaddingRight = UDim.new(0,10)
+	padding.PaddingTop = UDim.new(0,8)
+	padding.PaddingBottom = UDim.new(0,8)
+	padding.Parent = page
+
+	local layout = Instance.new("UIListLayout")
+	layout.Name = "LegacyLayout"
+	layout.FillDirection = Enum.FillDirection.Vertical
+	layout.SortOrder = Enum.SortOrder.LayoutOrder
+	layout.Padding = UDim.new(0,8)
+	layout.Parent = page
+
+	return page
+end
+
+local function AddLegacySpacer(page,height)
+	if typeof(page) ~= "Instance" then return end
+	if not page:IsA("ScrollingFrame") then return end
+
+	local spacer = Instance.new("Frame")
+	spacer.Name = "_WindUISpacer"
+	spacer.Size = UDim2.new(1,0,0,height or 54)
+	spacer.BackgroundTransparency = 1
+	spacer.BorderSizePixel = 0
+	spacer.Active = false
+	spacer.ZIndex = 1
+	spacer.Parent = page
+end
+
+local function SetLegacyPageVisible(name)
+	ActivePageName = name
+
+	for pageName,page in pairs(NameToPage) do
+		page.Visible = pageName == name
+	end
+end
+
+for _,info in ipairs(PAGE_ORDER) do
+	local name,title,icon = info[1],info[2],info[3]
+
+	local page = MakeLegacyPage(name)
 	local tab = Window:Tab({
 		Title = title,
 		Icon = icon,
 	})
-	Pages[name] = tab
-	return tab
-end
 
-UI.VisualsPage  = NewPage("Visuals",  "Visuals",   "eye")
-UI.CombatPage   = NewPage("Combat",   "Combat",    "crosshair")
-UI.PlayerPage   = NewPage("Player",   "Player",    "shield")
-UI.FlingPage    = NewPage("Fling",    "Fling",     "wind")
-UI.AutoFarmPage = NewPage("AutoFarm", "Auto Farm", "bot")
-UI.MiscPage     = NewPage("Misc",     "Misc",      "settings")
+	NameToPage[name] = page
+	NameToTab[name] = tab
+	PageToTab[page] = tab
 
-function UI.ShowPage(name)
-	local page = Pages[name]
-	if page and page.Select then
-		page:Select()
-	end
+	UI[name.."Page"] = page
+
+	-- Most WindUI builds call Tab:Select() from their sidebar click.
+	-- Wrap it so our legacy Instance overlay follows the WindUI tab.
+	pcall(function()
+		local rawSelect = tab.Select
+		if type(rawSelect) == "function" then
+			tab.Select = function(self,...)
+				SetLegacyPageVisible(name)
+				return rawSelect(self,...)
+			end
+		end
+	end)
 end
 
 --============================================================
--- TOGGLE REGISTRY
+-- WINDUI TARGET HELPERS
+--============================================================
+
+local function ResolveTab(parent)
+	if PageToTab[parent] then
+		return PageToTab[parent]
+	end
+
+	-- Allows a WindUI tab/section to be passed directly too.
+	if type(parent) == "table" then
+		return parent
+	end
+
+	return nil
+end
+
+local function ResolveBuilderParent(parent)
+	if CurrentSection[parent] then
+		return CurrentSection[parent]
+	end
+
+	return ResolveTab(parent)
+end
+
+--============================================================
+-- SHOW PAGE
+--============================================================
+
+function UI.ShowPage(name)
+	name = tostring(name or "Visuals")
+	local tab = NameToTab[name]
+
+	if not tab then
+		return false
+	end
+
+	SetLegacyPageVisible(name)
+
+	pcall(function()
+		tab:Select()
+	end)
+
+	return true
+end
+
+--============================================================
+-- SECTIONS
+--============================================================
+
+function UI.AddSection(parent,titleText,subtitleText)
+	local tab = ResolveTab(parent)
+	if not tab then
+		return nil
+	end
+
+	AddLegacySpacer(parent,42)
+
+	local section
+	local ok,result = pcall(function()
+		return tab:Section({
+			Title = tostring(titleText or ""),
+			Desc = tostring(subtitleText or ""),
+			Box = true,
+			BoxBorder = true,
+			Opened = true,
+		})
+	end)
+
+	if ok then
+		section = result
+	else
+		-- Fallback for WindUI builds with a smaller Section option set.
+		pcall(function()
+			section = tab:Section({
+				Title = tostring(titleText or ""),
+			})
+		end)
+	end
+
+	CurrentSection[parent] = section or tab
+	return section
+end
+
+--============================================================
+-- TOGGLE REGISTRY / SETTER
 --============================================================
 
 UI.ToggleRegistry = UI.ToggleRegistry or {}
 
-function UI.SetToggleState(flagName, value, runCallback)
-	value = value == true
-	Flags[flagName] = value
+function UI.SetToggleState(flagName,value,runCallback)
+	local record = UI.ToggleRegistry[flagName]
 
-	local entry = UI.ToggleRegistry[flagName]
+	Flags[flagName] = value == true
 
-	if entry and entry.Render then
-		entry.Render(value, false)
+	if record and record.Render then
+		record.Render(Flags[flagName],runCallback == true)
+	elseif runCallback == true and record and record.Callback then
+		record.Callback(Flags[flagName])
 	end
 
-	if runCallback and entry and entry.Callback then
-		task.spawn(entry.Callback, value)
-	end
-
-	return value
+	return Flags[flagName]
 end
 
 UI.SetToggle = UI.SetToggleState
 
 --============================================================
--- WINDUI BUILDERS - SAME API YOUR FEATURE FILES ALREADY USE
+-- CREATE TOGGLE
+--
+-- Return contract intentionally preserved:
+--   control, control, render
 --============================================================
 
-function UI.AddSection(parent, titleText, subtitleText)
-	local section = parent:Section({
-		Title = titleText,
-		TextSize = 18,
-	})
-
-	-- WindUI's section title is the important visual piece. If a module
-	-- supplies a subtitle, add it as a small paragraph beneath the section.
-	if subtitleText and subtitleText ~= "" then
-		pcall(function()
-			parent:Paragraph({
-				Title = subtitleText,
-				Desc = "",
-			})
-		end)
+function UI.CreateToggle(parent,titleText,description,flagName,callback)
+	local container = ResolveBuilderParent(parent)
+	if not container then
+		return nil,nil,function() end
 	end
 
-	return section
-end
+	AddLegacySpacer(parent,58)
 
-function UI.CreateToggle(parent, titleText, description, flagName, callback)
+	Flags[flagName] = Flags[flagName] == true
+
 	local suppressCallback = false
+	local control
 
-	local toggle = parent:Toggle({
-		Title = titleText,
-		Desc = description or "",
-		Value = Flags[flagName] == true,
-		Callback = function(value)
-			value = value == true
-			Flags[flagName] = value
+	local ok,result = pcall(function()
+		return container:Toggle({
+			Title = tostring(titleText or ""),
+			Desc = tostring(description or ""),
+			Value = Flags[flagName],
+			Callback = function(on)
+				on = on == true
 
-			if not suppressCallback and callback then
-				callback(value)
-			end
-		end,
-	})
+				if suppressCallback then
+					Flags[flagName] = on
+					return
+				end
 
-	local function Render(value)
+				Flags[flagName] = on
+
+				if callback then
+					local cbOk,cbErr = pcall(callback,on)
+					if not cbOk then
+						warn("[Blizzard MM2 UI Toggle]",flagName,cbErr)
+					end
+				end
+			end,
+		})
+	end)
+
+	if ok then
+		control = result
+	else
+		warn("[Blizzard MM2 UI] Toggle create failed:",titleText,result)
+	end
+
+	local function Render(value,runCallback)
 		value = value == true
 		Flags[flagName] = value
 
-		suppressCallback = true
+		if control and control.Set then
+			suppressCallback = true
+			pcall(function()
+				control:Set(value)
+			end)
+			suppressCallback = false
+		end
 
-		pcall(function()
-			if toggle.Set then
-				toggle:Set(value)
-			elseif toggle.SetValue then
-				toggle:SetValue(value)
+		if runCallback and callback then
+			local cbOk,cbErr = pcall(callback,value)
+			if not cbOk then
+				warn("[Blizzard MM2 UI Toggle Render]",flagName,cbErr)
 			end
-		end)
+		end
 
-		suppressCallback = false
+		return value
 	end
 
 	UI.ToggleRegistry[flagName] = {
-		Control = toggle,
+		Control = control,
 		Render = Render,
 		Callback = callback,
 	}
 
-	return toggle, toggle, Render
+	return control,control,Render
 end
 
-function UI.CreateActionFeature(parent, titleText, description, callback)
-	local button = parent:Button({
-		Title = titleText,
-		Desc = description or "",
-		Icon = "mouse-pointer-click",
-		Callback = function()
-			if callback then
-				task.spawn(callback)
-			end
-		end,
-	})
+--============================================================
+-- ACTION FEATURE / BUTTON
+--============================================================
 
-	return button, button
-end
+function UI.CreateActionFeature(parent,titleText,description,callback)
+	local container = ResolveBuilderParent(parent)
+	if not container then
+		return nil
+	end
 
-function UI.CreateActionButton(parent, text, callback, style)
-	local button = parent:Button({
-		Title = text,
-		Desc = style == "danger" and "Danger action" or "",
-		Icon = style == "danger" and "triangle-alert" or "mouse-pointer-click",
-		Callback = function()
-			if callback then
-				task.spawn(callback)
-			end
-		end,
-	})
+	AddLegacySpacer(parent,58)
 
-	return button
-end
-
-function UI.CreateValueControl(
-	parent,
-	labelText,
-	getter,
-	setter,
-	minValue,
-	maxValue,
-	step
-)
 	local control
+	local ok,result = pcall(function()
+		return container:Button({
+			Title = tostring(titleText or ""),
+			Desc = tostring(description or ""),
+			Callback = function()
+				if callback then
+					local cbOk,cbErr = pcall(callback)
+					if not cbOk then
+						warn("[Blizzard MM2 UI Action]",titleText,cbErr)
+					end
+				end
+			end,
+		})
+	end)
 
-	-- Use a compact slider rather than the old +/- card.
-	control = parent:Slider({
-		Title = labelText,
-		Desc = "",
-		Step = step,
-		Value = {
-			Min = minValue,
-			Max = maxValue,
-			Default = getter(),
-		},
-		Callback = function(value)
-			setter(value)
-		end,
-	})
+	if ok then
+		control = result
+	else
+		warn("[Blizzard MM2 UI] Action create failed:",titleText,result)
+	end
 
 	return control
+end
+
+function UI.CreateActionButton(parent,text,callback,style)
+	-- When called with a page, use WindUI.
+	if PageToTab[parent] or type(parent) == "table" then
+		return UI.CreateActionFeature(parent,text,"",callback)
+	end
+
+	-- Legacy fallback for any custom Instance container.
+	if typeof(parent) == "Instance" then
+		local button = Instance.new("TextButton")
+		button.Size = UDim2.new(1,0,0,34)
+		button.BackgroundColor3 =
+			style == "danger" and COLORS.Danger or COLORS.Card
+		button.BorderSizePixel = 0
+		button.Text = tostring(text or "ACTION")
+		button.TextColor3 = COLORS.Text
+		button.TextSize = 11
+		button.Font = Enum.Font.GothamBold
+		button.Parent = parent
+
+		local corner = Instance.new("UICorner")
+		corner.CornerRadius = UDim.new(0,9)
+		corner.Parent = button
+
+		Track(button.MouseButton1Click:Connect(function()
+			if callback then
+				pcall(callback)
+			end
+		end))
+
+		return button
+	end
+
+	return nil
+end
+
+--============================================================
+-- SLIDERS
+--============================================================
+
+local function MakeWindSlider(parent,labelText,description,getter,setter,minValue,maxValue,step)
+	local container = ResolveBuilderParent(parent)
+	if not container then
+		return nil
+	end
+
+	AddLegacySpacer(parent,68)
+
+	minValue = tonumber(minValue) or 0
+	maxValue = tonumber(maxValue) or 100
+	step = tonumber(step) or 1
+
+	local defaultValue = minValue
+	if getter then
+		local ok,value = pcall(getter)
+		if ok and tonumber(value) then
+			defaultValue = tonumber(value)
+		end
+	end
+
+	defaultValue = math.clamp(defaultValue,minValue,maxValue)
+
+	local suppress = false
+	local slider
+
+	local ok,result = pcall(function()
+		return container:Slider({
+			Title = tostring(labelText or ""),
+			Desc = tostring(description or ""),
+			Step = step,
+			Value = {
+				Min = minValue,
+				Max = maxValue,
+				Default = defaultValue,
+			},
+			Callback = function(value)
+				if suppress then return end
+				value = tonumber(value) or defaultValue
+
+				if setter then
+					local setOk,setErr = pcall(setter,value)
+					if not setOk then
+						warn("[Blizzard MM2 UI Slider]",labelText,setErr)
+					end
+				end
+			end,
+		})
+	end)
+
+	if ok then
+		slider = result
+	else
+		warn("[Blizzard MM2 UI] Slider create failed:",labelText,result)
+	end
+
+	local function Render(value,runSetter)
+		value = math.clamp(
+			tonumber(value) or defaultValue,
+			minValue,
+			maxValue
+		)
+
+		if slider and slider.Set then
+			suppress = true
+			pcall(function()
+				slider:Set(value)
+			end)
+			suppress = false
+		end
+
+		if runSetter and setter then
+			pcall(setter,value)
+		end
+
+		return value
+	end
+
+	return slider,Render
 end
 
 function UI.CreateSlider(
@@ -268,92 +722,77 @@ function UI.CreateSlider(
 	maxValue,
 	step
 )
-	local slider = parent:Slider({
-		Title = labelText,
-		Desc = description or "",
-		Step = step,
-		Value = {
-			Min = minValue,
-			Max = maxValue,
-			Default = getter(),
-		},
-		Callback = function(value)
-			setter(value)
-		end,
-	})
+	return MakeWindSlider(
+		parent,
+		labelText,
+		description,
+		getter,
+		setter,
+		minValue,
+		maxValue,
+		step
+	)
+end
 
-	return slider
+function UI.CreateValueControl(
+	parent,
+	labelText,
+	getter,
+	setter,
+	minValue,
+	maxValue,
+	step
+)
+	return MakeWindSlider(
+		parent,
+		labelText,
+		"",
+		getter,
+		setter,
+		minValue,
+		maxValue,
+		step
+	)
 end
 
 --============================================================
--- SPECIAL ON-SCREEN BUTTONS
--- These are intentionally kept custom because they are game overlays,
--- not menu controls.
+-- LEGACY PAGE CHILD NORMALIZATION
+--
+-- Older modules parent their own Frames / ScrollingFrames directly to
+-- UI.*Page. Keep those objects above the transparent compatibility
+-- layer and let the page's UIListLayout place them among spacer slots.
 --============================================================
 
-local OverlayGui = Instance.new("ScreenGui")
-OverlayGui.Name = "BlizzardMM2_OverlayButtons"
-OverlayGui.ResetOnSpawn = false
-OverlayGui.IgnoreGuiInset = false
-OverlayGui.DisplayOrder = 320
-
-pcall(function()
-	OverlayGui.Parent = CoreGui
-end)
-
-if not OverlayGui.Parent then
-	OverlayGui.Parent = PlayerGui
-end
-
-UI.ScreenGui = OverlayGui
-UI.OverlayGui = OverlayGui
-
--- Kept for modules that still call this helper.
-local BlueCyanGradients = {}
-
-local function CreateBlueCyanStroke(parent, thickness, transparency)
-	local stroke = Instance.new("UIStroke")
-	stroke.Thickness = thickness or 1.5
-	stroke.Transparency = transparency or 0.10
-	stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
-	stroke.LineJoinMode = Enum.LineJoinMode.Round
-	stroke.Parent = parent
-
-	local gradient = Instance.new("UIGradient")
-	gradient.Color = ColorSequence.new({
-		ColorSequenceKeypoint.new(0.00, Color3.fromRGB(10,55,170)),
-		ColorSequenceKeypoint.new(0.35, Color3.fromRGB(45,140,255)),
-		ColorSequenceKeypoint.new(0.65, Color3.fromRGB(75,200,255)),
-		ColorSequenceKeypoint.new(0.85, Color3.fromRGB(35,245,255)),
-		ColorSequenceKeypoint.new(1.00, Color3.fromRGB(10,55,170)),
-	})
-	gradient.Parent = stroke
-
-	BlueCyanGradients[#BlueCyanGradients+1] = gradient
-	return stroke, gradient
-end
-
-UI.CreateBlueCyanStroke = CreateBlueCyanStroke
-
-task.spawn(function()
-	local rotation = 0
-
-	while MM2.Running do
-		rotation = (rotation + 1) % 360
-
-		for i = #BlueCyanGradients, 1, -1 do
-			local gradient = BlueCyanGradients[i]
-
-			if gradient and gradient.Parent then
-				gradient.Rotation = rotation
-			else
-				table.remove(BlueCyanGradients, i)
-			end
+for _,page in pairs(NameToPage) do
+	Track(page.ChildAdded:Connect(function(child)
+		if child.Name == "_WindUISpacer"
+			or child:IsA("UIListLayout")
+			or child:IsA("UIPadding")
+		then
+			return
 		end
 
-		task.wait(0.03)
-	end
-end)
+		if child:IsA("GuiObject") then
+			child.ZIndex = math.max(child.ZIndex,95)
+
+			-- Existing modules often use Size = UDim2.new(1,0,...).
+			-- Leave their authored height/width intact.
+			task.defer(function()
+				if child and child.Parent == page then
+					for _,desc in ipairs(child:GetDescendants()) do
+						if desc:IsA("GuiObject") then
+							desc.ZIndex = math.max(desc.ZIndex,96)
+						end
+					end
+				end
+			end)
+		end
+	end))
+end
+
+--============================================================
+-- FLOATING / MOVABLE CIRCLE BUTTONS
+--============================================================
 
 function UI.CreateMovableCircleButton(
 	name,
@@ -363,79 +802,102 @@ function UI.CreateMovableCircleButton(
 	callback
 )
 	local holder = Instance.new("Frame")
-	holder.Name = name .. "Holder"
-	holder.Size = UDim2.fromOffset(104,84)
-	holder.Position = startPosition
+	holder.Name = tostring(name or "FloatingButton").."Holder"
+	holder.AnchorPoint = Vector2.new(0.5,0.5)
+	holder.Position = startPosition or UDim2.new(0.8,0,0.75,0)
+	holder.Size = UDim2.fromOffset(84,84)
 	holder.BackgroundTransparency = 1
+	holder.BorderSizePixel = 0
 	holder.Active = true
-	holder.ZIndex = 320
-	holder.Parent = OverlayGui
+	holder.ZIndex = 250
+	holder.Parent = ScreenGui
 
 	local button = Instance.new("TextButton")
-	button.Name = name
-	button.AnchorPoint = Vector2.new(0.5,0)
-	button.Position = UDim2.new(0.5,0,0,0)
-	button.Size = UDim2.fromOffset(56,56)
-	button.BackgroundColor3 = Color3.fromRGB(16,20,29)
+	button.Name = tostring(name or "FloatingButton")
+	button.AnchorPoint = Vector2.new(0.5,0.5)
+	button.Position = UDim2.fromScale(0.5,0.42)
+	button.Size = UDim2.fromOffset(54,54)
+	button.BackgroundColor3 = Color3.fromRGB(18,20,26)
 	button.BackgroundTransparency = 0.08
 	button.BorderSizePixel = 0
-
-	local hasIcon = icon ~= nil and tostring(icon) ~= ""
-
-	button.Text = hasIcon and tostring(icon) or tostring(labelText or name)
+	button.Text = tostring(icon or "")
 	button.TextColor3 = COLORS.Text
-	button.TextSize = hasIcon and 22 or 9
-	button.TextWrapped = not hasIcon
+	button.TextSize = 22
 	button.Font = Enum.Font.GothamBold
-	button.AutoButtonColor = false
+	button.AutoButtonColor = true
 	button.Active = true
-	button.ZIndex = 321
+	button.ZIndex = 251
 	button.Parent = holder
 
 	local corner = Instance.new("UICorner")
 	corner.CornerRadius = UDim.new(1,0)
 	corner.Parent = button
 
-	CreateBlueCyanStroke(button,1.7,0.08)
+	UI.CreateBlueCyanStroke(button,1.5,0.12)
 
 	local label = Instance.new("TextLabel")
-	label.Size = UDim2.new(1,0,0,24)
-	label.Position = UDim2.fromOffset(0,59)
+	label.Name = "Label"
+	label.AnchorPoint = Vector2.new(0.5,0)
+	label.Position = UDim2.new(0.5,0,1,-18)
+	label.Size = UDim2.new(1.8,0,0,18)
 	label.BackgroundTransparency = 1
-	label.Text = labelText or name
-	label.Visible = hasIcon
+	label.Text = tostring(labelText or "")
 	label.TextColor3 = COLORS.Text
-	label.TextTransparency = 0.05
+	label.TextStrokeTransparency = 0.5
 	label.TextSize = 9
-	label.TextWrapped = true
 	label.Font = Enum.Font.GothamBold
-	label.ZIndex = 321
+	label.ZIndex = 252
 	label.Parent = holder
 
-	local dragging, moved, dragStart, startPos = false, false, nil, nil
+	local dragging = false
+	local moved = false
+	local dragStart
+	local startPos
+	local dragInput
 
 	Track(button.InputBegan:Connect(function(input)
 		if input.UserInputType == Enum.UserInputType.MouseButton1
-			or input.UserInputType == Enum.UserInputType.Touch then
+			or input.UserInputType == Enum.UserInputType.Touch
+		then
 			dragging = true
 			moved = false
 			dragStart = input.Position
 			startPos = holder.Position
+
+			Track(input.Changed:Connect(function()
+				if input.UserInputState == Enum.UserInputState.End then
+					dragging = false
+					if moved then
+						holder:SetAttribute("_JustDragged",true)
+						task.delay(0.12,function()
+							if holder and holder.Parent then
+								holder:SetAttribute("_JustDragged",false)
+							end
+						end)
+					end
+				end
+			end))
+		end
+	end))
+
+	Track(button.InputChanged:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseMovement
+			or input.UserInputType == Enum.UserInputType.Touch
+		then
+			dragInput = input
 		end
 	end))
 
 	Track(UIS.InputChanged:Connect(function(input)
-		if not dragging or not dragStart or not startPos then
+		if not dragging
+			or input ~= dragInput
+			or not dragStart
+			or not startPos
+		then
 			return
 		end
 
-		if input.UserInputType ~= Enum.UserInputType.MouseMovement
-			and input.UserInputType ~= Enum.UserInputType.Touch then
-			return
-		end
-
-		local delta = input.Position - dragStart
-
+		local delta = input.Position-dragStart
 		if delta.Magnitude >= 4 then
 			moved = true
 		end
@@ -443,36 +905,285 @@ function UI.CreateMovableCircleButton(
 		if moved then
 			holder.Position = UDim2.new(
 				startPos.X.Scale,
-				startPos.X.Offset + delta.X,
+				startPos.X.Offset+delta.X,
 				startPos.Y.Scale,
-				startPos.Y.Offset + delta.Y
+				startPos.Y.Offset+delta.Y
 			)
 		end
 	end))
 
-	Track(UIS.InputEnded:Connect(function(input)
-		if not dragging then
+	Track(button.MouseButton1Click:Connect(function()
+		if holder:GetAttribute("_JustDragged") then
 			return
 		end
 
-		if input.UserInputType == Enum.UserInputType.MouseButton1
-			or input.UserInputType == Enum.UserInputType.Touch then
-			dragging = false
-
-			if not moved and callback then
-				task.spawn(callback)
-			end
+		if callback then
+			pcall(callback)
 		end
 	end))
 
-	return button, holder, label
+	return button,holder
 end
 
--- Start on Visuals to match the old UI's first tab.
-task.defer(function()
-	pcall(function()
-		UI.VisualsPage:Select()
-	end)
+--============================================================
+-- EXACT BLIZZARD FLOATING TOOLBAR
+--
+-- Visuals.lua expects:
+--   UI.ToolbarGui
+--   ToolbarGui:FindFirstChild("FloatingOutline")
+--============================================================
+
+local ToolbarGui = Instance.new("ScreenGui")
+ToolbarGui.Name = "MM2_V8_ToolbarGui"
+ToolbarGui.ResetOnSpawn = false
+ToolbarGui.IgnoreGuiInset = true
+ToolbarGui.DisplayOrder = 100
+ToolbarGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+ToolbarGui.Parent = PlayerGui
+
+UI.ToolbarGui = ToolbarGui
+
+local FloatingOutline = Instance.new("Frame")
+FloatingOutline.Name = "FloatingOutline"
+FloatingOutline.AnchorPoint = Vector2.new(0.5,0)
+FloatingOutline.Position = UDim2.new(0.5,0,0,12)
+FloatingOutline.Size = UDim2.fromOffset(152,42)
+FloatingOutline.BackgroundColor3 = Color3.fromRGB(15,17,23)
+FloatingOutline.BackgroundTransparency = 0.08
+FloatingOutline.BorderSizePixel = 0
+FloatingOutline.Active = true
+FloatingOutline.ZIndex = 100
+FloatingOutline.Parent = ToolbarGui
+
+local ToolbarCorner = Instance.new("UICorner")
+ToolbarCorner.CornerRadius = UDim.new(1,0)
+ToolbarCorner.Parent = FloatingOutline
+
+UI.CreateBlueCyanStroke(FloatingOutline,1.4,0.12)
+
+local ToolbarButton = Instance.new("TextButton")
+ToolbarButton.Name = "OpenMenu"
+ToolbarButton.Size = UDim2.fromScale(1,1)
+ToolbarButton.BackgroundTransparency = 1
+ToolbarButton.BorderSizePixel = 0
+ToolbarButton.Text = ""
+ToolbarButton.Active = true
+ToolbarButton.AutoButtonColor = false
+ToolbarButton.ZIndex = 101
+ToolbarButton.Parent = FloatingOutline
+
+local ToolbarSnowflake = CreateSnowflake(ToolbarButton,20,COLORS.Text)
+ToolbarSnowflake.Position = UDim2.fromOffset(14,11)
+ToolbarSnowflake.ZIndex = 103
+
+local ToolbarTitle = Instance.new("TextLabel")
+ToolbarTitle.Name = "Title"
+ToolbarTitle.Position = UDim2.fromOffset(44,0)
+ToolbarTitle.Size = UDim2.new(1,-52,1,0)
+ToolbarTitle.BackgroundTransparency = 1
+ToolbarTitle.Text = "Blizzard MM2"
+ToolbarTitle.TextColor3 = COLORS.Text
+ToolbarTitle.TextSize = 12
+ToolbarTitle.Font = Enum.Font.GothamBold
+ToolbarTitle.TextXAlignment = Enum.TextXAlignment.Left
+ToolbarTitle.ZIndex = 102
+ToolbarTitle.Parent = ToolbarButton
+
+-- Movable toolbar, preserving click-to-toggle.
+do
+	local dragging = false
+	local moved = false
+	local dragStart
+	local startPosition
+	local dragInput
+
+	Track(ToolbarButton.InputBegan:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseButton1
+			or input.UserInputType == Enum.UserInputType.Touch
+		then
+			dragging = true
+			moved = false
+			dragStart = input.Position
+			startPosition = FloatingOutline.Position
+
+			Track(input.Changed:Connect(function()
+				if input.UserInputState == Enum.UserInputState.End then
+					dragging = false
+				end
+			end))
+		end
+	end))
+
+	Track(ToolbarButton.InputChanged:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseMovement
+			or input.UserInputType == Enum.UserInputType.Touch
+		then
+			dragInput = input
+		end
+	end))
+
+	Track(UIS.InputChanged:Connect(function(input)
+		if not dragging
+			or input ~= dragInput
+			or not dragStart
+			or not startPosition
+		then
+			return
+		end
+
+		local delta = input.Position-dragStart
+
+		if delta.Magnitude >= 5 then
+			moved = true
+		end
+
+		if moved then
+			FloatingOutline.Position = UDim2.new(
+				startPosition.X.Scale,
+				startPosition.X.Offset+delta.X,
+				startPosition.Y.Scale,
+				startPosition.Y.Offset+delta.Y
+			)
+		end
+	end))
+
+	Track(ToolbarButton.MouseButton1Click:Connect(function()
+		if moved then
+			moved = false
+			return
+		end
+
+		pcall(function()
+			if Window.Toggle then
+				Window:Toggle()
+			end
+		end)
+
+		CompatMainFrame.Visible = not CompatMainFrame.Visible
+	end))
+end
+
+--============================================================
+-- HEADER SNOWFLAKE OVERLAY + WINDOW POSITION SYNC
+--
+-- The WindUI shell is rendered by the library. This compatibility
+-- holder follows the discovered WindUI window so the exact old
+-- snowflake and direct-parent legacy controls move with it.
+--============================================================
+
+local HeaderSnowflake = CreateSnowflake(CompatMainFrame,22,COLORS.Text)
+HeaderSnowflake.Name = "HeaderBlizzardSnowflake"
+HeaderSnowflake.Position = UDim2.fromOffset(16,15)
+HeaderSnowflake.ZIndex = 120
+
+local function FindWindWindowRoot()
+	local roots = {PlayerGui,CoreGui}
+
+	for _,root in ipairs(roots) do
+		for _,obj in ipairs(root:GetDescendants()) do
+			if (obj:IsA("TextLabel") or obj:IsA("TextButton"))
+				and tostring(obj.Text) == "Blizzard MM2"
+			then
+				local current = obj.Parent
+				local best = nil
+
+				while current and current ~= root do
+					if current:IsA("GuiObject") then
+						local size = current.AbsoluteSize
+						if size.X >= 500 and size.Y >= 340 then
+							best = current
+						end
+					end
+					current = current.Parent
+				end
+
+				if best then
+					return best
+				end
+			end
+		end
+	end
+
+	return nil
+end
+
+local WindWindowRoot = nil
+task.spawn(function()
+	local deadline = os.clock()+8
+	repeat
+		WindWindowRoot = FindWindWindowRoot()
+		if WindWindowRoot then break end
+		task.wait(0.20)
+	until os.clock() >= deadline
 end)
+
+Track(RunService.RenderStepped:Connect(function()
+	if WindWindowRoot and WindWindowRoot.Parent then
+		local pos = WindWindowRoot.AbsolutePosition
+		local size = WindWindowRoot.AbsoluteSize
+
+		CompatMainFrame.AnchorPoint = Vector2.zero
+		CompatMainFrame.Position = UDim2.fromOffset(pos.X,pos.Y)
+		CompatMainFrame.Size = UDim2.fromOffset(size.X,size.Y)
+
+		-- Scale the legacy content bridge to the actual WindUI shell.
+		LegacyContentHolder.Position = UDim2.fromOffset(
+			math.floor(size.X*0.285),
+			math.floor(size.Y*0.135)
+		)
+		LegacyContentHolder.Size = UDim2.fromOffset(
+			math.max(100,math.floor(size.X*0.69)),
+			math.max(100,math.floor(size.Y*0.82))
+		)
+	end
+
+	-- Extra fallback for WindUI builds exposing a current-tab field.
+	for name,tab in pairs(NameToTab) do
+		if Window.CurrentTab == tab
+			or Window.SelectedTab == tab
+			or Window.TabSelected == tab
+		then
+			if ActivePageName ~= name then
+				SetLegacyPageVisible(name)
+			end
+			break
+		end
+	end
+end))
+
+-- Old Misc.lua can hide the menu with UI.MainFrame.Visible = false.
+local changingCompatVisible = false
+
+Track(CompatMainFrame:GetPropertyChangedSignal("Visible"):Connect(function()
+	if changingCompatVisible then return end
+
+	LegacyContentHolder.Visible = CompatMainFrame.Visible
+	HeaderSnowflake.Visible = CompatMainFrame.Visible
+
+	if CompatMainFrame.Visible == false then
+		pcall(function()
+			if Window.Toggle then
+				Window:Toggle()
+			end
+		end)
+	end
+end))
+
+-- If Main.lua / Misc.lua destroys ScreenGui, destroy WindUI too.
+Track(ScreenGui.Destroying:Connect(function()
+	pcall(function()
+		if Window and Window.Destroy then
+			Window:Destroy()
+		end
+	end)
+end))
+
+--============================================================
+-- INITIAL PAGE
+--============================================================
+
+UI.ShowPage("Visuals")
+
+print("[Blizzard MM2 UI] WindUI compatibility layer V8.8.4 loaded")
 
 return MM2
