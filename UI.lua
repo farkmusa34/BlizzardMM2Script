@@ -1181,8 +1181,12 @@ function UI.CreateToggle(
 		Flags[flagName] == true
 
 	local control
+
 	local ignoreNextCallback =
 		false
+
+	local firstCallback =
+		true
 
 	local ok,result =
 		pcall(function()
@@ -1210,7 +1214,18 @@ function UI.CreateToggle(
 						Flags[flagName] =
 							value
 
+						-- Ignore programmatic Set() updates.
 						if ignoreNextCallback then
+							return
+						end
+
+						-- Some WindUI versions may call the
+						-- callback once while creating the toggle.
+						-- Skip that so startup does not spam toasts.
+						if firstCallback then
+							firstCallback =
+								false
+
 							return
 						end
 
@@ -1231,12 +1246,35 @@ function UI.CreateToggle(
 								)
 							end
 						end
+
+						--============================================
+						-- WINDUI FEATURE NOTIFICATION
+						--============================================
+
+						MM2.Notify(
+							value
+								and "Enabled!"
+								or "Disabled!",
+
+							2,
+
+							value
+								and "check"
+								or "x",
+
+							tostring(
+								titleText
+								or flagName
+								or "Feature"
+							)
+						)
 					end,
 			})
 		end)
 
 	if ok then
-		control = result
+		control =
+			result
 	else
 
 		warn(
@@ -1245,6 +1283,13 @@ function UI.CreateToggle(
 			result
 		)
 	end
+
+	-- If WindUI did NOT fire the callback during creation,
+	-- allow the next callback to be treated as a real click.
+	task.defer(function()
+		firstCallback =
+			false
+	end)
 
 	local function render(
 		value,
@@ -1265,6 +1310,7 @@ function UI.CreateToggle(
 				true
 
 			pcall(function()
+
 				control:Set(
 					value
 				)
