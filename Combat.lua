@@ -9,7 +9,7 @@ local Flags = MM2.Flags
 local UI = MM2.UI
 local Track = MM2.Track
 
--- Combat UI should still load even if Visuals.lua has not created TracerGui yet
+-- Combat UI should still load even if Visuals.lua has not created TracerGui yet.
 local CombatOverlay = UI.TracerGui or UI.ScreenGui
 assert(CombatOverlay, "Combat overlay GUI not found")
 
