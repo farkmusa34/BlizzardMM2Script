@@ -1152,10 +1152,6 @@ end
 UI.SetToggle =
 	UI.SetToggleState
 
---============================================================
--- CREATE TOGGLE
---============================================================
-
 function UI.CreateToggle(
 	page,
 	titleText,
@@ -1168,7 +1164,6 @@ function UI.CreateToggle(
 		GetControlParent(page)
 
 	if not parent then
-
 		warn(
 			"[Blizzard UI] Toggle has no parent:",
 			titleText
@@ -1181,12 +1176,8 @@ function UI.CreateToggle(
 		Flags[flagName] == true
 
 	local control
-
 	local ignoreNextCallback =
 		false
-
-	local firstCallback =
-		true
 
 	local ok,result =
 		pcall(function()
@@ -1214,23 +1205,11 @@ function UI.CreateToggle(
 						Flags[flagName] =
 							value
 
-						-- Ignore programmatic Set() updates.
 						if ignoreNextCallback then
 							return
 						end
 
-						-- Some WindUI versions may call the
-						-- callback once while creating the toggle.
-						-- Skip that so startup does not spam toasts.
-						if firstCallback then
-							firstCallback =
-								false
-
-							return
-						end
-
 						if callback then
-
 							local cbOk,cbErr =
 								pcall(
 									callback,
@@ -1238,7 +1217,6 @@ function UI.CreateToggle(
 								)
 
 							if not cbOk then
-
 								warn(
 									"[Blizzard UI Toggle Callback]",
 									flagName,
@@ -1247,27 +1225,29 @@ function UI.CreateToggle(
 							end
 						end
 
-						--============================================
-						-- WINDUI FEATURE NOTIFICATION
-						--============================================
+						pcall(function()
+							WindUI:Notify({
+								Title =
+									tostring(
+										titleText
+										or flagName
+										or "Feature"
+									),
 
-						MM2.Notify(
-							value
-								and "Enabled!"
-								or "Disabled!",
+								Content =
+									value
+									and "Enabled!"
+									or "Disabled!",
 
-							2,
+								Icon =
+									value
+									and "check"
+									or "x",
 
-							value
-								and "check"
-								or "x",
-
-							tostring(
-								titleText
-								or flagName
-								or "Feature"
-							)
-						)
+								Duration =
+									2.5,
+							})
+						end)
 					end,
 			})
 		end)
@@ -1276,20 +1256,12 @@ function UI.CreateToggle(
 		control =
 			result
 	else
-
 		warn(
 			"[Blizzard UI] Toggle create failed:",
 			titleText,
 			result
 		)
 	end
-
-	-- If WindUI did NOT fire the callback during creation,
-	-- allow the next callback to be treated as a real click.
-	task.defer(function()
-		firstCallback =
-			false
-	end)
 
 	local function render(
 		value,
@@ -1310,7 +1282,6 @@ function UI.CreateToggle(
 				true
 
 			pcall(function()
-
 				control:Set(
 					value
 				)
@@ -1323,7 +1294,6 @@ function UI.CreateToggle(
 		if runCallback
 			and callback
 		then
-
 			pcall(
 				callback,
 				value
