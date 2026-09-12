@@ -3,16 +3,81 @@
 -- Shared services/state/helpers/role cache.
 --============================================================
 
-local MM2 = getgenv and getgenv().MM2_V85_SPLIT or _G.MM2_V85_SPLIT
+--============================================================
+-- CLEAN PREVIOUS BLIZZARD INSTANCE
+--============================================================
 
-if not MM2 then
-	MM2 = {}
+local PreviousMM2 =
+	getgenv
+	and getgenv().MM2_V85_SPLIT
+	or _G.MM2_V85_SPLIT
 
-	if getgenv then
-		getgenv().MM2_V85_SPLIT = MM2
-	else
-		_G.MM2_V85_SPLIT = MM2
+if PreviousMM2 then
+
+	-- Stop old task.spawn / while loops.
+	PreviousMM2.Running = false
+
+	-- Disconnect old tracked events.
+	if PreviousMM2.Connections then
+		for _,connection in ipairs(
+			PreviousMM2.Connections
+		) do
+			pcall(function()
+				connection:Disconnect()
+			end)
+		end
 	end
+
+	-- Clear old ESP / visual objects.
+	if PreviousMM2.Functions then
+
+		if PreviousMM2.Functions.ClearPlayerESP then
+			pcall(
+				PreviousMM2.Functions.ClearPlayerESP
+			)
+		end
+
+		if PreviousMM2.Functions.ClearGunESP then
+			pcall(
+				PreviousMM2.Functions.ClearGunESP
+			)
+		end
+
+		if PreviousMM2.Functions.ClearTracers then
+			pcall(
+				PreviousMM2.Functions.ClearTracers
+			)
+		end
+
+		if PreviousMM2.Functions.ClearCoinESP then
+			pcall(
+				PreviousMM2.Functions.ClearCoinESP
+			)
+		end
+	end
+
+	if PreviousMM2.UI
+		and PreviousMM2.UI.TracerGui
+	then
+		pcall(function()
+			PreviousMM2.UI.TracerGui:Destroy()
+		end)
+	end
+
+	-- Give old loops one scheduler cycle to see Running == false.
+	task.wait()
+end
+
+--============================================================
+-- CREATE FRESH INSTANCE
+--============================================================
+
+local MM2 = {}
+
+if getgenv then
+	getgenv().MM2_V85_SPLIT = MM2
+else
+	_G.MM2_V85_SPLIT = MM2
 end
 
 --============================================================
@@ -158,27 +223,6 @@ MM2.Functions =
 
 --============================================================
 -- NOTIFICATIONS
---
--- Uses WindUI when available.
--- Falls back to Roblox notification if WindUI has not loaded.
---
--- Examples:
---
--- MM2.Notify("Loaded!")
---
--- MM2.Notify(
---     "Enabled!",
---     2,
---     "check",
---     "Match ESP"
--- )
---
--- MM2.Notify(
---     "Disabled!",
---     2,
---     "x",
---     "Match ESP"
--- )
 --============================================================
 
 function MM2.Notify(
@@ -228,11 +272,6 @@ function MM2.Notify(
 			return true
 		end
 	end
-
-	--========================================================
-	-- FALLBACK
-	-- Used if notification happens before WindUI is ready.
-	--========================================================
 
 	pcall(function()
 
