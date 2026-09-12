@@ -126,7 +126,7 @@ LoadModule("AutoFarm.lua")
 LoadModule("Player.lua")
 LoadModule("Fling.lua")
 LoadModule("Misc.lua")
-LoadModule("SkinChanger.lua")
+LoadModule("Skinchanger.lua")
 LoadModule("Main.lua")
 
 --============================================================
