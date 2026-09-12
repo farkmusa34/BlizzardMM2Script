@@ -8,7 +8,7 @@
 --   Default + 25 captured skins
 --
 -- Knife:
---   Default (more skins later)
+--   Default (more skins later on)
 --
 -- Includes:
 --   • Held gun skin model
