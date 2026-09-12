@@ -116,6 +116,7 @@ MM2.Connections =
 --============================================================
 
 function MM2.Track(connection)
+
 	table.insert(
 		MM2.Connections,
 		connection
@@ -193,7 +194,7 @@ MM2.State = {
 	ServerHero = nil,
 
 	-- Role ESP lifecycle.
-	-- This is driven by server role assignments rather than
+	-- Driven by server role assignments rather than
 	-- CoinsStarted / VictoryScreen.
 	RoleRoundActive = false,
 	RoleRoundSignature = nil,
@@ -499,8 +500,6 @@ local function BeginRoleRound(
 		)
 
 	-- New role assignment = new participant generation.
-	-- Players eliminated during the previous round may now be
-	-- considered valid participants again.
 	State.PlayerOutOfRound =
 		{}
 
@@ -607,8 +606,7 @@ function MM2.UpdateServerRoles()
 				State.GetPlayerDataRemote:InvokeServer()
 		end)
 
-	-- A failed request is NOT treated as the round ending.
-	-- Keep the last valid state and wait for another successful poll.
+	-- Failed requests are not round-end signals.
 	if not success
 		or type(rawRoles) ~= "table"
 	then
@@ -663,10 +661,6 @@ function MM2.UpdateServerRoles()
 
 	--========================================================
 	-- NEW ROUND DETECTION
-	--
-	-- Diagnostics showed MM2 assigns Murderer + Sheriff
-	-- before RoundStart / CoinsStarted. Friend ESP activates
-	-- during this assignment phase.
 	--========================================================
 
 	if not State.RoleRoundActive
@@ -700,8 +694,6 @@ function MM2.UpdateServerRoles()
 			State.RoleRolesMissingSince =
 				nil
 
-			-- Keep live role transitions current.
-			-- Example: Sheriff dies and another player becomes Hero.
 			State.ServerRolesCache =
 				newCache
 
@@ -719,7 +711,7 @@ function MM2.UpdateServerRoles()
 
 		else
 
-			-- Do not kill the state because of one brief empty poll.
+			-- Require continuously missing roles before ending.
 			if not State.RoleRolesMissingSince then
 
 				State.RoleRolesMissingSince =
@@ -756,8 +748,6 @@ function MM2.UpdateServerRoles()
 	State.ServerHero =
 		newHero
 
-	-- Keep the existing stale-role protection logic compatible
-	-- with the rest of the script.
 	if State.SuppressStaleRoles
 		and State.StaleSpecialSignature ~= nil
 		and sig ~= State.StaleSpecialSignature
@@ -977,15 +967,19 @@ function MM2.GetPlayerRole(player)
 		return "None"
 	end
 
+	-- If the cached role set became stale, don't turn everyone
+	-- into green Innocents. Hide uncertain ESP instead.
 	if MM2.State.SuppressStaleRoles then
-		return "Innocent"
+		return "None"
 	end
 
+	-- Eliminated/reset players must remain excluded for the
+	-- current round, even after they respawn into the lobby.
 	if MM2.State.PlayerOutOfRound[
 		player.Name
 	] then
 
-		return "Innocent"
+		return "None"
 	end
 
 	local role =
@@ -1000,6 +994,19 @@ function MM2.GetPlayerRole(player)
 	then
 
 		return role
+	end
+
+	-- IMPORTANT MID-ROUND JOIN FIX:
+	--
+	-- When the script starts during an already-running round,
+	-- some eliminated players may already be back in the lobby.
+	-- We never observed their CharacterAdded/death event, so
+	-- PlayerOutOfRound cannot identify them.
+	--
+	-- Never assume an unknown player is Innocent while a round
+	-- is active. Unknown means no ESP.
+	if MM2.State.RoleRoundActive == true then
+		return "None"
 	end
 
 	return "Innocent"
