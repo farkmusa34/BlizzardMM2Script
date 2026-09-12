@@ -27,6 +27,10 @@ assert(
 
 local S = MM2.Services
 local UI = MM2.UI
+UI.WindTabs.SkinChanger:Paragraph({
+	Title = "Skin Changer Test",
+	Desc = "If you see this, the tab is working."
+})
 local Track = MM2.Track
 
 local Players =
