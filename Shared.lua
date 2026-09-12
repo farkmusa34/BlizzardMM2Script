@@ -157,6 +157,10 @@ MM2.Flags = {
 MM2.Config = {
 	MAX_ESP_DISTANCE = 2000,
 
+	-- Successful role polls must remain empty this long before
+	-- Role ESP considers the round fully cleared.
+	ROLE_CLEAR_GRACE = 1.0,
+
 	KnifeNames = {
 		Knife = true,
 		CrateKnife = true
@@ -187,6 +191,13 @@ MM2.State = {
 	ServerMurder = nil,
 	ServerSheriff = nil,
 	ServerHero = nil,
+
+	-- Role ESP lifecycle.
+	-- This is driven by server role assignments rather than
+	-- CoinsStarted / VictoryScreen.
+	RoleRoundActive = false,
+	RoleRoundSignature = nil,
+	RoleRolesMissingSince = nil,
 
 	SuppressStaleRoles = false,
 	StaleSpecialSignature = nil,
@@ -463,6 +474,104 @@ function MM2.BuildSpecialSignature(cache)
 end
 
 --============================================================
+-- ROLE ROUND STATE
+--============================================================
+
+local function BeginRoleRound(
+	newCache,
+	newMurder,
+	newSheriff,
+	newHero
+)
+
+	local State =
+		MM2.State
+
+	State.RoleRoundActive =
+		true
+
+	State.RoleRolesMissingSince =
+		nil
+
+	State.RoleRoundSignature =
+		MM2.BuildSpecialSignature(
+			newCache
+		)
+
+	-- New role assignment = new participant generation.
+	-- Players eliminated during the previous round may now be
+	-- considered valid participants again.
+	State.PlayerOutOfRound =
+		{}
+
+	State.RecentRespawns =
+		{}
+
+	State.SuppressStaleRoles =
+		false
+
+	State.StaleSpecialSignature =
+		nil
+
+	State.ServerRolesCache =
+		newCache
+
+	State.ServerMurder =
+		newMurder
+
+	State.ServerSheriff =
+		newSheriff
+
+	State.ServerHero =
+		newHero
+end
+
+local function EndRoleRound()
+
+	local State =
+		MM2.State
+
+	State.RoleRoundActive =
+		false
+
+	State.RoleRoundSignature =
+		nil
+
+	State.RoleRolesMissingSince =
+		nil
+
+	State.ServerRolesCache =
+		{}
+
+	State.ServerMurder =
+		nil
+
+	State.ServerSheriff =
+		nil
+
+	State.ServerHero =
+		nil
+
+	State.RecentRespawns =
+		{}
+
+	State.PlayerOutOfRound =
+		{}
+
+	State.SuppressStaleRoles =
+		false
+
+	State.StaleSpecialSignature =
+		nil
+end
+
+MM2.Functions.BeginRoleRound =
+	BeginRoleRound
+
+MM2.Functions.EndRoleRound =
+	EndRoleRound
+
+--============================================================
 -- SERVER ROLE CACHE
 --============================================================
 
@@ -498,6 +607,8 @@ function MM2.UpdateServerRoles()
 				State.GetPlayerDataRemote:InvokeServer()
 		end)
 
+	-- A failed request is NOT treated as the round ending.
+	-- Keep the last valid state and wait for another successful poll.
 	if not success
 		or type(rawRoles) ~= "table"
 	then
@@ -545,15 +656,108 @@ function MM2.UpdateServerRoles()
 		end
 	end
 
-	if not next(newCache) then
-		return
-	end
-
 	local sig =
 		MM2.BuildSpecialSignature(
 			newCache
 		)
 
+	--========================================================
+	-- NEW ROUND DETECTION
+	--
+	-- Diagnostics showed MM2 assigns Murderer + Sheriff
+	-- before RoundStart / CoinsStarted. Friend ESP activates
+	-- during this assignment phase.
+	--========================================================
+
+	if not State.RoleRoundActive
+		and newMurder ~= nil
+		and newSheriff ~= nil
+	then
+
+		BeginRoleRound(
+			newCache,
+			newMurder,
+			newSheriff,
+			newHero
+		)
+
+		return
+	end
+
+	--========================================================
+	-- ACTIVE ROUND
+	--========================================================
+
+	if State.RoleRoundActive then
+
+		local hasSpecialRole =
+			newMurder ~= nil
+			or newSheriff ~= nil
+			or newHero ~= nil
+
+		if hasSpecialRole then
+
+			State.RoleRolesMissingSince =
+				nil
+
+			-- Keep live role transitions current.
+			-- Example: Sheriff dies and another player becomes Hero.
+			State.ServerRolesCache =
+				newCache
+
+			State.ServerMurder =
+				newMurder
+
+			State.ServerSheriff =
+				newSheriff
+
+			State.ServerHero =
+				newHero
+
+			State.RoleRoundSignature =
+				sig
+
+		else
+
+			-- Do not kill the state because of one brief empty poll.
+			if not State.RoleRolesMissingSince then
+
+				State.RoleRolesMissingSince =
+					os.clock()
+
+			elseif os.clock()
+				- State.RoleRolesMissingSince
+				>= MM2.Config.ROLE_CLEAR_GRACE
+			then
+
+				EndRoleRound()
+			end
+		end
+
+		return
+	end
+
+	--========================================================
+	-- INTERMISSION / NO ACTIVE ROLE ROUND
+	--========================================================
+
+	State.RoleRolesMissingSince =
+		nil
+
+	State.ServerRolesCache =
+		newCache
+
+	State.ServerMurder =
+		newMurder
+
+	State.ServerSheriff =
+		newSheriff
+
+	State.ServerHero =
+		newHero
+
+	-- Keep the existing stale-role protection logic compatible
+	-- with the rest of the script.
 	if State.SuppressStaleRoles
 		and State.StaleSpecialSignature ~= nil
 		and sig ~= State.StaleSpecialSignature
@@ -571,18 +775,6 @@ function MM2.UpdateServerRoles()
 		State.PlayerOutOfRound =
 			{}
 	end
-
-	State.ServerRolesCache =
-		newCache
-
-	State.ServerMurder =
-		newMurder
-
-	State.ServerSheriff =
-		newSheriff
-
-	State.ServerHero =
-		newHero
 end
 
 --============================================================
