@@ -19,6 +19,11 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local VisualsTab = UI.WindTabs.Visuals
 
+-- Separate role-ESP round state.
+-- RoundStart = pre-round/transition, CoinsStarted = actual live round,
+-- VictoryScreen = round over/intermission.
+MM2.State.RoleRoundActive = false
+
 --============================================================
 -- NATIVE WINDUI HELPERS
 --============================================================
@@ -41,12 +46,10 @@ local function CreateNativeToggle(title, desc, flagName, callback)
 				value = value == true
 				Flags[flagName] = value
 
-				-- Ignore programmatic Set() changes.
 				if suppressCallback then
 					return
 				end
 
-				-- Run the actual feature logic.
 				if callback then
 					local ok, err = pcall(
 						callback,
@@ -62,7 +65,6 @@ local function CreateNativeToggle(title, desc, flagName, callback)
 					end
 				end
 
-				-- WindUI notification.
 				pcall(function()
 					UI.WindUI:Notify({
 						Title = tostring(
@@ -152,8 +154,6 @@ end
 
 --============================================================
 -- VISUALS UI - DIRECT WINDUI
--- Same style as the original working visual prototype:
--- Section heading, then controls directly on the tab.
 --============================================================
 
 AddHeading("Visuals", "ESP controls")
@@ -263,7 +263,15 @@ MM2.Functions.ClearPlayerESP = function()
 end
 
 MM2.Functions.UpdatePlayerESP = function()
-	if not Flags.MatchESP then return end
+	if not Flags.MatchESP then
+		return
+	end
+
+	-- Never show roles during pre-round/intermission.
+	if MM2.State.RoleRoundActive ~= true then
+		MM2.Functions.ClearPlayerESP()
+		return
+	end
 
 	for _, player in ipairs(Players:GetPlayers()) do
 		if player == LocalPlayer then
@@ -686,6 +694,13 @@ local function GetTracerOriginPart()
 end
 
 MM2.Functions.UpdateTracers = function()
+	if MM2.State.RoleRoundActive ~= true then
+		for _,line in pairs(MM2.State.TracerLines) do
+			line.Visible = false
+		end
+		return
+	end
+
 	local Camera = workspace.CurrentCamera
 
 	if not Camera then return end
@@ -834,8 +849,6 @@ local RoundTimerArmed = false
 MM2.State.RoundTimerRunning = false
 MM2.State.RoundTimerStartedAt = nil
 
--- Native WindUI uses its own opener, so the legacy toolbar is hidden.
--- Keep the timer as its own small visible overlay instead.
 local RoundTimerHolder = Instance.new("Frame")
 RoundTimerHolder.Name = "RoundTimerHolder"
 RoundTimerHolder.AnchorPoint = Vector2.new(0.5,0)
@@ -1080,6 +1093,17 @@ then
 	Track(
 		RoundStartRemote.OnClientEvent:
 		Connect(function()
+			-- Pre-round/start transition: keep role ESP hidden.
+			MM2.State.RoleRoundActive = false
+
+			if MM2.Functions.ClearPlayerESP then
+				MM2.Functions.ClearPlayerESP()
+			end
+
+			if MM2.Functions.ClearTracers then
+				MM2.Functions.ClearTracers()
+			end
+
 			ArmRoundTimer()
 		end)
 	)
@@ -1091,6 +1115,9 @@ then
 	Track(
 		CoinsStartedRemote.OnClientEvent:
 		Connect(function()
+			-- Coins starting marks actual live gameplay.
+			MM2.State.RoleRoundActive = true
+
 			if not RoundTimerRunning then
 				RoundTimerArmed = true
 			end
@@ -1104,6 +1131,17 @@ then
 	Track(
 		VictoryScreenRemote.OnClientEvent:
 		Connect(function()
+			-- Round is finished: remove all role information immediately.
+			MM2.State.RoleRoundActive = false
+
+			if MM2.Functions.ClearPlayerESP then
+				MM2.Functions.ClearPlayerESP()
+			end
+
+			if MM2.Functions.ClearTracers then
+				MM2.Functions.ClearTracers()
+			end
+
 			RoundTimerArmed = false
 			StopRoundTimer()
 		end)
