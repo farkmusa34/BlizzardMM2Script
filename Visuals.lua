@@ -24,7 +24,7 @@ local VisualsTab = UI.WindTabs.Visuals
 --   * GetPlayerRole can reveal assigned roles before the match is live.
 --   * CoinsStarted is the normal live-round ON signal.
 --   * VictoryScreen is the hard OFF signal.
---   * A one-time Knife bootstrap later in this file handles loading mid-round.
+--   * Strict mode: ONLY CoinsStarted can turn role ESP on.
 MM2.State.RoleRoundActive = false
 
 --============================================================
@@ -872,58 +872,8 @@ local function AnyLivePlayerHasRoundWeapon()
 	return false
 end
 
--- One-time mid-round bootstrap.
--- We intentionally use the Knife rather than "any round weapon":
--- diagnostics showed the Gun can linger well after VictoryScreen.
-local function ContainerHasKnife(container)
-	if not container then
-		return false
-	end
-
-	for _,obj in ipairs(container:GetChildren()) do
-		if obj:IsA("Tool")
-			and (
-				obj.Name == "Knife"
-				or obj:GetAttribute("IsKnife") == true
-			)
-		then
-			return true
-		end
-	end
-
-	return false
-end
-
-local function AnyLivePlayerHasKnife()
-	for _,player in ipairs(Players:GetPlayers()) do
-		local character = player.Character
-		local humanoid =
-			character
-			and character:FindFirstChildOfClass(
-				"Humanoid"
-			)
-		local backpack =
-			player:FindFirstChildOfClass(
-				"Backpack"
-			)
-
-		if humanoid
-			and humanoid.Health > 0
-			and (
-				ContainerHasKnife(character)
-				or ContainerHasKnife(backpack)
-			)
-		then
-			return true
-		end
-	end
-
-	return false
-end
-
-if AnyLivePlayerHasKnife() then
-	MM2.State.RoleRoundActive = true
-end
+-- Strict round gate: no weapon-based bootstrap here.
+-- Knife/Gun can exist before live play, so only CoinsStarted enables Role ESP.
 
 local function FormatRoundTime(seconds)
 	seconds = math.max(
