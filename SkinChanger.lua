@@ -1713,7 +1713,7 @@ end
 -- VISIBLE MM2 HOTBAR
 --============================================================
 
-local function GetVisibleToolIcon()
+local function GetVisibleToolIcons()
 	local BackpackUI =
 		PlayerGui:
 		FindFirstChild(
@@ -1721,7 +1721,7 @@ local function GetVisibleToolIcon()
 		)
 
 	if not BackpackUI then
-		return nil
+		return {}
 	end
 
 	local BackpackFrame =
@@ -1731,65 +1731,56 @@ local function GetVisibleToolIcon()
 		)
 
 	if not BackpackFrame then
-		return nil
+		return {}
 	end
 
-	local BackpackItem =
-		BackpackFrame:
-		FindFirstChild(
-			"BackpackItem"
-		)
+	local Icons = {}
 
-	if not BackpackItem then
-		return nil
-	end
-
-	local Container =
-		BackpackItem:
-		FindFirstChild(
-			"Container"
-		)
-
-	if not Container then
-		return nil
-	end
-
-	local ToolIcon =
-		Container:
-		FindFirstChild(
-			"ToolIcon"
-		)
-
-	if ToolIcon
-		and (
-			ToolIcon:IsA(
-				"ImageLabel"
+	-- MM2 can keep a BackpackItem template and create another
+	-- BackpackItem for the live round slot. FindFirstChild() can
+	-- therefore hit the wrong ToolIcon. Update every ToolIcon
+	-- inside BackpackFrame so the live slot and template stay synced.
+	for _,Descendant in ipairs(
+		BackpackFrame:GetDescendants()
+	) do
+		if Descendant.Name == "ToolIcon"
+			and (
+				Descendant:IsA("ImageLabel")
+				or Descendant:IsA("ImageButton")
 			)
-			or ToolIcon:IsA(
-				"ImageButton"
-			)
-		)
-	then
-		return ToolIcon
+		then
+			table.insert(Icons, Descendant)
+		end
 	end
 
-	return nil
+	return Icons
+end
+
+local function GetVisibleToolIcon()
+	local Icons = GetVisibleToolIcons()
+	return Icons[1]
 end
 
 local function SetVisibleHotbarIcon(Image)
-	local ToolIcon =
-		GetVisibleToolIcon()
+	local Icons = GetVisibleToolIcons()
 
-	if not ToolIcon then
+	if #Icons == 0 then
 		return false
 	end
 
-	return pcall(function()
-		ToolIcon.Image =
-			tostring(
-				Image or ""
-			)
-	end)
+	local Changed = false
+
+	for _,ToolIcon in ipairs(Icons) do
+		local Success = pcall(function()
+			ToolIcon.Image = tostring(Image or "")
+		end)
+
+		if Success then
+			Changed = true
+		end
+	end
+
+	return Changed
 end
 
 -- Reapply the selected cosmetic icon after MM2 rebuilds/overwrites
