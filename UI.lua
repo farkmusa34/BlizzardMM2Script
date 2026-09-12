@@ -713,7 +713,7 @@ UI.Pages = {
 }
 
 
-	UI.PageMap = {
+UI.PageMap = {
 	[UI.VisualsPage] =
 		UI.WindTabs.Visuals,
 
