@@ -3568,6 +3568,11 @@ local function WatchKnife(Knife)
 	end
 
 	if CurrentKnife == Knife then
+		-- MM2 may reuse the same Knife Tool between rounds.
+		-- Reapply the selected cosmetic whenever the known Tool comes back.
+		ApplyCurrentKnifeSkin()
+		ReapplySelectedHotbarIcon("Knife")
+		QueueHotbarIconRefresh("Knife")
 		return
 	end
 
@@ -3743,6 +3748,9 @@ local WatcherOK, WatcherError =
 						ReapplySelectedHotbarIcon("Gun")
 						QueueHotbarIconRefresh("Gun")
 					elseif Child.Name == "Knife" then
+						-- Match the Gun round-start behavior for reused Knife Tools.
+						ApplyCurrentKnifeSkin()
+						ReapplySelectedHotbarIcon("Knife")
 						QueueHotbarIconRefresh("Knife")
 					end
 				end
