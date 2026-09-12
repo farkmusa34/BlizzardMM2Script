@@ -709,7 +709,8 @@ UI.Pages = {
 		UI.MiscPage,
 }
 
-UI.PageMap = {
+
+	UI.PageMap = {
 	[UI.VisualsPage] =
 		UI.WindTabs.Visuals,
 
@@ -724,6 +725,9 @@ UI.PageMap = {
 
 	[UI.AutoFarmPage] =
 		UI.WindTabs.AutoFarm,
+
+	[UI.SkinChangerPage] =
+		UI.WindTabs.SkinChanger,
 
 	[UI.MiscPage] =
 		UI.WindTabs.Misc,
