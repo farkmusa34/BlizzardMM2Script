@@ -560,6 +560,29 @@ UI.WindTabs.AutoFarm =
 		Icon = "bot"
 	})
 
+--============================================================
+-- SKIN CHANGER
+-- Expandable sidebar category
+--============================================================
+
+UI.SkinChangerSection =
+	Window:Section({
+		Title = "Skin Changer",
+		Opened = false,
+	})
+
+UI.WindTabs.GunSkins =
+	UI.SkinChangerSection:Tab({
+		Title = "Gun",
+		Icon = "crosshair"
+	})
+
+UI.WindTabs.KnifeSkins =
+	UI.SkinChangerSection:Tab({
+		Title = "Knife",
+		Icon = "swords"
+	})
+
 UI.WindTabs.Misc =
 	Window:Tab({
 		Title = "Misc",
