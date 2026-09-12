@@ -1,23 +1,24 @@
---====================================================================
--- BLIZZARD MM2 V8.8.4 - SkinChanger.lua
+--============================================================
+-- Blizzard MM2 V8.8.4 - SkinChanger.lua
 --
 -- Client-side cosmetic skin changer.
+-- Does NOT modify ownership / inventory metadata.
 --
 -- Current skins:
---   Gun:
---     Default
---     Harvester
+-- Gun:
+--   Default
+--   Harvester
+--
+-- Knife:
+--   Placeholder for future skins
 --
 -- Includes:
---   • WindUI Skin Changer page
---   • Harvester held-gun appearance
---   • MM2 GunDisplay holster appearance
---   • BackpackUI hotbar icon
+--   • Held Harvester
+--   • Real local MM2 GunDisplay holster
+--   • Visible MM2 hotbar icon
 --   • Round / respawn persistence
---   • Automatic silent reapplication
---   • Restore to Default
 --   • Palette WindUI notifications
---====================================================================
+--============================================================
 
 local MM2 =
 	getgenv
@@ -31,31 +32,35 @@ assert(
 	"Load Shared.lua + UI.lua first"
 )
 
---====================================================================
--- REFERENCES
---====================================================================
-
-local UI =
-	MM2.UI
+local S = MM2.Services
+local UI = MM2.UI
+local Track = MM2.Track
 
 local Players =
-	MM2.Services.Players
+	S.Players
+	or game:GetService("Players")
 
 local Workspace =
-	workspace
+	S.Workspace
+	or game:GetService("Workspace")
 
 local LocalPlayer =
 	MM2.LocalPlayer
+	or Players.LocalPlayer
+
+local Backpack =
+	LocalPlayer:WaitForChild("Backpack")
 
 local PlayerGui =
-	MM2.PlayerGui
+	LocalPlayer:WaitForChild("PlayerGui")
 
---====================================================================
--- SKIN CHANGER STATE
---====================================================================
+--============================================================
+-- MODULE STATE
+--============================================================
 
 MM2.SkinChanger =
-	MM2.SkinChanger or {}
+	MM2.SkinChanger
+	or {}
 
 local SkinChanger =
 	MM2.SkinChanger
@@ -68,129 +73,364 @@ SkinChanger.SelectedKnife =
 	SkinChanger.SelectedKnife
 	or "Default"
 
---====================================================================
+local CurrentGun = nil
+
+local SavedGunState =
+	setmetatable(
+		{},
+		{
+			__mode = "k"
+		}
+	)
+
+local SavedHolsterState =
+	setmetatable(
+		{},
+		{
+			__mode = "k"
+		}
+	)
+
+--============================================================
 -- HARVESTER DATA
---====================================================================
+--============================================================
 
-local HARVESTER = {
+local HARVESTER_ICON =
+	"http://www.roblox.com/Thumbs/Asset.ashx?format=png&width=250&height=250&assetId=7800847534"
 
-	Icon =
-		"http://www.roblox.com/Thumbs/Asset.ashx?format=png&width=250&height=250&assetId=7800847534",
+local HARVESTER_MESH =
+	"rbxassetid://7775027413"
 
-	MeshId =
-		"rbxassetid://7775027413",
+local HARVESTER_TEXTURE =
+	"http://www.roblox.com/asset/?id=7775245551"
 
-	TextureId =
-		"http://www.roblox.com/asset/?id=7775245551",
+local HARVESTER_SIZE =
+	Vector3.new(
+		2.244760036468506,
+		0.6549199819564819,
+		2.880000114440918
+	)
 
-	HandleSize =
-		Vector3.new(
-			2.244760036468506,
-			0.6549199819564819,
-			2.880000114440918
-		),
+local HARVESTER_SCALE =
+	Vector3.new(
+		0.05072519928216934,
+		0.05072552338242531,
+		0.05069168284535408
+	)
 
-	MeshScale =
-		Vector3.new(
-			0.05072519928216934,
-			0.05072552338242531,
-			0.05069168284535408
-		),
+local HARVESTER_GRIP =
+	CFrame.new(
+		0,
+		-0.699999988,
+		-0.300000012,
 
-	-- Exact grip captured from the working client changer.
-	Grip =
-		CFrame.new(
-			0,
-			-0.699999988,
-			-0.300000012,
+		1, 0, 0,
+		0, 1, 4.37113883e-08,
+		0, -4.37113883e-08, 1
+	)
 
-			1, 0, 0,
-			0, 1, 4.37113883e-08,
-			0, -4.37113883e-08, 1
-		),
+local HARVESTER_HOLSTER_CFRAME =
+	CFrame.new(
+		0.129902899,
+		0.000002229222218375071,
+		0.0750019923,
 
-	-- Exact Harvester GunBelt attachment captured from MM2.
-	HolsterCFrame =
-		CFrame.new(
-			0.129902899,
-			0.000002229222218375071,
-			0.0750019923,
+		0.0000205636024,
+		-0.5,
+		-0.866025388,
 
-			0.0000205636024,
-			-0.5,
-			-0.866025388,
+		1,
+		-0.0000404856182,
+		0.0000471191852,
 
-			1,
-			-0.0000404856182,
-			0.0000471191852,
+		-0.0000586211681,
+		-0.866025388,
+		0.5
+	)
 
-			-0.0000586211681,
-			-0.866025388,
-			0.5
-		),
+--============================================================
+-- GUN SKIN DATABASE
+--============================================================
+
+local GunSkins = {
+
+	Harvester = {
+
+		Icon =
+			HARVESTER_ICON,
+
+		MeshId =
+			HARVESTER_MESH,
+
+		TextureId =
+			HARVESTER_TEXTURE,
+
+		Size =
+			HARVESTER_SIZE,
+
+		Scale =
+			HARVESTER_SCALE,
+
+		Grip =
+			HARVESTER_GRIP,
+
+		HolsterCFrame =
+			HARVESTER_HOLSTER_CFRAME,
+	},
 }
 
---====================================================================
--- SAVED ORIGINAL STATE
---====================================================================
+SkinChanger.GunSkins =
+	GunSkins
 
-local SavedGuns = {}
-local SavedDisplays = {}
-
-local DefaultGunIcon = nil
-
-local CreatedDisplay = nil
-
---====================================================================
+--============================================================
 -- NOTIFICATION
---====================================================================
+--============================================================
 
-local function NotifySkin(
-	message
+local function NotifySkinChanger(
+	Message
 )
 
 	pcall(function()
 
 		UI.WindUI:Notify({
-			Title =
-				"Skin Changer",
-
-			Content =
-				tostring(message),
-
-			Icon =
-				"palette",
-
-			Duration =
-				2.5,
+			Title = "Skin Changer",
+			Content = tostring(
+				Message or ""
+			),
+			Icon = "palette",
+			Duration = 2.5,
 		})
 	end)
 end
 
---====================================================================
--- CHARACTER HELPERS
---====================================================================
+--============================================================
+-- FIND CURRENT GUN
+--============================================================
 
-local function GetCharacter()
+local function GetGun()
 
-	return LocalPlayer.Character
-end
+	local Character =
+		LocalPlayer.Character
 
-local function GetBackpack()
-
-	return LocalPlayer:
-		FindFirstChildOfClass(
-			"Backpack"
+	return
+		Backpack:FindFirstChild("Gun")
+		or (
+			Character
+			and Character:FindFirstChild("Gun")
 		)
 end
 
-local function GetGunBelt()
+--============================================================
+-- SAVE ORIGINAL GUN
+--============================================================
+
+local function SaveOriginalGun(
+	Gun
+)
+
+	if not Gun
+		or SavedGunState[Gun]
+	then
+		return
+	end
+
+	local Handle =
+		Gun:FindFirstChild(
+			"Handle"
+		)
+
+	if not Handle then
+		return
+	end
+
+	local Mesh =
+		Handle:FindFirstChildOfClass(
+			"SpecialMesh"
+		)
+
+	if not Mesh then
+		return
+	end
+
+	SavedGunState[Gun] = {
+
+		TextureId =
+			Gun.TextureId,
+
+		Grip =
+			Gun.Grip,
+
+		HandleSize =
+			Handle.Size,
+
+		MeshType =
+			Mesh.MeshType,
+
+		MeshId =
+			Mesh.MeshId,
+
+		MeshTextureId =
+			Mesh.TextureId,
+
+		MeshScale =
+			Mesh.Scale,
+
+		MeshOffset =
+			Mesh.Offset,
+	}
+end
+
+--============================================================
+-- VISIBLE MM2 HOTBAR
+--============================================================
+
+local function GetVisibleToolIcon()
+
+	local BackpackUI =
+		PlayerGui:FindFirstChild(
+			"BackpackUI"
+		)
+
+	if not BackpackUI then
+		return nil
+	end
+
+	local BackpackFrame =
+		BackpackUI:FindFirstChild(
+			"BackpackFrame"
+		)
+
+	if not BackpackFrame then
+		return nil
+	end
+
+	local BackpackItem =
+		BackpackFrame:FindFirstChild(
+			"BackpackItem"
+		)
+
+	if not BackpackItem then
+		return nil
+	end
+
+	local Container =
+		BackpackItem:FindFirstChild(
+			"Container"
+		)
+
+	if not Container then
+		return nil
+	end
+
+	local ToolIcon =
+		Container:FindFirstChild(
+			"ToolIcon"
+		)
+
+	if ToolIcon
+		and (
+			ToolIcon:IsA("ImageLabel")
+			or ToolIcon:IsA("ImageButton")
+		)
+	then
+
+		return ToolIcon
+	end
+
+	return nil
+end
+
+local function SetVisibleHotbarIcon(
+	Image
+)
+
+	local ToolIcon =
+		GetVisibleToolIcon()
+
+	if not ToolIcon then
+		return false
+	end
+
+	ToolIcon.Image =
+		tostring(
+			Image or ""
+		)
+
+	return true
+end
+
+--============================================================
+-- OPTIONAL CORE HOTBAR
+--============================================================
+
+local function SetCoreHotbarIcon(
+	Image
+)
+
+	pcall(function()
+
+		local CoreGui =
+			game:GetService(
+				"CoreGui"
+			)
+
+		local RobloxGui =
+			CoreGui:FindFirstChild(
+				"RobloxGui"
+			)
+
+		local BackpackGui =
+			RobloxGui
+			and RobloxGui:FindFirstChild(
+				"Backpack"
+			)
+
+		local Hotbar =
+			BackpackGui
+			and BackpackGui:FindFirstChild(
+				"Hotbar"
+			)
+
+		local Slot =
+			Hotbar
+			and Hotbar:FindFirstChild(
+				"1"
+			)
+
+		local Icon =
+			Slot
+			and Slot:FindFirstChild(
+				"Icon"
+			)
+
+		if Icon
+			and (
+				Icon:IsA("ImageLabel")
+				or Icon:IsA("ImageButton")
+			)
+		then
+
+			Icon.Image =
+				tostring(
+					Image or ""
+				)
+		end
+	end)
+end
+
+--============================================================
+-- LOCAL GUN DISPLAY / HOLSTER
+--============================================================
+
+local function IsLocalGunDisplay(
+	Display
+)
 
 	local Character =
-		GetCharacter()
+		LocalPlayer.Character
 
 	if not Character then
-		return nil
+		return false
 	end
 
 	local LowerTorso =
@@ -199,598 +439,46 @@ local function GetGunBelt()
 		)
 
 	if not LowerTorso then
-		return nil
+		return false
 	end
 
-	return LowerTorso:
-		FindFirstChild(
+	local GunBelt =
+		LowerTorso:FindFirstChild(
 			"GunBelt"
 		)
-end
 
---====================================================================
--- FIND CURRENT GUN
---====================================================================
-
-local function GetGun()
-
-	local Character =
-		GetCharacter()
-
-	if Character then
-
-		local Gun =
-			Character:
-			FindFirstChild(
-				"Gun"
-			)
-
-		if Gun
-			and Gun:IsA("Tool")
-		then
-
-			return Gun
-		end
-	end
-
-	local Backpack =
-		GetBackpack()
-
-	if Backpack then
-
-		local Gun =
-			Backpack:
-			FindFirstChild(
-				"Gun"
-			)
-
-		if Gun
-			and Gun:IsA("Tool")
-		then
-
-			return Gun
-		end
-	end
-
-	return nil
-end
-
---====================================================================
--- SAVE ORIGINAL GUN
---====================================================================
-
-local function SaveGun(
-	Gun
-)
-
-	if SavedGuns[Gun] then
-		return
-	end
-
-	local Handle =
-		Gun:FindFirstChild(
-			"Handle"
-		)
-
-	if not Handle
-		or not Handle:IsA(
-			"BasePart"
-		)
-	then
-
-		return
-	end
-
-	local Mesh =
-		Handle:
-		FindFirstChildOfClass(
-			"SpecialMesh"
-		)
-
-	if not DefaultGunIcon
-		and Gun.TextureId
-		and Gun.TextureId ~= ""
-	then
-
-		DefaultGunIcon =
-			Gun.TextureId
-	end
-
-	SavedGuns[Gun] = {
-
-		TextureId =
-			Gun.TextureId,
-
-		Grip =
-			Gun.Grip,
-
-		Handle =
-			Handle,
-
-		HandleSize =
-			Handle.Size,
-
-		HandleTransparency =
-			Handle.Transparency,
-
-		MeshOriginallyExisted =
-			Mesh ~= nil,
-
-		MeshId =
-			Mesh
-			and Mesh.MeshId
-			or nil,
-
-		MeshTexture =
-			Mesh
-			and Mesh.TextureId
-			or nil,
-
-		MeshScale =
-			Mesh
-			and Mesh.Scale
-			or nil,
-
-		MeshOffset =
-			Mesh
-			and Mesh.Offset
-			or nil,
-
-		MeshType =
-			Mesh
-			and Mesh.MeshType
-			or nil,
-	}
-end
-
---====================================================================
--- APPLY HARVESTER TO HELD / BACKPACK GUN
---====================================================================
-
-local function ApplyHarvesterToGun(
-	Gun
-)
-
-	if SkinChanger.SelectedGun
-		~= "Harvester"
-	then
-
+	if not GunBelt then
 		return false
 	end
 
-	if not Gun
-		or not Gun:IsA("Tool")
-		or Gun.Name ~= "Gun"
-	then
-
-		return false
-	end
-
-	local Handle =
-		Gun:FindFirstChild(
-			"Handle"
+	for _,Descendant
+		in ipairs(
+			Display:GetDescendants()
 		)
+	do
 
-	if not Handle
-		or not Handle:IsA(
-			"BasePart"
-		)
-	then
-
-		return false
-	end
-
-	SaveGun(
-		Gun
-	)
-
-	Gun.TextureId =
-		HARVESTER.Icon
-
-	Gun.Grip =
-		HARVESTER.Grip
-
-	Handle.Size =
-		HARVESTER.HandleSize
-
-	Handle.Transparency =
-		0
-
-	--============================================================
-	-- DEFAULT GUN:
-	-- Part + SpecialMesh
-	--============================================================
-
-	if Handle:IsA("Part") then
-
-		local Mesh =
-			Handle:
-			FindFirstChildOfClass(
-				"SpecialMesh"
-			)
-
-		if not Mesh then
-
-			Mesh =
-				Instance.new(
-					"SpecialMesh"
-				)
-
-			Mesh.Name =
-				"Mesh"
-
-			Mesh.Parent =
-				Handle
-		end
-
-		Mesh.MeshType =
-			Enum.MeshType.FileMesh
-
-		Mesh.MeshId =
-			HARVESTER.MeshId
-
-		Mesh.TextureId =
-			HARVESTER.TextureId
-
-		Mesh.Scale =
-			HARVESTER.MeshScale
-
-		Mesh.Offset =
-			Vector3.zero
-
-	--============================================================
-	-- MESH PART FALLBACK
-	--============================================================
-
-	elseif Handle:IsA(
-		"MeshPart"
-	) then
-
-		pcall(function()
-
-			Handle.MeshId =
-				HARVESTER.MeshId
-
-			Handle.TextureID =
-				HARVESTER.TextureId
-		end)
-	end
-
-	return true
-end
-
---====================================================================
--- RESTORE ORIGINAL GUN
---====================================================================
-
-local function RestoreGun(
-	Gun
-)
-
-	local Data =
-		SavedGuns[Gun]
-
-	if not Data then
-		return
-	end
-
-	if Gun
-		and Gun.Parent
-	then
-
-		pcall(function()
-
-			Gun.TextureId =
-				Data.TextureId
-
-			Gun.Grip =
-				Data.Grip
-		end)
-	end
-
-	local Handle =
-		Data.Handle
-
-	if Handle
-		and Handle.Parent
-	then
-
-		Handle.Size =
-			Data.HandleSize
-
-		Handle.Transparency =
-			Data.HandleTransparency
-
-		if Handle:IsA(
-			"Part"
+		if Descendant:IsA(
+			"RigidConstraint"
 		) then
 
-			local Mesh =
-				Handle:
-				FindFirstChildOfClass(
-					"SpecialMesh"
-				)
-
-			if Data.MeshOriginallyExisted then
-
-				if not Mesh then
-
-					Mesh =
-						Instance.new(
-							"SpecialMesh"
-						)
-
-					Mesh.Name =
-						"Mesh"
-
-					Mesh.Parent =
-						Handle
-				end
-
-				Mesh.MeshId =
-					Data.MeshId
-					or ""
-
-				Mesh.TextureId =
-					Data.MeshTexture
-					or ""
-
-				Mesh.Scale =
-					Data.MeshScale
-					or Vector3.one
-
-				Mesh.Offset =
-					Data.MeshOffset
-					or Vector3.zero
-
-				if Data.MeshType then
-
-					Mesh.MeshType =
-						Data.MeshType
-				end
-
-			elseif Mesh then
-
-				Mesh:Destroy()
-			end
-		end
-	end
-
-	SavedGuns[Gun] =
-		nil
-end
-
---====================================================================
--- RESTORE ALL SAVED GUNS
---====================================================================
-
-local function RestoreAllGuns()
-
-	local List = {}
-
-	for Gun in pairs(
-		SavedGuns
-	) do
-
-		table.insert(
-			List,
-			Gun
-		)
-	end
-
-	for _,Gun in ipairs(
-		List
-	) do
-
-		RestoreGun(
-			Gun
-		)
-	end
-end
-
---====================================================================
--- VISIBLE MM2 HOTBAR ICON
---
--- Confirmed path:
---
--- PlayerGui
---   BackpackUI
---     BackpackFrame
---       BackpackItem
---         Container
---           ToolIcon
---====================================================================
-
-local function GetVisibleToolIcons()
-
-	local Results = {}
-
-	local BackpackUI =
-		PlayerGui:
-		FindFirstChild(
-			"BackpackUI"
-		)
-
-	if not BackpackUI then
-		return Results
-	end
-
-	for _,Object in ipairs(
-		BackpackUI:GetDescendants()
-	) do
-
-		if Object.Name ==
-			"ToolIcon"
-			and (
-				Object:IsA("ImageLabel")
-				or Object:IsA("ImageButton")
-			)
-		then
-
-			table.insert(
-				Results,
-				Object
-			)
-		end
-	end
-
-	return Results
-end
-
-local function UpdateHotbarIcon()
-
-	local DesiredIcon
-
-	if SkinChanger.SelectedGun
-		== "Harvester"
-	then
-
-		DesiredIcon =
-			HARVESTER.Icon
-
-	else
-
-		DesiredIcon =
-			DefaultGunIcon
-
-		if not DesiredIcon then
-
-			local Gun =
-				GetGun()
-
-			if Gun then
-
-				local Saved =
-					SavedGuns[Gun]
-
-				if Saved
-					and Saved.TextureId
-				then
-
-					DesiredIcon =
-						Saved.TextureId
-
-				elseif Gun.TextureId
-					~= HARVESTER.Icon
-				then
-
-					DesiredIcon =
-						Gun.TextureId
-				end
-			end
-		end
-	end
-
-	if not DesiredIcon
-		or DesiredIcon == ""
-	then
-
-		return
-	end
-
-	for _,Icon in ipairs(
-		GetVisibleToolIcons()
-	) do
-
-		pcall(function()
-
-			Icon.Image =
-				DesiredIcon
-		end)
-	end
-end
-
---====================================================================
--- OPTIONAL ROBLOX CORE HOTBAR ICON
---
--- This one wasn't the visible MM2 icon in our test,
--- but updating it doesn't hurt.
---====================================================================
-
-local function UpdateCoreHotbar()
-
-	local CoreGui =
-		MM2.Services.CoreGui
-
-	if not CoreGui then
-		return
-	end
-
-	local DesiredIcon =
-		SkinChanger.SelectedGun
-			== "Harvester"
-			and HARVESTER.Icon
-			or DefaultGunIcon
-
-	if not DesiredIcon then
-		return
-	end
-
-	pcall(function()
-
-		local RobloxGui =
-			CoreGui:
-			FindFirstChild(
-				"RobloxGui"
-			)
-
-		local Backpack =
-			RobloxGui
-			and RobloxGui:
-				FindFirstChild(
-					"Backpack"
-				)
-
-		local Hotbar =
-			Backpack
-			and Backpack:
-				FindFirstChild(
-					"Hotbar"
-				)
-
-		if not Hotbar then
-			return
-		end
-
-		for _,Object in ipairs(
-			Hotbar:GetDescendants()
-		) do
-
-			if Object.Name ==
-				"Icon"
-				and (
-					Object:IsA(
-						"ImageLabel"
-					)
-					or Object:IsA(
-						"ImageButton"
-					)
-				)
+			if Descendant.Attachment0
+					== GunBelt
+				or Descendant.Attachment1
+					== GunBelt
 			then
 
-				Object.Image =
-					DesiredIcon
+				return true
 			end
 		end
-	end)
-end
+	end
 
---====================================================================
--- FIND LOCAL MM2 GUNDISPLAY
---====================================================================
+	return false
+end
 
 local function FindLocalGunDisplay()
 
-	local GunBelt =
-		GetGunBelt()
-
-	if not GunBelt then
-		return nil
-	end
-
 	local WeaponDisplays =
-		Workspace:
-		FindFirstChild(
+		Workspace:FindFirstChild(
 			"WeaponDisplays"
 		)
 
@@ -798,847 +486,631 @@ local function FindLocalGunDisplay()
 		return nil
 	end
 
-	-- Multiple GunDisplay objects may exist.
-	-- Match the RigidConstraint that actually references
-	-- our character's GunBelt.
-	for _,Object in ipairs(
-		WeaponDisplays:GetDescendants()
-	) do
+	for _,Child
+		in ipairs(
+			WeaponDisplays:GetChildren()
+		)
+	do
 
-		if Object:IsA(
-			"RigidConstraint"
-		) then
+		if Child.Name == "GunDisplay"
+			and Child:IsA("BasePart")
+			and IsLocalGunDisplay(
+				Child
+			)
+		then
 
-			local A0 =
-				Object.Attachment0
-
-			local A1 =
-				Object.Attachment1
-
-			local UsesOurGunBelt =
-				A0 == GunBelt
-				or A1 == GunBelt
-
-			if UsesOurGunBelt then
-
-				local Parent =
-					Object.Parent
-
-				if Parent
-					and Parent:IsA(
-						"BasePart"
-					)
-				then
-
-					return
-						Parent,
-						Object
-				end
-			end
+			return Child
 		end
 	end
 
 	return nil
 end
 
---====================================================================
--- SAVE ORIGINAL GUNDISPLAY
---====================================================================
+--============================================================
+-- SAVE ORIGINAL HOLSTER
+--============================================================
 
-local function SaveDisplay(
+local function SaveOriginalHolster(
 	Display
 )
 
-	if SavedDisplays[Display] then
+	if not Display
+		or SavedHolsterState[Display]
+	then
 		return
 	end
 
 	local Mesh =
-		Display:
-		FindFirstChildOfClass(
+		Display:FindFirstChildOfClass(
 			"SpecialMesh"
 		)
 
 	local Attachment =
-		Display:
-		FindFirstChildOfClass(
+		Display:FindFirstChildOfClass(
 			"Attachment"
 		)
 
-	SavedDisplays[Display] = {
+	SavedHolsterState[Display] = {
 
 		Size =
 			Display.Size,
 
-		Transparency =
-			Display.Transparency,
-
-		Massless =
-			Display.Massless,
-
-		CanCollide =
-			Display.CanCollide,
-
-		MeshOriginallyExisted =
-			Mesh ~= nil,
+		MeshType =
+			Mesh
+			and Mesh.MeshType,
 
 		MeshId =
 			Mesh
-			and Mesh.MeshId
-			or nil,
+			and Mesh.MeshId,
 
-		MeshTexture =
+		TextureId =
 			Mesh
-			and Mesh.TextureId
-			or nil,
+			and Mesh.TextureId,
 
-		MeshScale =
+		Scale =
 			Mesh
-			and Mesh.Scale
-			or nil,
+			and Mesh.Scale,
 
-		MeshOffset =
+		Offset =
 			Mesh
-			and Mesh.Offset
-			or nil,
-
-		MeshType =
-			Mesh
-			and Mesh.MeshType
-			or nil,
-
-		Attachment =
-			Attachment,
+			and Mesh.Offset,
 
 		AttachmentCFrame =
 			Attachment
-			and Attachment.CFrame
-			or nil,
+			and Attachment.CFrame,
 	}
 end
 
---====================================================================
--- FALLBACK LOCAL HOLSTER
---
--- Used only if MM2 hasn't created its actual GunDisplay yet.
--- Once the real display appears, this gets removed automatically.
---====================================================================
+--============================================================
+-- APPLY GUN SKIN
+--============================================================
 
-local function CreateFallbackDisplay()
+local function ApplyGunSkinToTool(
+	Gun,
+	Skin
+)
 
-	if SkinChanger.SelectedGun
-		~= "Harvester"
+	if not Gun
+		or not Skin
 	then
-
-		return nil
+		return false
 	end
 
-	if CreatedDisplay
-		and CreatedDisplay.Parent
+	if not Gun:IsA("Tool")
+		or Gun.Name ~= "Gun"
 	then
-
-		return CreatedDisplay
+		return false
 	end
 
-	local GunBelt =
-		GetGunBelt()
-
-	if not GunBelt then
-		return nil
-	end
-
-	local Character =
-		GetCharacter()
-
-	if not Character then
-		return nil
-	end
-
-	local Part =
-		Instance.new(
-			"Part"
+	local Handle =
+		Gun:FindFirstChild(
+			"Handle"
 		)
 
-	Part.Name =
-		"BlizzardHarvesterDisplay"
-
-	Part.Size =
-		HARVESTER.HandleSize
-
-	Part.Transparency =
-		0
-
-	Part.Anchored =
-		false
-
-	Part.Massless =
-		true
-
-	Part.CanCollide =
-		false
-
-	Part.CanTouch =
-		false
-
-	Part.CanQuery =
-		false
+	if not Handle then
+		return false
+	end
 
 	local Mesh =
-		Instance.new(
+		Handle:FindFirstChildOfClass(
 			"SpecialMesh"
 		)
 
-	Mesh.Name =
-		"Mesh"
+	if not Mesh then
+		return false
+	end
 
-	Mesh.MeshType =
-		Enum.MeshType.FileMesh
+	SaveOriginalGun(
+		Gun
+	)
 
-	Mesh.MeshId =
-		HARVESTER.MeshId
+	pcall(function()
 
-	Mesh.TextureId =
-		HARVESTER.TextureId
+		Gun.TextureId =
+			Skin.Icon
 
-	Mesh.Scale =
-		HARVESTER.MeshScale
+		Gun.Grip =
+			Skin.Grip
 
-	Mesh.Parent =
-		Part
+		Handle.Size =
+			Skin.Size
+
+		Mesh.MeshType =
+			Enum.MeshType.FileMesh
+
+		Mesh.MeshId =
+			Skin.MeshId
+
+		Mesh.TextureId =
+			Skin.TextureId
+
+		Mesh.Scale =
+			Skin.Scale
+
+		Mesh.Offset =
+			Vector3.zero
+	end)
+
+	SetVisibleHotbarIcon(
+		Skin.Icon
+	)
+
+	SetCoreHotbarIcon(
+		Skin.Icon
+	)
+
+	return true
+end
+
+--============================================================
+-- APPLY HOLSTER SKIN
+--============================================================
+
+local function ApplyGunSkinToHolster(
+	Skin
+)
+
+	local Display =
+		FindLocalGunDisplay()
+
+	if not Display
+		or not Skin
+	then
+		return false
+	end
+
+	SaveOriginalHolster(
+		Display
+	)
+
+	local Mesh =
+		Display:FindFirstChildOfClass(
+			"SpecialMesh"
+		)
 
 	local Attachment =
-		Instance.new(
+		Display:FindFirstChildOfClass(
 			"Attachment"
 		)
 
-	Attachment.Name =
-		"Attachment"
+	if Mesh then
 
-	Attachment.CFrame =
-		HARVESTER.HolsterCFrame
+		pcall(function()
 
-	Attachment.Parent =
-		Part
+			Mesh.MeshType =
+				Enum.MeshType.FileMesh
 
-	local Constraint =
-		Instance.new(
-			"RigidConstraint"
-		)
+			Mesh.MeshId =
+				Skin.MeshId
 
-	Constraint.Attachment0 =
-		GunBelt
+			Mesh.TextureId =
+				Skin.TextureId
 
-	Constraint.Attachment1 =
-		Attachment
+			Mesh.Scale =
+				Skin.Scale
 
-	Constraint.Parent =
-		Part
+			Mesh.Offset =
+				Vector3.zero
+		end)
+	end
 
-	Part.Parent =
-		Character
+	pcall(function()
 
-	CreatedDisplay =
-		Part
+		Display.Size =
+			Skin.Size
+	end)
 
-	return Part
-end
-
---====================================================================
--- APPLY HARVESTER TO REAL GUNDISPLAY
---====================================================================
-
-local function ApplyHarvesterHolster()
-
-	if SkinChanger.SelectedGun
-		~= "Harvester"
+	if Attachment
+		and Skin.HolsterCFrame
 	then
 
+		pcall(function()
+
+			Attachment.CFrame =
+				Skin.HolsterCFrame
+		end)
+	end
+
+	return true
+end
+
+--============================================================
+-- RESTORE DEFAULT GUN
+--============================================================
+
+local function RestoreGun(
+	Gun
+)
+
+	if not Gun then
 		return false
 	end
+
+	local Original =
+		SavedGunState[Gun]
+
+	if not Original then
+		return false
+	end
+
+	local Handle =
+		Gun:FindFirstChild(
+			"Handle"
+		)
+
+	local Mesh =
+		Handle
+		and Handle:FindFirstChildOfClass(
+			"SpecialMesh"
+		)
+
+	if not Handle
+		or not Mesh
+	then
+		return false
+	end
+
+	pcall(function()
+
+		Gun.TextureId =
+			Original.TextureId
+
+		Gun.Grip =
+			Original.Grip
+
+		Handle.Size =
+			Original.HandleSize
+
+		Mesh.MeshType =
+			Original.MeshType
+
+		Mesh.MeshId =
+			Original.MeshId
+
+		Mesh.TextureId =
+			Original.MeshTextureId
+
+		Mesh.Scale =
+			Original.MeshScale
+
+		Mesh.Offset =
+			Original.MeshOffset
+	end)
+
+	SetVisibleHotbarIcon(
+		Original.TextureId
+	)
+
+	SetCoreHotbarIcon(
+		Original.TextureId
+	)
+
+	return true
+end
+
+--============================================================
+-- RESTORE DEFAULT HOLSTER
+--============================================================
+
+local function RestoreHolster()
 
 	local Display =
 		FindLocalGunDisplay()
 
 	if not Display then
-
-		return
-			CreateFallbackDisplay()
-			~= nil
+		return false
 	end
 
-	-- Real MM2 display now exists.
-	-- Remove temporary fallback.
-	if CreatedDisplay then
+	local Original =
+		SavedHolsterState[Display]
 
-		pcall(function()
-
-			CreatedDisplay:
-				Destroy()
-		end)
-
-		CreatedDisplay =
-			nil
+	if not Original then
+		return false
 	end
-
-	SaveDisplay(
-		Display
-	)
-
-	Display.Size =
-		HARVESTER.HandleSize
-
-	Display.Transparency =
-		0
-
-	Display.Massless =
-		true
-
-	Display.CanCollide =
-		false
 
 	local Mesh =
-		Display:
-		FindFirstChildOfClass(
+		Display:FindFirstChildOfClass(
 			"SpecialMesh"
 		)
 
-	if not Mesh then
-
-		Mesh =
-			Instance.new(
-				"SpecialMesh"
-			)
-
-		Mesh.Name =
-			"Mesh"
-
-		Mesh.Parent =
-			Display
-	end
-
-	Mesh.MeshType =
-		Enum.MeshType.FileMesh
-
-	Mesh.MeshId =
-		HARVESTER.MeshId
-
-	Mesh.TextureId =
-		HARVESTER.TextureId
-
-	Mesh.Scale =
-		HARVESTER.MeshScale
-
-	Mesh.Offset =
-		Vector3.zero
-
 	local Attachment =
-		Display:
-		FindFirstChildOfClass(
+		Display:FindFirstChildOfClass(
 			"Attachment"
 		)
 
-	if not Attachment then
+	pcall(function()
 
-		Attachment =
-			Instance.new(
-				"Attachment"
-			)
+		Display.Size =
+			Original.Size
+	end)
 
-		Attachment.Name =
-			"Attachment"
+	if Mesh then
 
-		Attachment.Parent =
-			Display
+		pcall(function()
+
+			Mesh.MeshType =
+				Original.MeshType
+
+			Mesh.MeshId =
+				Original.MeshId
+
+			Mesh.TextureId =
+				Original.TextureId
+
+			Mesh.Scale =
+				Original.Scale
+
+			Mesh.Offset =
+				Original.Offset
+		end)
 	end
 
-	Attachment.CFrame =
-		HARVESTER.HolsterCFrame
+	if Attachment
+		and Original.AttachmentCFrame
+	then
+
+		pcall(function()
+
+			Attachment.CFrame =
+				Original.AttachmentCFrame
+		end)
+	end
 
 	return true
 end
 
---====================================================================
--- RESTORE GUNDISPLAYS
---====================================================================
-
-local function RestoreDisplays()
-
-	if CreatedDisplay then
-
-		pcall(function()
-
-			CreatedDisplay:
-				Destroy()
-		end)
-
-		CreatedDisplay =
-			nil
-	end
-
-	for Display,Data in pairs(
-		SavedDisplays
-	) do
-
-		if Display
-			and Display.Parent
-		then
-
-			pcall(function()
-
-				Display.Size =
-					Data.Size
-
-				Display.Transparency =
-					Data.Transparency
-
-				Display.Massless =
-					Data.Massless
-
-				Display.CanCollide =
-					Data.CanCollide
-
-				local Mesh =
-					Display:
-					FindFirstChildOfClass(
-						"SpecialMesh"
-					)
-
-				if Data.MeshOriginallyExisted then
-
-					if not Mesh then
-
-						Mesh =
-							Instance.new(
-								"SpecialMesh"
-							)
-
-						Mesh.Name =
-							"Mesh"
-
-						Mesh.Parent =
-							Display
-					end
-
-					Mesh.MeshId =
-						Data.MeshId
-						or ""
-
-					Mesh.TextureId =
-						Data.MeshTexture
-						or ""
-
-					Mesh.Scale =
-						Data.MeshScale
-						or Vector3.one
-
-					Mesh.Offset =
-						Data.MeshOffset
-						or Vector3.zero
-
-					if Data.MeshType then
-
-						Mesh.MeshType =
-							Data.MeshType
-					end
-
-				elseif Mesh then
-
-					Mesh:
-						Destroy()
-				end
-
-				if Data.Attachment
-					and Data.Attachment.Parent
-					and Data.AttachmentCFrame
-				then
-
-					Data.Attachment.CFrame =
-						Data.AttachmentCFrame
-				end
-			end)
-		end
-	end
-
-	table.clear(
-		SavedDisplays
-	)
-end
-
---====================================================================
--- APPLY CURRENT SELECTED GUN SKIN
+--============================================================
+-- APPLY CURRENT SELECTION
 --
 -- IMPORTANT:
--- NO notification here.
---
--- This function can run repeatedly in the background without
--- notification spam.
---====================================================================
+-- No notifications happen here.
+-- This is called automatically in the background.
+--============================================================
 
-local function ApplySelectedGunSkin()
+local function ApplyCurrentGunSkin()
+
+	local Gun =
+		GetGun()
 
 	if SkinChanger.SelectedGun
-		== "Harvester"
+		== "Default"
 	then
-
-		local Gun =
-			GetGun()
 
 		if Gun then
 
-			ApplyHarvesterToGun(
+			RestoreGun(
 				Gun
 			)
 		end
 
-		ApplyHarvesterHolster()
+		RestoreHolster()
 
-		UpdateHotbarIcon()
-		UpdateCoreHotbar()
+		return
 	end
+
+	local Skin =
+		GunSkins[
+			SkinChanger.SelectedGun
+		]
+
+	if not Skin then
+		return
+	end
+
+	if Gun then
+
+		CurrentGun =
+			Gun
+
+		ApplyGunSkinToTool(
+			Gun,
+			Skin
+		)
+	end
+
+	ApplyGunSkinToHolster(
+		Skin
+	)
 end
 
---====================================================================
--- SELECT GUN SKIN
---
--- Notifications happen HERE only.
---====================================================================
+SkinChanger.ApplyCurrentGunSkin =
+	ApplyCurrentGunSkin
 
-local function SelectGunSkin(
-	SkinName,
-	ShowNotification
+--============================================================
+-- WATCH GUN
+--============================================================
+
+local function WatchGun(
+	Gun
 )
 
-	SkinName =
-		tostring(
-			SkinName
-			or "Default"
+	if not Gun
+		or CurrentGun == Gun
+	then
+		return
+	end
+
+	CurrentGun =
+		Gun
+
+	task.defer(function()
+
+		task.wait(
+			0.15
 		)
 
-	if SkinName ==
-		SkinChanger.SelectedGun
-	then
+		if Gun.Parent then
 
-		-- Same selection.
-		-- Refresh silently instead.
-		ApplySelectedGunSkin()
-
-		return
-	end
-
-	--============================================================
-	-- DEFAULT
-	--============================================================
-
-	if SkinName ==
-		"Default"
-	then
-
-		SkinChanger.SelectedGun =
-			"Default"
-
-		RestoreAllGuns()
-		RestoreDisplays()
-
-		UpdateHotbarIcon()
-		UpdateCoreHotbar()
-
-		if ShowNotification then
-
-			NotifySkin(
-				"Default Gun Equipped"
-			)
+			ApplyCurrentGunSkin()
 		end
+	end)
 
-		return
-	end
+	Track(
+		Gun.AncestryChanged:
+		Connect(function()
 
-	--============================================================
-	-- HARVESTER
-	--============================================================
+			task.defer(function()
 
-	if SkinName ==
-		"Harvester"
-	then
+				task.wait(
+					0.05
+				)
 
-		SkinChanger.SelectedGun =
-			"Harvester"
+				if Gun.Parent
+						== Backpack
+					or Gun.Parent
+						== LocalPlayer.Character
+				then
 
-		ApplySelectedGunSkin()
-
-		if ShowNotification then
-
-			NotifySkin(
-				"Harvester Equipped"
-			)
-		end
-
-		return
-	end
+					ApplyCurrentGunSkin()
+				end
+			end)
+		end)
+	)
 end
 
--- Expose useful functions for future skins.
-SkinChanger.SelectGunSkin =
-	SelectGunSkin
+local function CheckChild(
+	Child
+)
 
-SkinChanger.Refresh =
-	ApplySelectedGunSkin
+	if Child:IsA("Tool")
+		and Child.Name == "Gun"
+	then
 
---====================================================================
--- BACKPACK WATCHER
---====================================================================
-
-local CurrentBackpackConnection =
-	nil
-
-local function WatchBackpack()
-
-	if CurrentBackpackConnection then
-
-		CurrentBackpackConnection:
-			Disconnect()
-
-		CurrentBackpackConnection =
-			nil
-	end
-
-	local Backpack =
-		GetBackpack()
-
-	if not Backpack then
-		return
-	end
-
-	CurrentBackpackConnection =
-		Backpack.ChildAdded:
-		Connect(function(
+		WatchGun(
 			Child
 		)
-
-			if SkinChanger.SelectedGun
-				~= "Harvester"
-			then
-
-				return
-			end
-
-			if Child:IsA("Tool")
-				and Child.Name == "Gun"
-			then
-
-				task.defer(function()
-
-					if Child.Parent
-						and SkinChanger.SelectedGun
-							== "Harvester"
-					then
-
-						ApplyHarvesterToGun(
-							Child
-						)
-
-						ApplyHarvesterHolster()
-
-						UpdateHotbarIcon()
-					end
-				end)
-			end
-		end)
+	end
 end
 
---====================================================================
--- CHARACTER WATCHER
---====================================================================
+--============================================================
+-- BACKPACK WATCH
+--============================================================
 
-local CurrentCharacterConnection =
-	nil
+Track(
+	Backpack.ChildAdded:
+	Connect(function(
+		Child
+	)
 
-local function WatchCharacter(
+		CheckChild(
+			Child
+		)
+	end)
+)
+
+--============================================================
+-- CHARACTER WATCH
+--============================================================
+
+local function HookCharacter(
 	Character
 )
 
-	if CurrentCharacterConnection then
-
-		CurrentCharacterConnection:
-			Disconnect()
-
-		CurrentCharacterConnection =
-			nil
-	end
-
-	if not Character then
-		return
-	end
-
-	CurrentCharacterConnection =
+	Track(
 		Character.ChildAdded:
 		Connect(function(
 			Child
 		)
 
-			if SkinChanger.SelectedGun
-				~= "Harvester"
-			then
-
-				return
-			end
-
-			if Child:IsA("Tool")
-				and Child.Name == "Gun"
-			then
-
-				task.defer(function()
-
-					if Child.Parent
-						and SkinChanger.SelectedGun
-							== "Harvester"
-					then
-
-						ApplyHarvesterToGun(
-							Child
-						)
-
-						ApplyHarvesterHolster()
-
-						UpdateHotbarIcon()
-					end
-				end)
-			end
+			CheckChild(
+				Child
+			)
 		end)
-
-	task.delay(
-		0.75,
-		function()
-
-			if SkinChanger.SelectedGun
-				== "Harvester"
-			then
-
-				ApplySelectedGunSkin()
-			end
-		end
 	)
-end
 
-WatchBackpack()
+	local Gun =
+		Character:FindFirstChild(
+			"Gun"
+		)
+
+	if Gun then
+
+		WatchGun(
+			Gun
+		)
+	end
+end
 
 if LocalPlayer.Character then
 
-	WatchCharacter(
+	HookCharacter(
 		LocalPlayer.Character
 	)
 end
 
-MM2.Track(
+Track(
 	LocalPlayer.CharacterAdded:
 	Connect(function(
 		Character
 	)
 
-		-- Round ending / respawn can rebuild everything.
-		task.wait(
-			0.25
-		)
+		CurrentGun =
+			nil
 
-		WatchBackpack()
-
-		WatchCharacter(
+		HookCharacter(
 			Character
 		)
 
-		if SkinChanger.SelectedGun
-			== "Harvester"
-		then
+		task.defer(function()
 
 			task.wait(
-				0.75
+				0.5
 			)
 
-			ApplySelectedGunSkin()
-		end
+			ApplyCurrentGunSkin()
+		end)
 	end)
 )
 
---====================================================================
--- BACKPACK UI REBUILD WATCHER
---
--- MM2 destroys/recreates ToolIcon at times.
--- Reapply the selected skin icon whenever it comes back.
---====================================================================
+--============================================================
+-- WATCH MM2 BACKPACK UI REBUILDS
+--============================================================
 
-MM2.Track(
+Track(
 	PlayerGui.DescendantAdded:
 	Connect(function(
-		Object
+		Descendant
 	)
 
-		if SkinChanger.SelectedGun
-			~= "Harvester"
+		if Descendant.Name
+			~= "ToolIcon"
 		then
 
 			return
 		end
 
-		if Object.Name ==
-			"ToolIcon"
-			and (
-				Object:IsA("ImageLabel")
-				or Object:IsA("ImageButton")
+		if not (
+			Descendant:IsA(
+				"ImageLabel"
 			)
-		then
-
-			task.defer(function()
-
-				if Object.Parent
-					and SkinChanger.SelectedGun
-						== "Harvester"
-				then
-
-					Object.Image =
-						HARVESTER.Icon
-				end
-			end)
-		end
-	end)
-)
-
---====================================================================
--- WEAPON DISPLAY WATCHER
---====================================================================
-
-MM2.Track(
-	Workspace.ChildAdded:
-	Connect(function(
-		Child
-	)
-
-		if SkinChanger.SelectedGun
-			~= "Harvester"
+			or Descendant:IsA(
+				"ImageButton"
+			)
+		)
 		then
 
 			return
 		end
 
-		if Child.Name ==
-			"WeaponDisplays"
-		then
+		task.defer(function()
 
-			task.delay(
-				0.4,
-				function()
-
-					if SkinChanger.SelectedGun
-						== "Harvester"
-					then
-
-						ApplyHarvesterHolster()
-					end
-				end
+			task.wait(
+				0.05
 			)
-		end
+
+			ApplyCurrentGunSkin()
+		end)
 	end)
 )
 
-local function WatchWeaponDisplays(
+--============================================================
+-- WATCH WEAPON DISPLAY REBUILDS
+--
+-- Round changes can destroy and recreate WeaponDisplays.
+-- This silently reapplies the holster when it comes back.
+--============================================================
+
+local function HookWeaponDisplays(
 	WeaponDisplays
 )
 
@@ -1646,12 +1118,12 @@ local function WatchWeaponDisplays(
 		return
 	end
 
-	MM2.Track(
+	Track(
 		WeaponDisplays.DescendantAdded:
 		Connect(function()
 
 			if SkinChanger.SelectedGun
-				~= "Harvester"
+				== "Default"
 			then
 
 				return
@@ -1659,48 +1131,67 @@ local function WatchWeaponDisplays(
 
 			task.defer(function()
 
-				if SkinChanger.SelectedGun
-					== "Harvester"
-				then
+				task.wait(
+					0.1
+				)
 
-					ApplyHarvesterHolster()
-				end
+				ApplyCurrentGunSkin()
 			end)
 		end)
+	)
 end
 
-WatchWeaponDisplays(
-	Workspace:
-	FindFirstChild(
+local ExistingWeaponDisplays =
+	Workspace:FindFirstChild(
 		"WeaponDisplays"
 	)
-)
 
-MM2.Track(
+if ExistingWeaponDisplays then
+
+	HookWeaponDisplays(
+		ExistingWeaponDisplays
+	)
+end
+
+Track(
 	Workspace.ChildAdded:
 	Connect(function(
 		Child
 	)
 
-		if Child.Name ==
-			"WeaponDisplays"
+		if Child.Name
+			~= "WeaponDisplays"
 		then
 
-			WatchWeaponDisplays(
-				Child
-			)
+			return
 		end
+
+		HookWeaponDisplays(
+			Child
+		)
+
+		task.defer(function()
+
+			task.wait(
+				0.25
+			)
+
+			ApplyCurrentGunSkin()
+		end)
 	end)
 )
 
---====================================================================
--- LIGHT PERSISTENCE LOOP
+--============================================================
+-- LIGHT REAPPLY LOOP
 --
--- This handles MM2 silently rebuilding the Gun / GunDisplay
--- between rounds.
+-- Keeps selected skin through:
+--   round changes
+--   new Gun instances
+--   hotbar rebuilds
+--   holster rebuilds
 --
--- NO notifications here.
---====================================================================
+-- This NEVER sends notifications.
+--============================================================
 
 task.spawn(function()
 
@@ -1710,18 +1201,30 @@ task.spawn(function()
 			0.25
 		)
 
-		if SkinChanger.SelectedGun
-			== "Harvester"
+		local Gun =
+			GetGun()
+
+		if Gun
+			and CurrentGun ~= Gun
 		then
 
-			ApplySelectedGunSkin()
+			WatchGun(
+				Gun
+			)
+		end
+
+		if SkinChanger.SelectedGun
+			~= "Default"
+		then
+
+			ApplyCurrentGunSkin()
 		end
 	end
 end)
 
---====================================================================
--- WINDUI
---====================================================================
+--============================================================
+-- WINDUI - GUN
+--============================================================
 
 UI.AddSection(
 	UI.SkinChangerPage,
@@ -1729,38 +1232,68 @@ UI.AddSection(
 	"Change the appearance of your gun"
 )
 
-local GunDropdown =
-	UI.CreateDropdown(
-		UI.SkinChangerPage,
-		"Gun Skin",
-		"Select a gun skin",
-		{
-			"Default",
-			"Harvester",
-		},
-		SkinChanger.SelectedGun,
-		function(
+UI.CreateDropdown(
+	UI.SkinChangerPage,
+	"Gun Skin",
+	"Select a gun skin",
+	{
+		"Default",
+		"Harvester",
+	},
+	SkinChanger.SelectedGun,
+	function(
+		Value
+	)
+
+		if type(Value)
+			~= "string"
+		then
+
+			return
+		end
+
+		-- Same selection:
+		-- refresh silently without notification.
+		if Value
+			== SkinChanger.SelectedGun
+		then
+
+			ApplyCurrentGunSkin()
+			return
+		end
+
+		SkinChanger.SelectedGun =
 			Value
-		)
 
-			if typeof(Value)
-				~= "string"
-			then
+		ApplyCurrentGunSkin()
 
-				return
-			end
+		if Value
+			== "Harvester"
+		then
 
-			SelectGunSkin(
-				Value,
-				true
+			NotifySkinChanger(
+				"Harvester Equipped"
+			)
+
+		elseif Value
+			== "Default"
+		then
+
+			NotifySkinChanger(
+				"Default Gun Equipped"
 			)
 		end
-	)
+	end
+)
+
+--============================================================
+-- WINDUI - KNIFE
+--============================================================
 
 UI.AddSection(
 	UI.SkinChangerPage,
 	"Knife",
-	"Change the appearance of your knife"
+	"Knife skins will be added next"
 )
 
 UI.CreateDropdown(
@@ -1775,7 +1308,7 @@ UI.CreateDropdown(
 		Value
 	)
 
-		if typeof(Value)
+		if type(Value)
 			== "string"
 		then
 
@@ -1785,22 +1318,26 @@ UI.CreateDropdown(
 	end
 )
 
---====================================================================
--- INITIAL REFRESH
---
--- If SkinChanger.lua gets reloaded while Harvester was already
--- selected, restore the visible appearance without notifying.
---====================================================================
+--============================================================
+-- EXISTING GUN
+--============================================================
 
-task.defer(function()
+local ExistingGun =
+	GetGun()
 
-	if SkinChanger.SelectedGun
-		== "Harvester"
-	then
+if ExistingGun then
 
-		ApplySelectedGunSkin()
-	end
-end)
+	task.defer(function()
+
+		task.wait(
+			0.25
+		)
+
+		WatchGun(
+			ExistingGun
+		)
+	end)
+end
 
 print(
 	"[Blizzard MM2] SkinChanger.lua loaded"
