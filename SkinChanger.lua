@@ -3507,6 +3507,11 @@ local function WatchGun(Gun)
 	end
 
 	if CurrentGun == Gun then
+		-- MM2 can reuse the same Gun Tool between round states.
+		-- Reapply the selected cosmetic whenever that known Gun returns.
+		ApplyCurrentGunSkin()
+		ReapplySelectedHotbarIcon("Gun")
+		QueueHotbarIconRefresh("Gun")
 		return
 	end
 
@@ -3732,6 +3737,10 @@ local WatcherOK, WatcherError =
 
 				if Child:IsA("Tool") then
 					if Child.Name == "Gun" then
+						-- Force a complete refresh every time the round gives us Gun,
+						-- including cases where MM2 reuses an already-known Tool instance.
+						ApplyCurrentGunSkin()
+						ReapplySelectedHotbarIcon("Gun")
 						QueueHotbarIconRefresh("Gun")
 					elseif Child.Name == "Knife" then
 						QueueHotbarIconRefresh("Knife")
