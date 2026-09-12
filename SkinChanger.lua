@@ -3521,14 +3521,19 @@ local function WatchGun(Gun)
 
 	CurrentGun = Gun
 
-	task.defer(function()
+	-- A gun selected during intermission can be created before MM2 has
+	-- finished rebuilding BackpackUI. Do a short full refresh window so
+	-- both the cosmetic tool and its hotbar icon survive MM2's own writes.
+	task.spawn(function()
+		for _,Delay in ipairs({0.10, 0.20, 0.35, 0.55, 0.80, 1.10}) do
+			task.wait(Delay)
 
-		task.wait(
-			0.15
-		)
+			if not Gun.Parent then
+				return
+			end
 
-		if Gun.Parent then
 			ApplyCurrentGunSkin()
+			ReapplySelectedHotbarIcon("Gun")
 		end
 	end)
 
@@ -3551,6 +3556,7 @@ local function WatchGun(Gun)
 						== LocalPlayer.Character
 				then
 					ApplyCurrentGunSkin()
+					ReapplySelectedHotbarIcon("Gun")
 				end
 			end)
 		end)
