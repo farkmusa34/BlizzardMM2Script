@@ -705,6 +705,9 @@ UI.Pages = {
 	AutoFarm =
 		UI.AutoFarmPage,
 
+	SkinChanger =
+		UI.SkinChangerPage,
+
 	Misc =
 		UI.MiscPage,
 }
