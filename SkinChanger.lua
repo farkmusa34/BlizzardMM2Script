@@ -139,8 +139,8 @@ local SavedKnifeBackState =
 -- HELD POSITION HELPERS
 --============================================================
 
-local HELD_POSITION_MIN = -0.35
-local HELD_POSITION_MAX = 0.35
+local HELD_POSITION_MIN = -0.525
+local HELD_POSITION_MAX = 0.525
 local HELD_POSITION_STEP = 0.01
 
 local function GetHeldPosition(WeaponType)
@@ -1789,6 +1789,52 @@ local function SetVisibleHotbarIcon(Image)
 			tostring(
 				Image or ""
 			)
+	end)
+end
+
+-- Reapply the selected cosmetic icon after MM2 rebuilds/overwrites
+-- BackpackUI at the start of a round. This is especially important
+-- when a skin was selected during intermission before the tool existed.
+local function ReapplySelectedHotbarIcon(WeaponType)
+	local Selected
+	local Skin
+
+	if WeaponType == "Gun" then
+		Selected = SkinChanger.SelectedGun
+		Skin = GunSkins[Selected]
+	elseif WeaponType == "Knife" then
+		Selected = SkinChanger.SelectedKnife
+		Skin = KnifeSkins[Selected]
+	else
+		return false
+	end
+
+	if Selected == "Default" or not Skin then
+		return false
+	end
+
+	return SetVisibleHotbarIcon(Skin.Icon)
+end
+
+local function QueueHotbarIconRefresh(WeaponType)
+	task.spawn(function()
+		-- MM2 can create ToolIcon first and overwrite Image shortly after,
+		-- so retry briefly while the round inventory finishes building.
+		for _,Delay in ipairs({0.05, 0.15, 0.30, 0.60, 1.00}) do
+			task.wait(Delay)
+
+			if WeaponType == "Gun" then
+				if not GetGun() then
+					continue
+				end
+			elseif WeaponType == "Knife" then
+				if not GetKnife() then
+					continue
+				end
+			end
+
+			ReapplySelectedHotbarIcon(WeaponType)
+		end
 	end)
 end
 
@@ -3686,6 +3732,14 @@ local WatcherOK, WatcherError =
 				CheckChild(
 					Child
 				)
+
+				if Child:IsA("Tool") then
+					if Child.Name == "Gun" then
+						QueueHotbarIconRefresh("Gun")
+					elseif Child.Name == "Knife" then
+						QueueHotbarIconRefresh("Knife")
+					end
+				end
 			end)
 		)
 
@@ -3757,12 +3811,14 @@ local WatcherOK, WatcherError =
 							~= "Default"
 					then
 						ApplyCurrentKnifeSkin()
+						QueueHotbarIconRefresh("Knife")
 
 					elseif Gun
 						and SkinChanger.SelectedGun
 							~= "Default"
 					then
 						ApplyCurrentGunSkin()
+						QueueHotbarIconRefresh("Gun")
 					end
 				end)
 			end)
