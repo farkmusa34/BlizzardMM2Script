@@ -8,13 +8,15 @@
 --   Default + 25 captured skins
 --
 -- Knife:
---   Default (more skins later on)
+--   Default + 24 captured skins (Batwing through Chroma Saw, Celestial skipped)
 --
 -- Includes:
 --   • Held gun skin model
 --   • Per-skin grip
 --   • Real local MM2 GunDisplay holster
 --   • Visible MM2 BackpackUI hotbar icon
+--   • Held/backpack knife skin model
+--   • Knife hotbar icon
 --   • Round / respawn persistence
 --   • Silent background reapplication
 --   • Palette WindUI notifications
@@ -79,8 +81,17 @@ SkinChanger.SelectedKnife =
 	or "Default"
 
 local CurrentGun = nil
+local CurrentKnife = nil
 
 local SavedGunState =
+	setmetatable(
+		{},
+		{
+			__mode = "k"
+		}
+	)
+
+local SavedKnifeState =
 	setmetatable(
 		{},
 		{
@@ -527,6 +538,78 @@ local GunSkinOrder = {
 	"Blaster",
 	"Blossom",
 	"Borealis",
+}
+
+
+--============================================================
+-- KNIFE SKIN DATA
+--
+-- Main Tool / Handle / SpecialMesh appearance only for V1.
+-- Knife holster / radio-side display is intentionally untouched.
+--============================================================
+
+local KNIFE_GRIP = CFrame.new(
+	0, -1, -0.100000001490116,
+	1, 0, 0,
+	0, 1, 0,
+	0, 0, 1
+)
+
+local KnifeSkins = {
+	["Batwing"] = { Icon = "http://www.roblox.com/Thumbs/Asset.ashx?format=png&width=250&height=250&assetId=375690925", MeshId = "http://www.roblox.com/asset/?id=305826272", TextureId = "rbxassetid://2511673515", Size = Vector3.new(0.25, 2.90000009536743, 1.60000002384186), Scale = Vector3.new(1, 1, 1), Grip = KNIFE_GRIP },
+	["Elderwood Scythe"] = { Icon = "http://www.roblox.com/Thumbs/Asset.ashx?format=png&width=250&height=250&assetId=4468593654", MeshId = "rbxassetid://4217523241", TextureId = "http://www.roblox.com/asset/?id=4210044808", Size = Vector3.new(0.288089990615845, 3.82182002067566, 2.61528992652893), Scale = Vector3.new(0.0764362066984177, 0.0764364004135132, 0.0764362812042236), Grip = KNIFE_GRIP },
+	["Hallowscythe"] = { Icon = "http://www.roblox.com/Thumbs/Asset.ashx?format=png&width=250&height=250&assetId=5877016863", MeshId = "rbxassetid://5841877975", TextureId = "http://www.roblox.com/asset/?id=5841879647", Size = Vector3.new(0.392430007457733, 3.54154992103577, 2.94250011444092), Scale = Vector3.new(0.070791557431221, 0.0708310008049011, 0.0708310827612877), Grip = KNIFE_GRIP },
+	["Icebreaker"] = { Icon = "http://www.roblox.com/Thumbs/Asset.ashx?format=png&width=250&height=250&assetId=6121572723", MeshId = "rbxassetid://6124173614", TextureId = "rbxassetid://6124173821", Size = Vector3.new(0.410620003938675, 3.07429003715515, 1.95538997650146), Scale = Vector3.new(0.968487441539764, 0.968496859073639, 0.968495666980743), Grip = KNIFE_GRIP },
+	["Icewing"] = { Icon = "http://www.roblox.com/Thumbs/Asset.ashx?format=png&width=250&height=250&assetId=2669997196", MeshId = "rbxassetid://3183449780", TextureId = "rbxassetid://2279588369", Size = Vector3.new(0.400029987096786, 4.05000019073486, 1.79999995231628), Scale = Vector3.new(0.0850000008940697, 0.0850000008940697, 0.0850000008940697), Grip = KNIFE_GRIP },
+	["Logchopper"] = { Icon = "http://www.roblox.com/Thumbs/Asset.ashx?format=png&width=250&height=250&assetId=4528268775", MeshId = "http://www.roblox.com/asset?id=4535643726", TextureId = "rbxassetid://5211110240", Size = Vector3.new(0.400000005960464, 3, 0.699999988079071), Scale = Vector3.new(0.959999978542328, 0.959999978542328, 0.959999978542328), Grip = KNIFE_GRIP },
+	["Nik's Scythe"] = { Icon = "http://www.roblox.com/Thumbs/Asset.ashx?format=png&width=250&height=250&assetId=2533350813", MeshId = "http://www.roblox.com/asset/?id=305826272", TextureId = "rbxassetid://2533345412", Size = Vector3.new(0.400000005960464, 3, 0.800000011920929), Scale = Vector3.new(1, 1, 1), Grip = KNIFE_GRIP },
+	["Swirly Axe"] = { Icon = "http://www.roblox.com/Thumbs/Asset.ashx?format=png&width=250&height=250&assetId=8304801000", MeshId = "rbxassetid://8293463844", TextureId = "rbxassetid://8293464070", Size = Vector3.new(0.513459980487823, 2.89648008346558, 2.66000008583069), Scale = Vector3.new(0.0579302534461021, 0.0579296015202999, 0.0579014122486115), Grip = KNIFE_GRIP },
+	["Traveler's Axe"] = { Icon = "http://www.roblox.com/Thumbs/Asset.ashx?format=png&width=250&height=250&assetId=15070870271", MeshId = "rbxassetid://15057341638", TextureId = "rbxassetid://15057460725", Size = Vector3.new(0.604409992694855, 3.40599989891052, 2.18736004829407), Scale = Vector3.new(0.0681290477514267, 0.068120002746582, 0.0681300386786461), Grip = KNIFE_GRIP },
+	["Vampire's Axe"] = { Icon = "http://www.roblox.com/Thumbs/Asset.ashx?format=png&width=250&height=250&assetId=130837676383567", MeshId = "rbxassetid://92263601594064", TextureId = "rbxassetid://73008954478338", Size = Vector3.new(0.311980009078979, 3.62749004364014, 1.92278003692627), Scale = Vector3.new(0.0725490972399712, 0.0725497975945473, 0.0725500360131264), Grip = KNIFE_GRIP },
+	["Chroma Alienbeam"] = { Icon = "rbxthumb://type=Asset&w=150&h=150&id=104256106059730", MeshId = "rbxassetid://86649405964534", TextureId = "rbxassetid://94763497877100", Size = Vector3.new(0.933000028133392, 3.79099988937378, 1.05400002002716), Scale = Vector3.new(0.0769700035452843, 0.0769700035452843, 0.0769700035452843), Grip = KNIFE_GRIP },
+	["Chroma Boneblade"] = { Icon = "http://www.roblox.com/Thumbs/Asset.ashx?format=png&width=250&height=250&assetId=2513597845", MeshId = "rbxassetid://1857106669", TextureId = "rbxassetid://2513576265", Size = Vector3.new(0.400000005960464, 3, 0.699999988079071), Scale = Vector3.new(0.730000019073486, 0.730000019073486, 0.730000019073486), Grip = KNIFE_GRIP },
+	["Chroma Candleflame"] = { Icon = "http://www.roblox.com/asset/?id=7806149582", MeshId = "rbxassetid://7791364860", TextureId = "rbxassetid://7806078587", Size = Vector3.new(0.400000005960464, 3, 0.800000011920929), Scale = Vector3.new(0.0599999986588955, 0.0599999986588955, 0.0599999986588955), Grip = KNIFE_GRIP },
+	["Chroma Cookiecane"] = { Icon = "rbxassetid://11979596437", MeshId = "rbxassetid://7791364860", TextureId = "", Size = Vector3.new(0.400000005960464, 3, 0.800000011920929), Scale = Vector3.new(0.0599999986588955, 0.0599999986588955, 0.0599999986588955), Grip = KNIFE_GRIP },
+	["Chroma Deathshard"] = { Icon = "rbxassetid://3187397317", MeshId = "rbxassetid://62275962", TextureId = "rbxassetid://3167029738", Size = Vector3.new(0.550000011920929, 2.39000010490417, 0.200000002980232), Scale = Vector3.new(0.800000011920929, 0.800000011920929, 0.800000011920929), Grip = KNIFE_GRIP },
+	["Chroma Elderwood"] = { Icon = "http://www.roblox.com/asset/?id=11255021976", MeshId = "rbxassetid://11238166013", TextureId = "http://www.roblox.com/asset/?id=11370088878", Size = Vector3.new(0.275999993085861, 3.53099989891052, 1.04100000858307), Scale = Vector3.new(0.0700000002980232, 0.0700000002980232, 0.0700000002980232), Grip = KNIFE_GRIP },
+	["Chroma Evergreen"] = { Icon = "rbxassetid://15694192241", MeshId = "rbxassetid://15408280573", TextureId = "", Size = Vector3.new(0.414350003004074, 4.14349985122681, 1.02113997936249), Scale = Vector3.new(0.00460000010207295, 0.00460000010207295, 0.00460000010207295), Grip = KNIFE_GRIP },
+	["Chroma Fang"] = { Icon = "rbxassetid://3187397850", MeshId = "rbxassetid://117500241", TextureId = "", Size = Vector3.new(0.990000009536743, 3, 0.230000004172325), Scale = Vector3.new(0.400000005960464, 0.370000004768372, 0.370000004768372), Grip = KNIFE_GRIP },
+	["Chroma Gemstone"] = { Icon = "rbxassetid://3183657875", MeshId = "rbxassetid://1626714161", TextureId = "rbxassetid://3183577898", Size = Vector3.new(0.400000005960464, 3, 0.699999988079071), Scale = Vector3.new(25, 25, 25), Grip = KNIFE_GRIP },
+	["Chroma Gingerblade"] = { Icon = "http://www.roblox.com/Thumbs/Asset.ashx?format=png&width=250&height=250&assetId=2672351679", MeshId = "rbxassetid://2682453204", TextureId = "rbxassetid://2672327402", Size = Vector3.new(0.25, 3, 0.5), Scale = Vector3.new(0.610000014305115, 0.610000014305115, 0.610000014305115), Grip = KNIFE_GRIP },
+	["Chroma Heart Wand"] = { Icon = "rbxassetid://83357695007777", MeshId = "rbxassetid://77738838473091", TextureId = "rbxassetid://78842905206144", Size = Vector3.new(0.80401998758316, 2.28355002403259, 3.46268010139465), Scale = Vector3.new(0.0782100036740303, 0.0782100036740303, 0.0782100036740303), Grip = KNIFE_GRIP },
+	["Chroma Heat"] = { Icon = "rbxassetid://3187444849", MeshId = "http://www.roblox.com/asset/?id=105333894", TextureId = "http://www.roblox.com/asset/?id=105334003", Size = Vector3.new(0.400000005960464, 3, 0.699999988079071), Scale = Vector3.new(0.330000013113022, 0.330000013113022, 0.330000013113022), Grip = KNIFE_GRIP },
+	["Chroma Ornament"] = { Icon = "rbxassetid://74528014775455", MeshId = "rbxassetid://116508096109443", TextureId = "rbxassetid://135843404105980", Size = Vector3.new(0.468739986419678, 3.47608995437622, 0.789160013198853), Scale = Vector3.new(0.0732600018382072, 0.0732600018382072, 0.0732600018382072), Grip = KNIFE_GRIP },
+	["Chroma Saw"] = { Icon = "rbxassetid://3187398132", MeshId = "rbxassetid://168119698", TextureId = "rbxassetid://3171086347", Size = Vector3.new(0.25, 3.07999992370605, 1), Scale = Vector3.new(0.5, 0.5, 0.550000011920929), Grip = KNIFE_GRIP },
+}
+
+SkinChanger.KnifeSkins = KnifeSkins
+
+local KnifeSkinOrder = {
+	"Default",
+	"Batwing",
+	"Elderwood Scythe",
+	"Hallowscythe",
+	"Icebreaker",
+	"Icewing",
+	"Logchopper",
+	"Nik's Scythe",
+	"Swirly Axe",
+	"Traveler's Axe",
+	"Vampire's Axe",
+	"Chroma Alienbeam",
+	"Chroma Boneblade",
+	"Chroma Candleflame",
+	"Chroma Cookiecane",
+	"Chroma Deathshard",
+	"Chroma Elderwood",
+	"Chroma Evergreen",
+	"Chroma Fang",
+	"Chroma Gemstone",
+	"Chroma Gingerblade",
+	"Chroma Heart Wand",
+	"Chroma Heat",
+	"Chroma Ornament",
+	"Chroma Saw",
 }
 
 --============================================================
@@ -1181,6 +1264,158 @@ SkinChanger.SelectGunSkin =
 	SelectGunSkin
 
 --============================================================
+-- CURRENT KNIFE
+--============================================================
+
+local function GetKnife()
+	local Character = LocalPlayer.Character
+	local function IsKnifeTool(Tool)
+		return Tool
+			and Tool:IsA("Tool")
+			and (
+				Tool.Name == "Knife"
+				or Tool:GetAttribute("IsKnife") == true
+				or tostring(Tool:GetAttribute("ItemType") or ""):lower() == "knife"
+			)
+	end
+	for _,Container in ipairs({Backpack, Character}) do
+		if Container then
+			for _,Child in ipairs(Container:GetChildren()) do
+				if IsKnifeTool(Child) then
+					return Child
+				end
+			end
+		end
+	end
+	return nil
+end
+
+local function SaveOriginalKnife(Knife)
+	if not Knife or SavedKnifeState[Knife] then
+		return false
+	end
+	local Handle = Knife:FindFirstChild("Handle")
+	if not Handle or not Handle:IsA("BasePart") then
+		return false
+	end
+	local Mesh = Handle:FindFirstChildOfClass("SpecialMesh")
+	if not Mesh then
+		return false
+	end
+	SavedKnifeState[Knife] = {
+		TextureId = Knife.TextureId,
+		Grip = Knife.Grip,
+		HandleSize = Handle.Size,
+		MeshType = Mesh.MeshType,
+		MeshId = Mesh.MeshId,
+		MeshTextureId = Mesh.TextureId,
+		MeshScale = Mesh.Scale,
+		MeshOffset = Mesh.Offset,
+	}
+	return true
+end
+
+local function ApplyKnifeSkinToTool(Knife, Skin)
+	if not Knife or not Skin or not Knife:IsA("Tool") then
+		return false
+	end
+	local Handle = Knife:FindFirstChild("Handle")
+	if not Handle or not Handle:IsA("BasePart") then
+		return false
+	end
+	local Mesh = Handle:FindFirstChildOfClass("SpecialMesh")
+	if not Mesh then
+		return false
+	end
+	SaveOriginalKnife(Knife)
+	local Success = pcall(function()
+		Knife.TextureId = Skin.Icon
+		Knife.Grip = Skin.Grip or KNIFE_GRIP
+		Handle.Size = Skin.Size
+		Mesh.MeshType = Enum.MeshType.FileMesh
+		Mesh.MeshId = Skin.MeshId
+		Mesh.TextureId = Skin.TextureId
+		Mesh.Scale = Skin.Scale
+		Mesh.Offset = Vector3.new(0, 0, 0)
+	end)
+	SetVisibleHotbarIcon(Skin.Icon)
+	return Success
+end
+
+local function RestoreKnife(Knife)
+	if not Knife then
+		return false
+	end
+	local Original = SavedKnifeState[Knife]
+	if not Original then
+		return false
+	end
+	local Handle = Knife:FindFirstChild("Handle")
+	if not Handle then
+		return false
+	end
+	local Mesh = Handle:FindFirstChildOfClass("SpecialMesh")
+	if not Mesh then
+		return false
+	end
+	local Success = pcall(function()
+		Knife.TextureId = Original.TextureId
+		Knife.Grip = Original.Grip
+		Handle.Size = Original.HandleSize
+		Mesh.MeshType = Original.MeshType
+		Mesh.MeshId = Original.MeshId
+		Mesh.TextureId = Original.MeshTextureId
+		Mesh.Scale = Original.MeshScale
+		Mesh.Offset = Original.MeshOffset
+	end)
+	SetVisibleHotbarIcon(Original.TextureId)
+	return Success
+end
+
+local function ApplyCurrentKnifeSkin()
+	local Selected = SkinChanger.SelectedKnife
+	local Knife = GetKnife()
+	if Selected == "Default" then
+		if Knife then
+			RestoreKnife(Knife)
+		end
+		return
+	end
+	local Skin = KnifeSkins[Selected]
+	if not Skin then
+		return
+	end
+	if Knife then
+		CurrentKnife = Knife
+		ApplyKnifeSkinToTool(Knife, Skin)
+	end
+end
+
+SkinChanger.ApplyCurrentKnifeSkin = ApplyCurrentKnifeSkin
+
+local function SelectKnifeSkin(Value, ShowNotification)
+	if type(Value) ~= "string" then
+		return
+	end
+	if Value ~= "Default" and not KnifeSkins[Value] then
+		return
+	end
+	local Changed = Value ~= SkinChanger.SelectedKnife
+	SkinChanger.SelectedKnife = Value
+	ApplyCurrentKnifeSkin()
+	if not ShowNotification or not Changed then
+		return
+	end
+	if Value == "Default" then
+		NotifySkinChanger("Default Knife Equipped")
+	else
+		NotifySkinChanger(Value .. " Equipped")
+	end
+end
+
+SkinChanger.SelectKnifeSkin = SelectKnifeSkin
+
+--============================================================
 -- WINDUI
 --
 -- IMPORTANT:
@@ -1229,7 +1464,7 @@ local KnifeSection =
 	UI.AddSection(
 		UI.SkinChangerPage,
 		"Knife",
-		"Knife skins will be added next"
+		"Change the appearance of your knife"
 	)
 
 if not KnifeSection then
@@ -1238,22 +1473,19 @@ if not KnifeSection then
 	)
 end
 
+
 local KnifeDropdown =
 	UI.CreateDropdown(
 		UI.SkinChangerPage,
 		"Knife Skin",
 		"Select a knife skin",
-		{
-			"Default",
-		},
+		KnifeSkinOrder,
 		SkinChanger.SelectedKnife,
 		function(Value)
-			if type(Value)
-				== "string"
-			then
-				SkinChanger.SelectedKnife =
-					Value
-			end
+			SelectKnifeSkin(
+				Value,
+				true
+			)
 		end
 	)
 
@@ -1316,17 +1548,63 @@ local function WatchGun(
 	)
 end
 
+local function WatchKnife(
+	Knife
+)
+
+	if not Knife
+		or not Knife:IsA("Tool")
+		or not (
+			Knife.Name == "Knife"
+			or Knife:GetAttribute("IsKnife") == true
+			or tostring(Knife:GetAttribute("ItemType") or ""):lower() == "knife"
+		)
+	then
+		return
+	end
+	if CurrentKnife == Knife then
+		return
+	end
+	CurrentKnife = Knife
+	task.defer(function()
+		task.wait(0.15)
+		if Knife.Parent then
+			ApplyCurrentKnifeSkin()
+		end
+	end)
+	Track(
+		Knife.AncestryChanged:
+		Connect(function()
+			task.defer(function()
+				task.wait(0.05)
+				if not Knife.Parent then
+					return
+				end
+				if Knife.Parent == Backpack
+					or Knife.Parent == LocalPlayer.Character
+				then
+					ApplyCurrentKnifeSkin()
+				end
+			end)
+		end)
+	)
+end
+
 local function CheckChild(
 	Child
 )
 
-	if Child
-		and Child:IsA("Tool")
-		and Child.Name == "Gun"
+	if not Child or not Child:IsA("Tool") then
+		return
+	end
+	if Child.Name == "Gun" then
+		WatchGun(Child)
+	end
+	if Child.Name == "Knife"
+		or Child:GetAttribute("IsKnife") == true
+		or tostring(Child:GetAttribute("ItemType") or ""):lower() == "knife"
 	then
-		WatchGun(
-			Child
-		)
+		WatchKnife(Child)
 	end
 end
 
@@ -1359,6 +1637,10 @@ local function HookCharacter(
 		WatchGun(
 			Gun
 		)
+	end
+	local Knife = GetKnife()
+	if Knife then
+		WatchKnife(Knife)
 	end
 end
 
@@ -1434,6 +1716,8 @@ local WatcherOK,WatcherError =
 			)
 				CurrentGun =
 					nil
+				CurrentKnife =
+					nil
 				HookCharacter(
 					Character
 				)
@@ -1442,6 +1726,7 @@ local WatcherOK,WatcherError =
 						0.5
 					)
 					ApplyCurrentGunSkin()
+					ApplyCurrentKnifeSkin()
 				end)
 			end)
 		)
@@ -1471,6 +1756,7 @@ local WatcherOK,WatcherError =
 						0.05
 					)
 					ApplyCurrentGunSkin()
+					ApplyCurrentKnifeSkin()
 				end)
 			end)
 		)
@@ -1543,6 +1829,13 @@ task.spawn(function()
 				ApplyCurrentGunSkin
 			)
 		end
+		local Knife = GetKnife()
+		if Knife and Knife ~= CurrentKnife then
+			WatchKnife(Knife)
+		end
+		if SkinChanger.SelectedKnife ~= "Default" then
+			pcall(ApplyCurrentKnifeSkin)
+		end
 	end
 end)
 
@@ -1562,6 +1855,16 @@ if ExistingGun then
 			ExistingGun
 		)
 		ApplyCurrentGunSkin()
+	end)
+end
+
+local ExistingKnife = GetKnife()
+
+if ExistingKnife then
+	task.defer(function()
+		task.wait(0.25)
+		WatchKnife(ExistingKnife)
+		ApplyCurrentKnifeSkin()
 	end)
 end
 
