@@ -683,6 +683,9 @@ UI.FlingPage =
 UI.AutoFarmPage =
 	NewLegacyPage("AutoFarm")
 
+UI.SkinChangerPage =
+	NewLegacyPage("SkinChanger")
+
 UI.MiscPage =
 	NewLegacyPage("Misc")
 
