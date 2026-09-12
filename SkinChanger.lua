@@ -19,7 +19,7 @@
 --   • Silent background reapplication
 --   • Palette WindUI notifications
 --   • Captured Chroma body/decal animation
---   • Held weapon X/Y position controls
+--   • Held weapon 6-direction position controls
 --
 -- Note:
 --   Chroma Raygun / Chroma Snowcannon CustomBeam extras
@@ -101,6 +101,7 @@ SkinChanger.HeldPosition.Gun =
 	or {
 		X = 0,
 		Y = 0,
+		Z = 0,
 	}
 
 SkinChanger.HeldPosition.Knife =
@@ -108,7 +109,16 @@ SkinChanger.HeldPosition.Knife =
 	or {
 		X = 0,
 		Y = 0,
+		Z = 0,
 	}
+
+SkinChanger.HeldPosition.Gun.X = tonumber(SkinChanger.HeldPosition.Gun.X) or 0
+SkinChanger.HeldPosition.Gun.Y = tonumber(SkinChanger.HeldPosition.Gun.Y) or 0
+SkinChanger.HeldPosition.Gun.Z = tonumber(SkinChanger.HeldPosition.Gun.Z) or 0
+
+SkinChanger.HeldPosition.Knife.X = tonumber(SkinChanger.HeldPosition.Knife.X) or 0
+SkinChanger.HeldPosition.Knife.Y = tonumber(SkinChanger.HeldPosition.Knife.Y) or 0
+SkinChanger.HeldPosition.Knife.Z = tonumber(SkinChanger.HeldPosition.Knife.Z) or 0
 
 local CurrentGun = nil
 local CurrentKnife = nil
@@ -143,12 +153,17 @@ local function GetHeldPosition(WeaponType)
 		Data = {
 			X = 0,
 			Y = 0,
+			Z = 0,
 		}
 
 		SkinChanger.HeldPosition[
 			WeaponType
 		] = Data
 	end
+
+	Data.X = tonumber(Data.X) or 0
+	Data.Y = tonumber(Data.Y) or 0
+	Data.Z = tonumber(Data.Z) or 0
 
 	return Data
 end
@@ -176,14 +191,20 @@ local function GetHeldOffsetGrip(
 		tonumber(Data.Y)
 		or 0
 
-	-- Add world-space grip translation while preserving
-	-- the skin's captured grip rotation exactly.
+	local Z =
+		tonumber(Data.Z)
+		or 0
+
+	-- X: negative left, positive right
+	-- Y: negative down, positive up
+	-- Z slider: negative backward, positive forward.
+	-- Roblox forward is -Z, so the stored Z value is inverted here.
 	local Position =
 		BaseGrip.Position
 		+ Vector3.new(
 			X,
 			Y,
-			0
+			-Z
 		)
 
 	local RotationOnly =
@@ -3063,6 +3084,7 @@ SkinChanger.SelectKnifeSkin =
 
 local XPositionSlider = nil
 local YPositionSlider = nil
+local ZPositionSlider = nil
 local IgnorePositionSliderCallback = false
 
 local function ApplyHeldPositionTarget()
@@ -3127,6 +3149,11 @@ local function RefreshPositionSliders()
 		YPositionSlider,
 		Data.Y
 	)
+
+	TrySetSliderValue(
+		ZPositionSlider,
+		Data.Z
+	)
 end
 
 local function SetHeldPositionAxis(
@@ -3172,6 +3199,7 @@ local function ResetHeldPosition()
 
 	Data.X = 0
 	Data.Y = 0
+	Data.Z = 0
 
 	RefreshPositionSliders()
 	ApplyHeldPositionTarget()
@@ -3308,7 +3336,7 @@ local PositionSection =
 	UI.AddSection(
 		UI.SkinChangerPage,
 		"Held Weapon Position",
-		"Move only the weapon while it is held"
+		"Move held weapon left/right, down/up, and backward/forward"
 	)
 
 if not PositionSection then
@@ -3345,7 +3373,7 @@ local PositionTargetDropdown =
 XPositionSlider =
 	UI.CreateSlider(
 		UI.SkinChangerPage,
-		"X Position",
+		"Left / Right",
 		"Negative = left, positive = right",
 		function()
 
@@ -3369,7 +3397,7 @@ XPositionSlider =
 YPositionSlider =
 	UI.CreateSlider(
 		UI.SkinChangerPage,
-		"Y Position",
+		"Down / Up",
 		"Negative = down, positive = up",
 		function()
 
@@ -3382,6 +3410,30 @@ YPositionSlider =
 
 			SetHeldPositionAxis(
 				"Y",
+				Value
+			)
+		end,
+		HELD_POSITION_MIN,
+		HELD_POSITION_MAX,
+		HELD_POSITION_STEP
+	)
+
+ZPositionSlider =
+	UI.CreateSlider(
+		UI.SkinChangerPage,
+		"Backward / Forward",
+		"Negative = backward, positive = forward",
+		function()
+
+			return
+				GetHeldPosition(
+					SkinChanger.HeldPositionTarget
+				).Z
+		end,
+		function(Value)
+
+			SetHeldPositionAxis(
+				"Z",
 				Value
 			)
 		end,
