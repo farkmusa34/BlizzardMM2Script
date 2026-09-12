@@ -1614,12 +1614,45 @@ if not KnifeSection then
 	warn("[SkinChanger] Failed to create Knife section")
 end
 
+-- Use a fresh explicit values table for the visible WindUI knife dropdown.
+-- This avoids any stale/default-only table reference being reused by the UI.
+local KnifeDropdownValues = {
+	"Default",
+	"Elderwood Scythe",
+	"Hallowscythe",
+	"Icebreaker",
+	"Icewing",
+	"Logchopper",
+	"Nik's Scythe",
+	"Swirly Axe",
+	"Traveler's Axe",
+	"Vampire's Axe",
+	"Chroma Alienbeam",
+	"Chroma Boneblade",
+	"Chroma Candleflame",
+	"Chroma Cookiecane",
+	"Chroma Deathshard",
+	"Chroma Elderwood",
+	"Chroma Evergreen",
+	"Chroma Fang",
+	"Chroma Gemstone",
+	"Chroma Gingerblade",
+	"Chroma Heart Wand",
+	"Chroma Heat",
+	"Chroma Ornament",
+	"Chroma Saw",
+	"Chroma Seer",
+	"Winters Edge",
+}
+
+print("[SkinChanger] Knife dropdown entries:", #KnifeDropdownValues)
+
 local KnifeDropdown =
 	UI.CreateDropdown(
 		UI.SkinChangerPage,
 		"Knife Skin",
 		"Select a knife skin",
-		KnifeSkinOrder,
+		KnifeDropdownValues,
 		SkinChanger.SelectedKnife,
 		function(Value)
 			SelectKnifeSkin(Value, true)
