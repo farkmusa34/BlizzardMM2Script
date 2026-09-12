@@ -42,8 +42,16 @@ task.spawn(function()
 
 		MM2.UpdateRoundReset()
 
-		if MM2.Functions.UpdatePlayerESP then
-			MM2.Functions.UpdatePlayerESP()
+		-- Double-gate Match ESP here as well as inside Visuals.lua.
+		-- Assigned roles can exist before the live round starts.
+		if MM2.State.RoleRoundActive == true then
+			if MM2.Functions.UpdatePlayerESP then
+				MM2.Functions.UpdatePlayerESP()
+			end
+		else
+			if MM2.Functions.ClearPlayerESP then
+				MM2.Functions.ClearPlayerESP()
+			end
 		end
 
 		if MM2.Functions.UpdateGunESP then
@@ -63,7 +71,7 @@ task.spawn(function()
 		if humanoid then
 			if math.abs(
 				humanoid.WalkSpeed -
-				MM2.PlayerSettings.WalkSpeed
+					MM2.PlayerSettings.WalkSpeed
 			) > 0.01 then
 
 				humanoid.WalkSpeed =
@@ -74,7 +82,7 @@ task.spawn(function()
 
 			if math.abs(
 				humanoid.JumpPower -
-				MM2.PlayerSettings.JumpPower
+					MM2.PlayerSettings.JumpPower
 			) > 0.01 then
 
 				humanoid.JumpPower =
@@ -140,52 +148,27 @@ function MM2.Cleanup()
 	MM2.Running = false
 	MM2.State.Is_Picking_Up = false
 
-	-- Disable active features
-
 	Flags.AutoGrab = false
 	Flags.AutoFarm = false
 	Flags.Fly = false
 	Flags.Noclip = false
-
-	-- New combat feature cleanup
-
 	Flags.KillAll = false
-
-	--========================================================
-	-- STOP FLING
-	--========================================================
 
 	if MM2.Functions.StopFling then
 		MM2.Functions.StopFling()
 	end
 
-	--========================================================
-	-- STOP AUTO FARM
-	--========================================================
-
 	if MM2.Functions.StopAutoFarm then
 		MM2.Functions.StopAutoFarm()
 	end
-
-	--========================================================
-	-- STOP FLY
-	--========================================================
 
 	if MM2.Functions.StopFly then
 		MM2.Functions.StopFly()
 	end
 
-	--========================================================
-	-- STOP PLAYER NOCLIP
-	--========================================================
-
 	if MM2.Functions.StopPlayerNoclip then
 		MM2.Functions.StopPlayerNoclip()
 	end
-
-	--========================================================
-	-- REMOVE COMBAT RENDER STEP
-	--========================================================
 
 	pcall(function()
 		RunService:UnbindFromRenderStep(
@@ -193,19 +176,11 @@ function MM2.Cleanup()
 		)
 	end)
 
-	--========================================================
-	-- DISCONNECT CONNECTIONS
-	--========================================================
-
 	for _,conn in ipairs(MM2.Connections) do
 		pcall(function()
 			conn:Disconnect()
 		end)
 	end
-
-	--========================================================
-	-- CLEAR ESP
-	--========================================================
 
 	if MM2.Functions.ClearPlayerESP then
 		MM2.Functions.ClearPlayerESP()
@@ -219,10 +194,6 @@ function MM2.Cleanup()
 		MM2.Functions.ClearTracers()
 	end
 
-	--========================================================
-	-- DESTROY UI
-	--========================================================
-
 	if MM2.UI.ScreenGui then
 		MM2.UI.ScreenGui:Destroy()
 	end
@@ -234,10 +205,6 @@ function MM2.Cleanup()
 	if MM2.UI.TracerGui then
 		MM2.UI.TracerGui:Destroy()
 	end
-
-	--========================================================
-	-- CLEAR GLOBAL
-	--========================================================
 
 	if getgenv then
 		getgenv().MM2_V85_SPLIT = nil
