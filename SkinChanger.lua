@@ -8,12 +8,12 @@
 --   Default + 25 captured skins
 --
 -- Knife:
---   Default + 25 captured skins
+--   Default (more skins later on)
 --
 -- Includes:
---   • Held gun / knife skin model
---   • Per-skin gun grip
---   • Real local MM2 GunDisplay / KnifeDisplay
+--   • Held gun skin model
+--   • Per-skin grip
+--   • Real local MM2 GunDisplay holster
 --   • Visible MM2 BackpackUI hotbar icon
 --   • Round / respawn persistence
 --   • Silent background reapplication
@@ -79,19 +79,22 @@ SkinChanger.SelectedKnife =
 	or "Default"
 
 local CurrentGun = nil
-local CurrentKnife = nil
 
 local SavedGunState =
-	setmetatable({}, {__mode = "k"})
+	setmetatable(
+		{},
+		{
+			__mode = "k"
+		}
+	)
 
 local SavedHolsterState =
-	setmetatable({}, {__mode = "k"})
-
-local SavedKnifeState =
-	setmetatable({}, {__mode = "k"})
-
-local SavedKnifeBackState =
-	setmetatable({}, {__mode = "k"})
+	setmetatable(
+		{},
+		{
+			__mode = "k"
+		}
+	)
 
 --============================================================
 -- GUN SKIN DATA
@@ -245,7 +248,12 @@ local GunSkins = {
 		Size = Vector3.new(0.509999990463, 1.17999994755, 1.35000002384),
 		Scale = Vector3.new(0.5, 0.5, 0.5),
 		Grip = COMMON_GRIP,
-		HolsterCFrame = CFrame.new(),
+		HolsterCFrame = CFrame.new(
+			0, 0, 0,
+			1, 0, 0,
+			0, 1, 0,
+			0, 0, 1
+		),
 	},
 
 	["Chroma Lightbringer"] = {
@@ -345,7 +353,12 @@ local GunSkins = {
 		Size = Vector3.new(1.04972994328, 3.20869994164, 1.60000002384),
 		Scale = Vector3.new(1, 1, 1),
 		Grip = SWIRLY_GRIP,
-		HolsterCFrame = CFrame.new(),
+		HolsterCFrame = CFrame.new(
+			0, 0, 0,
+			1, 0, 0,
+			0, 1, 0,
+			0, 0, 1
+		),
 	},
 
 	["Chroma Traveler's Gun"] = {
@@ -355,7 +368,12 @@ local GunSkins = {
 		Size = Vector3.new(0.571979999542, 0.528729975224, 2.51999998093),
 		Scale = Vector3.new(0.0483900010586, 0.0491000004113, 0.049240000546),
 		Grip = COMMON_GRIP,
-		HolsterCFrame = CFrame.new(),
+		HolsterCFrame = CFrame.new(
+			0, 0, 0,
+			1, 0, 0,
+			0, 1, 0,
+			0, 0, 1
+		),
 	},
 
 	["Chroma Treat"] = {
@@ -410,7 +428,12 @@ local GunSkins = {
 		Size = Vector3.new(0.600000023842, 1, 1.79999995232),
 		Scale = Vector3.new(0.699999988079, 0.699999988079, 0.699999988079),
 		Grip = COMMON_GRIP,
-		HolsterCFrame = CFrame.new(),
+		HolsterCFrame = CFrame.new(
+			0, 0, 0,
+			1, 0, 0,
+			0, 1, 0,
+			0, 0, 1
+		),
 	},
 
 	["Bauble"] = {
@@ -465,11 +488,17 @@ local GunSkins = {
 		Size = Vector3.new(0.459109991789, 1.35493004322, 2.3462998867),
 		Scale = Vector3.new(0.0469265319407, 0.0469345152378, 0.0469259992242),
 		Grip = COMMON_GRIP,
-		HolsterCFrame = CFrame.new(),
+		HolsterCFrame = CFrame.new(
+			0, 0, 0,
+			1, 0, 0,
+			0, 1, 0,
+			0, 0, 1
+		),
 	},
 }
 
-SkinChanger.GunSkins = GunSkins
+SkinChanger.GunSkins =
+	GunSkins
 
 local GunSkinOrder = {
 	"Default",
@@ -499,10 +528,8 @@ local GunSkinOrder = {
 	"Blossom",
 	"Borealis",
 }
-
 --============================================================
 -- KNIFE SKIN DATA
--- Batwing and Celestial intentionally skipped.
 --============================================================
 
 local KNIFE_GRIP =
@@ -516,6 +543,7 @@ local KNIFE_GRIP =
 	)
 
 local KnifeSkins = {
+
 	["Elderwood Scythe"] = {
 		Icon = "http://www.roblox.com/Thumbs/Asset.ashx?format=png&width=250&height=250&assetId=4468593654",
 		MeshId = "rbxassetid://4217523241",
@@ -828,260 +856,133 @@ local KnifeSkinOrder = {
 	"Winters Edge",
 }
 
---============================================================
--- NOTIFICATION
---============================================================
+local CurrentKnife = nil
 
-local function NotifySkinChanger(Message)
-	pcall(function()
-		UI.WindUI:Notify({
-			Title = "Skin Changer",
-			Content = tostring(Message or ""),
-			Icon = "palette",
-			Duration = 2.5,
-		})
-	end)
-end
+local SavedKnifeState =
+	setmetatable(
+		{},
+		{
+			__mode = "k"
+		}
+	)
+
+local SavedKnifeBackState =
+	setmetatable(
+		{},
+		{
+			__mode = "k"
+		}
+	)
 
 --============================================================
--- CURRENT TOOLS
+-- CURRENT KNIFE
 --============================================================
-
-local function GetGun()
-	local Character = LocalPlayer.Character
-	local BackpackGun = Backpack:FindFirstChild("Gun")
-	if BackpackGun and BackpackGun:IsA("Tool") then
-		return BackpackGun
-	end
-	local CharacterGun = Character and Character:FindFirstChild("Gun")
-	if CharacterGun and CharacterGun:IsA("Tool") then
-		return CharacterGun
-	end
-	return nil
-end
 
 local function GetKnife()
-	local Character = LocalPlayer.Character
-	local BackpackKnife = Backpack:FindFirstChild("Knife")
-	if BackpackKnife and BackpackKnife:IsA("Tool") then
+
+	local Character =
+		LocalPlayer.Character
+
+	local BackpackKnife =
+		Backpack:FindFirstChild(
+			"Knife"
+		)
+
+	if BackpackKnife
+		and BackpackKnife:IsA("Tool")
+	then
 		return BackpackKnife
 	end
-	local CharacterKnife = Character and Character:FindFirstChild("Knife")
-	if CharacterKnife and CharacterKnife:IsA("Tool") then
+
+	local CharacterKnife =
+		Character
+		and Character:FindFirstChild(
+			"Knife"
+		)
+
+	if CharacterKnife
+		and CharacterKnife:IsA("Tool")
+	then
 		return CharacterKnife
 	end
-	return nil
-end
-
---============================================================
--- SAVE ORIGINAL TOOLS
---============================================================
-
-local function SaveOriginalGun(Gun)
-	if not Gun or SavedGunState[Gun] then
-		return false
-	end
-
-	local Handle = Gun:FindFirstChild("Handle")
-	if not Handle or not Handle:IsA("BasePart") then
-		return false
-	end
-
-	local Mesh = Handle:FindFirstChildOfClass("SpecialMesh")
-	if not Mesh then
-		return false
-	end
-
-	SavedGunState[Gun] = {
-		TextureId = Gun.TextureId,
-		Grip = Gun.Grip,
-		HandleSize = Handle.Size,
-		MeshType = Mesh.MeshType,
-		MeshId = Mesh.MeshId,
-		MeshTextureId = Mesh.TextureId,
-		MeshScale = Mesh.Scale,
-		MeshOffset = Mesh.Offset,
-	}
-
-	return true
-end
-
-local function SaveOriginalKnife(Knife)
-	if not Knife or SavedKnifeState[Knife] then
-		return false
-	end
-
-	local Handle = Knife:FindFirstChild("Handle")
-	if not Handle or not Handle:IsA("BasePart") then
-		return false
-	end
-
-	local Mesh = Handle:FindFirstChildOfClass("SpecialMesh")
-	if not Mesh then
-		return false
-	end
-
-	SavedKnifeState[Knife] = {
-		TextureId = Knife.TextureId,
-		Grip = Knife.Grip,
-		HandleSize = Handle.Size,
-		MeshType = Mesh.MeshType,
-		MeshId = Mesh.MeshId,
-		MeshTextureId = Mesh.TextureId,
-		MeshScale = Mesh.Scale,
-		MeshOffset = Mesh.Offset,
-	}
-
-	return true
-end
-
---============================================================
--- VISIBLE MM2 HOTBAR
---============================================================
-
-local function GetVisibleToolIcon()
-	local BackpackUI = PlayerGui:FindFirstChild("BackpackUI")
-	if not BackpackUI then
-		return nil
-	end
-
-	local BackpackFrame = BackpackUI:FindFirstChild("BackpackFrame")
-	if not BackpackFrame then
-		return nil
-	end
-
-	local BackpackItem = BackpackFrame:FindFirstChild("BackpackItem")
-	if not BackpackItem then
-		return nil
-	end
-
-	local Container = BackpackItem:FindFirstChild("Container")
-	if not Container then
-		return nil
-	end
-
-	local ToolIcon = Container:FindFirstChild("ToolIcon")
-	if ToolIcon
-		and (
-			ToolIcon:IsA("ImageLabel")
-			or ToolIcon:IsA("ImageButton")
-		)
-	then
-		return ToolIcon
-	end
-
-	return nil
-end
-
-local function SetVisibleHotbarIcon(Image)
-	local ToolIcon = GetVisibleToolIcon()
-	if not ToolIcon then
-		return false
-	end
-
-	return pcall(function()
-		ToolIcon.Image = tostring(Image or "")
-	end)
-end
-
---============================================================
--- LOCAL GUN DISPLAY
---============================================================
-
-local function GetGunBelt()
-	local Character = LocalPlayer.Character
-	if not Character then
-		return nil
-	end
-
-	local LowerTorso = Character:FindFirstChild("LowerTorso")
-	if not LowerTorso then
-		return nil
-	end
-
-	return LowerTorso:FindFirstChild("GunBelt")
-end
-
-local function IsLocalGunDisplay(Display)
-	if not Display or not Display:IsA("BasePart") then
-		return false
-	end
-
-	local GunBelt = GetGunBelt()
-	if not GunBelt then
-		return false
-	end
-
-	for _,Descendant in ipairs(Display:GetDescendants()) do
-		if Descendant:IsA("RigidConstraint") then
-			if Descendant.Attachment0 == GunBelt
-				or Descendant.Attachment1 == GunBelt
-			then
-				return true
-			end
-		end
-	end
-
-	return false
-end
-
-local function FindLocalGunDisplay()
-	local WeaponDisplays = Workspace:FindFirstChild("WeaponDisplays")
-	if not WeaponDisplays then
-		return nil
-	end
-
-	for _,Child in ipairs(WeaponDisplays:GetChildren()) do
-		if Child.Name == "GunDisplay"
-			and Child:IsA("BasePart")
-			and IsLocalGunDisplay(Child)
-		then
-			return Child
-		end
-	end
 
 	return nil
 end
 
 --============================================================
--- LOCAL KNIFE DISPLAY
+-- LOCAL KNIFE BACK ATTACHMENT
 --============================================================
 
 local function GetKnifeBack()
-	local Character = LocalPlayer.Character
+
+	local Character =
+		LocalPlayer.Character
+
 	if not Character then
 		return nil
 	end
 
-	local UpperTorso = Character:FindFirstChild("UpperTorso")
+	local UpperTorso =
+		Character:FindFirstChild(
+			"UpperTorso"
+		)
+
 	if not UpperTorso then
 		return nil
 	end
 
-	return UpperTorso:FindFirstChild("KnifeBack")
+	return UpperTorso:FindFirstChild(
+		"KnifeBack"
+	)
 end
 
+--============================================================
+-- FIND LOCAL KNIFE DISPLAY
+--============================================================
+
 local function FindLocalKnifeDisplay()
-	local WeaponDisplays = Workspace:FindFirstChild("WeaponDisplays")
+
+	local WeaponDisplays =
+		Workspace:FindFirstChild(
+			"WeaponDisplays"
+		)
+
 	if not WeaponDisplays then
 		return nil
 	end
 
-	local KnifeBack = GetKnifeBack()
+	local KnifeBack =
+		GetKnifeBack()
+
 	if not KnifeBack then
 		return nil
 	end
 
-	for _,Display in ipairs(WeaponDisplays:GetChildren()) do
-		if Display.Name == "KnifeDisplay"
-			and Display:IsA("BasePart")
+	for _,Display
+		in ipairs(
+			WeaponDisplays:GetChildren()
+		)
+	do
+		if Display.Name
+				== "KnifeDisplay"
+			and Display:IsA(
+				"BasePart"
+			)
 		then
-			for _,Descendant in ipairs(Display:GetDescendants()) do
-				if Descendant:IsA("RigidConstraint")
-					and (
-						Descendant.Attachment0 == KnifeBack
-						or Descendant.Attachment1 == KnifeBack
-					)
+			for _,Descendant
+				in ipairs(
+					Display:GetDescendants()
+				)
+			do
+				if Descendant:IsA(
+					"RigidConstraint"
+				)
+				and (
+					Descendant.Attachment0
+						== KnifeBack
+					or Descendant.Attachment1
+						== KnifeBack
+				)
 				then
 					return Display
 				end
@@ -1093,101 +994,152 @@ local function FindLocalKnifeDisplay()
 end
 
 --============================================================
--- SAVE ORIGINAL DISPLAYS
+-- SAVE ORIGINAL KNIFE
 --============================================================
 
-local function SaveOriginalHolster(Display)
-	if not Display or SavedHolsterState[Display] then
-		return false
-	end
+local function SaveOriginalKnife(
+	Knife
+)
 
-	local Mesh = Display:FindFirstChildOfClass("SpecialMesh")
-	local Attachment = Display:FindFirstChildOfClass("Attachment")
-
-	SavedHolsterState[Display] = {
-		Size = Display.Size,
-		Transparency = Display.Transparency,
-		Massless = Display.Massless,
-		CanCollide = Display.CanCollide,
-		MeshType = Mesh and Mesh.MeshType,
-		MeshId = Mesh and Mesh.MeshId,
-		TextureId = Mesh and Mesh.TextureId,
-		Scale = Mesh and Mesh.Scale,
-		Offset = Mesh and Mesh.Offset,
-		AttachmentCFrame = Attachment and Attachment.CFrame,
-	}
-
-	return true
-end
-
-local function SaveOriginalKnifeBack(Display)
-	if not Display or SavedKnifeBackState[Display] then
-		return false
-	end
-
-	local Mesh = Display:FindFirstChildOfClass("SpecialMesh")
-	local Attachment = Display:FindFirstChildOfClass("Attachment")
-
-	SavedKnifeBackState[Display] = {
-		Size = Display.Size,
-		Transparency = Display.Transparency,
-		Massless = Display.Massless,
-		CanCollide = Display.CanCollide,
-		MeshType = Mesh and Mesh.MeshType,
-		MeshId = Mesh and Mesh.MeshId,
-		TextureId = Mesh and Mesh.TextureId,
-		Scale = Mesh and Mesh.Scale,
-		Offset = Mesh and Mesh.Offset,
-		AttachmentCFrame = Attachment and Attachment.CFrame,
-	}
-
-	return true
-end
-
---============================================================
--- APPLY TOOL SKINS
---============================================================
-
-local function ApplyGunSkinToTool(Gun, Skin)
-	if not Gun
-		or not Skin
-		or not Gun:IsA("Tool")
-		or Gun.Name ~= "Gun"
+	if not Knife
+		or SavedKnifeState[
+			Knife
+		]
 	then
 		return false
 	end
 
-	local Handle = Gun:FindFirstChild("Handle")
-	if not Handle or not Handle:IsA("BasePart") then
+	local Handle =
+		Knife:FindFirstChild(
+			"Handle"
+		)
+
+	if not Handle
+		or not Handle:IsA(
+			"BasePart"
+		)
+	then
 		return false
 	end
 
-	local Mesh = Handle:FindFirstChildOfClass("SpecialMesh")
+	local Mesh =
+		Handle:FindFirstChildOfClass(
+			"SpecialMesh"
+		)
+
 	if not Mesh then
 		return false
 	end
 
-	SaveOriginalGun(Gun)
+	SavedKnifeState[
+		Knife
+	] = {
+		TextureId =
+			Knife.TextureId,
 
-	local Success = pcall(function()
-		Gun.TextureId = Skin.Icon
-		Gun.Grip = Skin.Grip
-		Handle.Size = Skin.Size
-		Mesh.MeshType = Enum.MeshType.FileMesh
-		Mesh.MeshId = Skin.MeshId
-		Mesh.TextureId = Skin.TextureId
-		Mesh.Scale = Skin.Scale
-		Mesh.Offset = Vector3.new(0, 0, 0)
-	end)
+		Grip =
+			Knife.Grip,
 
-	if Success then
-		SetVisibleHotbarIcon(Skin.Icon)
-	end
+		HandleSize =
+			Handle.Size,
 
-	return Success
+		MeshType =
+			Mesh.MeshType,
+
+		MeshId =
+			Mesh.MeshId,
+
+		MeshTextureId =
+			Mesh.TextureId,
+
+		MeshScale =
+			Mesh.Scale,
+
+		MeshOffset =
+			Mesh.Offset,
+	}
+
+	return true
 end
 
-local function ApplyKnifeSkinToTool(Knife, Skin)
+--============================================================
+-- SAVE ORIGINAL KNIFE DISPLAY
+--============================================================
+
+local function SaveOriginalKnifeBack(
+	Display
+)
+
+	if not Display
+		or SavedKnifeBackState[
+			Display
+		]
+	then
+		return false
+	end
+
+	local Mesh =
+		Display:FindFirstChildOfClass(
+			"SpecialMesh"
+		)
+
+	local Attachment =
+		Display:FindFirstChildOfClass(
+			"Attachment"
+		)
+
+	SavedKnifeBackState[
+		Display
+	] = {
+		Size =
+			Display.Size,
+
+		Transparency =
+			Display.Transparency,
+
+		Massless =
+			Display.Massless,
+
+		CanCollide =
+			Display.CanCollide,
+
+		MeshType =
+			Mesh
+			and Mesh.MeshType,
+
+		MeshId =
+			Mesh
+			and Mesh.MeshId,
+
+		TextureId =
+			Mesh
+			and Mesh.TextureId,
+
+		Scale =
+			Mesh
+			and Mesh.Scale,
+
+		Offset =
+			Mesh
+			and Mesh.Offset,
+
+		AttachmentCFrame =
+			Attachment
+			and Attachment.CFrame,
+	}
+
+	return true
+end
+
+--============================================================
+-- APPLY KNIFE TOOL
+--============================================================
+
+local function ApplyKnifeSkinToTool(
+	Knife,
+	Skin
+)
+
 	if not Knife
 		or not Skin
 		or not Knife:IsA("Tool")
@@ -1196,385 +1148,1078 @@ local function ApplyKnifeSkinToTool(Knife, Skin)
 		return false
 	end
 
-	local Handle = Knife:FindFirstChild("Handle")
-	if not Handle or not Handle:IsA("BasePart") then
+	local Handle =
+		Knife:FindFirstChild(
+			"Handle"
+		)
+
+	if not Handle
+		or not Handle:IsA(
+			"BasePart"
+		)
+	then
 		return false
 	end
 
-	local Mesh = Handle:FindFirstChildOfClass("SpecialMesh")
+	local Mesh =
+		Handle:FindFirstChildOfClass(
+			"SpecialMesh"
+		)
+
 	if not Mesh then
 		return false
 	end
 
-	SaveOriginalKnife(Knife)
+	SaveOriginalKnife(
+		Knife
+	)
 
-	local Success = pcall(function()
-		Knife.TextureId = Skin.Icon
-		Knife.Grip = Skin.Grip
-		Handle.Size = Skin.Size
-		Mesh.MeshType = Enum.MeshType.FileMesh
-		Mesh.MeshId = Skin.MeshId
-		Mesh.TextureId = Skin.TextureId
-		Mesh.Scale = Skin.Scale
-		Mesh.Offset = Vector3.new(0, 0, 0)
-	end)
+	local Success =
+		pcall(function()
 
-	if Success then
-		SetVisibleHotbarIcon(Skin.Icon)
-	end
+			Knife.TextureId =
+				Skin.Icon
+
+			Knife.Grip =
+				Skin.Grip
+
+			Handle.Size =
+				Skin.Size
+
+			Mesh.MeshType =
+				Enum.MeshType.FileMesh
+
+			Mesh.MeshId =
+				Skin.MeshId
+
+			Mesh.TextureId =
+				Skin.TextureId
+
+			Mesh.Scale =
+				Skin.Scale
+
+			Mesh.Offset =
+				Vector3.new(
+					0,
+					0,
+					0
+				)
+		end)
+
+	SetVisibleHotbarIcon(
+		Skin.Icon
+	)
 
 	return Success
 end
 
 --============================================================
--- APPLY DISPLAY SKINS
+-- APPLY KNIFE TO BACK DISPLAY
 --============================================================
 
-local function ApplyGunSkinToHolster(Skin)
+local function ApplyKnifeSkinToBack(
+	Skin
+)
+
 	if not Skin then
 		return false
 	end
 
-	local Display = FindLocalGunDisplay()
+	local Display =
+		FindLocalKnifeDisplay()
+
 	if not Display then
 		return false
 	end
 
-	SaveOriginalHolster(Display)
+	SaveOriginalKnifeBack(
+		Display
+	)
 
-	local Mesh = Display:FindFirstChildOfClass("SpecialMesh")
-	local Attachment = Display:FindFirstChildOfClass("Attachment")
+	local Mesh =
+		Display:FindFirstChildOfClass(
+			"SpecialMesh"
+		)
 
-	return pcall(function()
-		Display.Size = Skin.Size
-		Display.Transparency = 0
-		Display.Massless = true
-		Display.CanCollide = false
+	local Attachment =
+		Display:FindFirstChildOfClass(
+			"Attachment"
+		)
 
-		if Mesh then
-			Mesh.MeshType = Enum.MeshType.FileMesh
-			Mesh.MeshId = Skin.MeshId
-			Mesh.TextureId = Skin.TextureId
-			Mesh.Scale = Skin.Scale
-			Mesh.Offset = Vector3.new(0, 0, 0)
-		end
+	local Success =
+		pcall(function()
 
-		if Attachment and Skin.HolsterCFrame then
-			Attachment.CFrame = Skin.HolsterCFrame
-		end
-	end)
-end
+			Display.Size =
+				Skin.Size
 
-local function ApplyKnifeSkinToBack(Skin)
-	if not Skin then
-		return false
-	end
+			Display.Transparency =
+				0
 
-	local Display = FindLocalKnifeDisplay()
-	if not Display then
-		return false
-	end
+			Display.CanCollide =
+				false
 
-	SaveOriginalKnifeBack(Display)
+			Display.Massless =
+				true
 
-	local Mesh = Display:FindFirstChildOfClass("SpecialMesh")
-	local Attachment = Display:FindFirstChildOfClass("Attachment")
+			if Mesh then
+				Mesh.MeshType =
+					Enum.MeshType.FileMesh
 
-	return pcall(function()
-		Display.Size = Skin.Size
-		Display.Transparency = 0
-		Display.Massless = true
-		Display.CanCollide = false
+				Mesh.MeshId =
+					Skin.MeshId
 
-		if Mesh then
-			Mesh.MeshType = Enum.MeshType.FileMesh
-			Mesh.MeshId = Skin.MeshId
-			Mesh.TextureId = Skin.TextureId
-			Mesh.Scale = Skin.Scale
-			Mesh.Offset = Vector3.new(0, 0, 0)
-		end
+				Mesh.TextureId =
+					Skin.TextureId
 
-		if Attachment and Skin.BackCFrame then
-			Attachment.CFrame = Skin.BackCFrame
-		end
-	end)
-end
+				Mesh.Scale =
+					Skin.Scale
 
---============================================================
--- RESTORE TOOLS
---============================================================
+				Mesh.Offset =
+					Vector3.new(
+						0,
+						0,
+						0
+					)
+			end
 
-local function RestoreGun(Gun)
-	if not Gun then
-		return false
-	end
-
-	local Original = SavedGunState[Gun]
-	if not Original then
-		return false
-	end
-
-	local Handle = Gun:FindFirstChild("Handle")
-	if not Handle then
-		return false
-	end
-
-	local Mesh = Handle:FindFirstChildOfClass("SpecialMesh")
-	if not Mesh then
-		return false
-	end
-
-	local Success = pcall(function()
-		Gun.TextureId = Original.TextureId
-		Gun.Grip = Original.Grip
-		Handle.Size = Original.HandleSize
-		Mesh.MeshType = Original.MeshType
-		Mesh.MeshId = Original.MeshId
-		Mesh.TextureId = Original.MeshTextureId
-		Mesh.Scale = Original.MeshScale
-		Mesh.Offset = Original.MeshOffset
-	end)
-
-	if Success then
-		SetVisibleHotbarIcon(Original.TextureId)
-	end
+			if Attachment
+				and Skin.BackCFrame
+			then
+				Attachment.CFrame =
+					Skin.BackCFrame
+			end
+		end)
 
 	return Success
 end
 
-local function RestoreKnife(Knife)
+--============================================================
+-- RESTORE KNIFE TOOL
+--============================================================
+
+local function RestoreKnife(
+	Knife
+)
+
 	if not Knife then
 		return false
 	end
 
-	local Original = SavedKnifeState[Knife]
+	local Original =
+		SavedKnifeState[
+			Knife
+		]
+
 	if not Original then
 		return false
 	end
 
-	local Handle = Knife:FindFirstChild("Handle")
+	local Handle =
+		Knife:FindFirstChild(
+			"Handle"
+		)
+
 	if not Handle then
 		return false
 	end
 
-	local Mesh = Handle:FindFirstChildOfClass("SpecialMesh")
+	local Mesh =
+		Handle:FindFirstChildOfClass(
+			"SpecialMesh"
+		)
+
 	if not Mesh then
 		return false
 	end
 
-	local Success = pcall(function()
-		Knife.TextureId = Original.TextureId
-		Knife.Grip = Original.Grip
-		Handle.Size = Original.HandleSize
-		Mesh.MeshType = Original.MeshType
-		Mesh.MeshId = Original.MeshId
-		Mesh.TextureId = Original.MeshTextureId
-		Mesh.Scale = Original.MeshScale
-		Mesh.Offset = Original.MeshOffset
-	end)
+	local Success =
+		pcall(function()
 
-	if Success then
-		SetVisibleHotbarIcon(Original.TextureId)
-	end
+			Knife.TextureId =
+				Original.TextureId
+
+			Knife.Grip =
+				Original.Grip
+
+			Handle.Size =
+				Original.HandleSize
+
+			Mesh.MeshType =
+				Original.MeshType
+
+			Mesh.MeshId =
+				Original.MeshId
+
+			Mesh.TextureId =
+				Original.MeshTextureId
+
+			Mesh.Scale =
+				Original.MeshScale
+
+			Mesh.Offset =
+				Original.MeshOffset
+		end)
+
+	SetVisibleHotbarIcon(
+		Original.TextureId
+	)
 
 	return Success
 end
 
 --============================================================
--- RESTORE DISPLAYS
+-- RESTORE KNIFE BACK
 --============================================================
-
-local function RestoreHolster()
-	local Display = FindLocalGunDisplay()
-	if not Display then
-		return false
-	end
-
-	local Original = SavedHolsterState[Display]
-	if not Original then
-		return false
-	end
-
-	local Mesh = Display:FindFirstChildOfClass("SpecialMesh")
-	local Attachment = Display:FindFirstChildOfClass("Attachment")
-
-	return pcall(function()
-		Display.Size = Original.Size
-		Display.Transparency = Original.Transparency
-		Display.Massless = Original.Massless
-		Display.CanCollide = Original.CanCollide
-
-		if Mesh then
-			if Original.MeshType then
-				Mesh.MeshType = Original.MeshType
-			end
-			Mesh.MeshId = Original.MeshId or ""
-			Mesh.TextureId = Original.TextureId or ""
-			Mesh.Scale = Original.Scale or Vector3.new(1, 1, 1)
-			Mesh.Offset = Original.Offset or Vector3.new(0, 0, 0)
-		end
-
-		if Attachment and Original.AttachmentCFrame then
-			Attachment.CFrame = Original.AttachmentCFrame
-		end
-	end)
-end
 
 local function RestoreKnifeBack()
-	local Display = FindLocalKnifeDisplay()
+
+	local Display =
+		FindLocalKnifeDisplay()
+
 	if not Display then
 		return false
 	end
 
-	local Original = SavedKnifeBackState[Display]
+	local Original =
+		SavedKnifeBackState[
+			Display
+		]
+
 	if not Original then
 		return false
 	end
 
-	local Mesh = Display:FindFirstChildOfClass("SpecialMesh")
-	local Attachment = Display:FindFirstChildOfClass("Attachment")
+	local Mesh =
+		Display:FindFirstChildOfClass(
+			"SpecialMesh"
+		)
+
+	local Attachment =
+		Display:FindFirstChildOfClass(
+			"Attachment"
+		)
 
 	return pcall(function()
-		Display.Size = Original.Size
-		Display.Transparency = Original.Transparency
-		Display.Massless = Original.Massless
-		Display.CanCollide = Original.CanCollide
+
+		Display.Size =
+			Original.Size
+
+		Display.Transparency =
+			Original.Transparency
+
+		Display.Massless =
+			Original.Massless
+
+		Display.CanCollide =
+			Original.CanCollide
 
 		if Mesh then
+
 			if Original.MeshType then
-				Mesh.MeshType = Original.MeshType
+				Mesh.MeshType =
+					Original.MeshType
 			end
-			Mesh.MeshId = Original.MeshId or ""
-			Mesh.TextureId = Original.TextureId or ""
-			Mesh.Scale = Original.Scale or Vector3.new(1, 1, 1)
-			Mesh.Offset = Original.Offset or Vector3.new(0, 0, 0)
+
+			Mesh.MeshId =
+				Original.MeshId
+				or ""
+
+			Mesh.TextureId =
+				Original.TextureId
+				or ""
+
+			Mesh.Scale =
+				Original.Scale
+				or Vector3.new(
+					1,
+					1,
+					1
+				)
+
+			Mesh.Offset =
+				Original.Offset
+				or Vector3.new(
+					0,
+					0,
+					0
+				)
 		end
 
-		if Attachment and Original.AttachmentCFrame then
-			Attachment.CFrame = Original.AttachmentCFrame
+		if Attachment
+			and Original.AttachmentCFrame
+		then
+			Attachment.CFrame =
+				Original.AttachmentCFrame
 		end
 	end)
 end
 
 --============================================================
--- APPLY CURRENT SELECTIONS
+-- APPLY CURRENT KNIFE SELECTION
 --============================================================
 
-local function ApplyCurrentGunSkin()
-	local Selected = SkinChanger.SelectedGun
-	local Gun = GetGun()
-
-	if Selected == "Default" then
-		if Gun then
-			RestoreGun(Gun)
-		end
-		RestoreHolster()
-		return
-	end
-
-	local Skin = GunSkins[Selected]
-	if not Skin then
-		return
-	end
-
-	if Gun then
-		CurrentGun = Gun
-		ApplyGunSkinToTool(Gun, Skin)
-	end
-
-	ApplyGunSkinToHolster(Skin)
-end
-
 local function ApplyCurrentKnifeSkin()
-	local Selected = SkinChanger.SelectedKnife
-	local Knife = GetKnife()
 
-	if Selected == "Default" then
+	local Selected =
+		SkinChanger.SelectedKnife
+
+	local Knife =
+		GetKnife()
+
+	if Selected
+		== "Default"
+	then
 		if Knife then
-			RestoreKnife(Knife)
+			RestoreKnife(
+				Knife
+			)
 		end
+
 		RestoreKnifeBack()
+
 		return
 	end
 
-	local Skin = KnifeSkins[Selected]
+	local Skin =
+		KnifeSkins[
+			Selected
+		]
+
 	if not Skin then
 		return
 	end
 
 	if Knife then
-		CurrentKnife = Knife
-		ApplyKnifeSkinToTool(Knife, Skin)
+		CurrentKnife =
+			Knife
+
+		ApplyKnifeSkinToTool(
+			Knife,
+			Skin
+		)
 	end
 
-	ApplyKnifeSkinToBack(Skin)
+	ApplyKnifeSkinToBack(
+		Skin
+	)
 end
 
-SkinChanger.ApplyCurrentGunSkin = ApplyCurrentGunSkin
-SkinChanger.ApplyCurrentKnifeSkin = ApplyCurrentKnifeSkin
+SkinChanger.ApplyCurrentKnifeSkin =
+	ApplyCurrentKnifeSkin
+
+--============================================================
+-- SELECT KNIFE
+--============================================================
+
+local function SelectKnifeSkin(
+	Value,
+	ShowNotification
+)
+
+	if type(Value)
+		~= "string"
+	then
+		return
+	end
+
+	if Value ~= "Default"
+		and not KnifeSkins[
+			Value
+		]
+	then
+		return
+	end
+
+	local Changed =
+		Value
+		~= SkinChanger.SelectedKnife
+
+	SkinChanger.SelectedKnife =
+		Value
+
+	ApplyCurrentKnifeSkin()
+
+	if not ShowNotification
+		or not Changed
+	then
+		return
+	end
+
+	if Value == "Default" then
+		NotifySkinChanger(
+			"Default Knife Equipped"
+		)
+	else
+		NotifySkinChanger(
+			Value
+			.. " Equipped"
+		)
+	end
+end
+
+SkinChanger.SelectKnifeSkin =
+	SelectKnifeSkin
+--============================================================
+-- NOTIFICATION
+--
+-- Only called from MANUAL dropdown selection.
+-- Background reapplication never calls this.
+--============================================================
+
+local function NotifySkinChanger(
+	Message
+)
+
+	pcall(function()
+		UI.WindUI:Notify({
+			Title = "Skin Changer",
+			Content = tostring(
+				Message or ""
+			),
+			Icon = "palette",
+			Duration = 2.5,
+		})
+	end)
+end
+
+--============================================================
+-- CURRENT GUN
+--============================================================
+
+local function GetGun()
+
+	local Character =
+		LocalPlayer.Character
+	local BackpackGun =
+		Backpack:FindFirstChild(
+			"Gun"
+		)
+	if BackpackGun
+		and BackpackGun:IsA("Tool")
+	then
+		return BackpackGun
+	end
+	local CharacterGun =
+		Character
+		and Character:FindFirstChild(
+			"Gun"
+		)
+	if CharacterGun
+		and CharacterGun:IsA("Tool")
+	then
+		return CharacterGun
+	end
+	return nil
+end
+
+--============================================================
+-- SAVE ORIGINAL GUN
+--============================================================
+
+local function SaveOriginalGun(
+	Gun
+)
+
+	if not Gun
+		or SavedGunState[Gun]
+	then
+		return false
+	end
+	local Handle =
+		Gun:FindFirstChild(
+			"Handle"
+		)
+	if not Handle
+		or not Handle:IsA("BasePart")
+	then
+		return false
+	end
+	local Mesh =
+		Handle:FindFirstChildOfClass(
+			"SpecialMesh"
+		)
+	if not Mesh then
+		return false
+	end
+	SavedGunState[Gun] = {
+		TextureId =
+			Gun.TextureId,
+		Grip =
+			Gun.Grip,
+		HandleSize =
+			Handle.Size,
+		MeshType =
+			Mesh.MeshType,
+		MeshId =
+			Mesh.MeshId,
+		MeshTextureId =
+			Mesh.TextureId,
+		MeshScale =
+			Mesh.Scale,
+		MeshOffset =
+			Mesh.Offset,
+	}
+	return true
+end
+
+--============================================================
+-- VISIBLE MM2 HOTBAR
+--============================================================
+
+local function GetVisibleToolIcon()
+
+	local BackpackUI =
+		PlayerGui:FindFirstChild(
+			"BackpackUI"
+		)
+	if not BackpackUI then
+		return nil
+	end
+	local BackpackFrame =
+		BackpackUI:FindFirstChild(
+			"BackpackFrame"
+		)
+	if not BackpackFrame then
+		return nil
+	end
+	local BackpackItem =
+		BackpackFrame:FindFirstChild(
+			"BackpackItem"
+		)
+	if not BackpackItem then
+		return nil
+	end
+	local Container =
+		BackpackItem:FindFirstChild(
+			"Container"
+		)
+	if not Container then
+		return nil
+	end
+	local ToolIcon =
+		Container:FindFirstChild(
+			"ToolIcon"
+		)
+	if ToolIcon
+		and (
+			ToolIcon:IsA("ImageLabel")
+			or ToolIcon:IsA("ImageButton")
+		)
+	then
+		return ToolIcon
+	end
+	return nil
+end
+
+local function SetVisibleHotbarIcon(
+	Image
+)
+
+	local ToolIcon =
+		GetVisibleToolIcon()
+	if not ToolIcon then
+		return false
+	end
+	local Success =
+		pcall(function()
+			ToolIcon.Image =
+				tostring(
+					Image or ""
+				)
+		end)
+	return Success
+end
+
+--============================================================
+-- FIND LOCAL MM2 GUN DISPLAY
+--============================================================
+
+local function GetGunBelt()
+
+	local Character =
+		LocalPlayer.Character
+	if not Character then
+		return nil
+	end
+	local LowerTorso =
+		Character:FindFirstChild(
+			"LowerTorso"
+		)
+	if not LowerTorso then
+		return nil
+	end
+	return LowerTorso:FindFirstChild(
+		"GunBelt"
+	)
+end
+
+local function IsLocalGunDisplay(
+	Display
+)
+
+	if not Display
+		or not Display:IsA("BasePart")
+	then
+		return false
+	end
+	local GunBelt =
+		GetGunBelt()
+	if not GunBelt then
+		return false
+	end
+	for _,Descendant
+		in ipairs(
+			Display:GetDescendants()
+		)
+	do
+		if Descendant:IsA(
+			"RigidConstraint"
+		)
+		then
+			if Descendant.Attachment0
+					== GunBelt
+				or Descendant.Attachment1
+					== GunBelt
+			then
+				return true
+			end
+		end
+	end
+	return false
+end
+
+local function FindLocalGunDisplay()
+
+	local WeaponDisplays =
+		Workspace:FindFirstChild(
+			"WeaponDisplays"
+		)
+	if not WeaponDisplays then
+		return nil
+	end
+	for _,Child
+		in ipairs(
+			WeaponDisplays:GetChildren()
+		)
+	do
+		if Child.Name
+				== "GunDisplay"
+			and Child:IsA(
+				"BasePart"
+			)
+			and IsLocalGunDisplay(
+				Child
+			)
+		then
+			return Child
+		end
+	end
+	return nil
+end
+
+--============================================================
+-- SAVE ORIGINAL HOLSTER
+--============================================================
+
+local function SaveOriginalHolster(
+	Display
+)
+
+	if not Display
+		or SavedHolsterState[Display]
+	then
+		return false
+	end
+	local Mesh =
+		Display:FindFirstChildOfClass(
+			"SpecialMesh"
+		)
+	local Attachment =
+		Display:FindFirstChildOfClass(
+			"Attachment"
+		)
+	SavedHolsterState[Display] = {
+		Size =
+			Display.Size,
+		Transparency =
+			Display.Transparency,
+		Massless =
+			Display.Massless,
+		CanCollide =
+			Display.CanCollide,
+		MeshType =
+			Mesh
+			and Mesh.MeshType,
+		MeshId =
+			Mesh
+			and Mesh.MeshId,
+		TextureId =
+			Mesh
+			and Mesh.TextureId,
+		Scale =
+			Mesh
+			and Mesh.Scale,
+		Offset =
+			Mesh
+			and Mesh.Offset,
+		AttachmentCFrame =
+			Attachment
+			and Attachment.CFrame,
+	}
+	return true
+end
+
+--============================================================
+-- APPLY GUN SKIN TO HELD / BACKPACK TOOL
+--============================================================
+
+local function ApplyGunSkinToTool(
+	Gun,
+	Skin
+)
+
+	if not Gun
+		or not Skin
+		or not Gun:IsA("Tool")
+		or Gun.Name ~= "Gun"
+	then
+		return false
+	end
+	local Handle =
+		Gun:FindFirstChild(
+			"Handle"
+		)
+	if not Handle
+		or not Handle:IsA("BasePart")
+	then
+		return false
+	end
+	local Mesh =
+		Handle:FindFirstChildOfClass(
+			"SpecialMesh"
+		)
+	if not Mesh then
+		return false
+	end
+	SaveOriginalGun(
+		Gun
+	)
+	local Success =
+		pcall(function()
+			Gun.TextureId =
+				Skin.Icon
+			Gun.Grip =
+				Skin.Grip
+			Handle.Size =
+				Skin.Size
+			Mesh.MeshType =
+				Enum.MeshType.FileMesh
+			Mesh.MeshId =
+				Skin.MeshId
+			Mesh.TextureId =
+				Skin.TextureId
+			Mesh.Scale =
+				Skin.Scale
+			Mesh.Offset =
+				Vector3.new(
+					0,
+					0,
+					0
+				)
+		end)
+	SetVisibleHotbarIcon(
+		Skin.Icon
+	)
+	return Success
+end
+
+--============================================================
+-- APPLY GUN SKIN TO REAL MM2 HOLSTER
+--============================================================
+
+local function ApplyGunSkinToHolster(
+	Skin
+)
+
+	if not Skin then
+		return false
+	end
+	local Display =
+		FindLocalGunDisplay()
+	if not Display then
+		return false
+	end
+	SaveOriginalHolster(
+		Display
+	)
+	local Mesh =
+		Display:FindFirstChildOfClass(
+			"SpecialMesh"
+		)
+	local Attachment =
+		Display:FindFirstChildOfClass(
+			"Attachment"
+		)
+	local Success =
+		pcall(function()
+			Display.Size =
+				Skin.Size
+			Display.Transparency =
+				0
+			Display.Massless =
+				true
+			Display.CanCollide =
+				false
+			if Mesh then
+				Mesh.MeshType =
+					Enum.MeshType.FileMesh
+				Mesh.MeshId =
+					Skin.MeshId
+				Mesh.TextureId =
+					Skin.TextureId
+				Mesh.Scale =
+					Skin.Scale
+				Mesh.Offset =
+					Vector3.new(
+						0,
+						0,
+						0
+					)
+			end
+			if Attachment
+				and Skin.HolsterCFrame
+			then
+				Attachment.CFrame =
+					Skin.HolsterCFrame
+			end
+		end)
+	return Success
+end
+
+--============================================================
+-- RESTORE GUN
+--============================================================
+
+local function RestoreGun(
+	Gun
+)
+
+	if not Gun then
+		return false
+	end
+	local Original =
+		SavedGunState[Gun]
+	if not Original then
+		return false
+	end
+	local Handle =
+		Gun:FindFirstChild(
+			"Handle"
+		)
+	if not Handle then
+		return false
+	end
+	local Mesh =
+		Handle:FindFirstChildOfClass(
+			"SpecialMesh"
+		)
+	if not Mesh then
+		return false
+	end
+	local Success =
+		pcall(function()
+			Gun.TextureId =
+				Original.TextureId
+			Gun.Grip =
+				Original.Grip
+			Handle.Size =
+				Original.HandleSize
+			Mesh.MeshType =
+				Original.MeshType
+			Mesh.MeshId =
+				Original.MeshId
+			Mesh.TextureId =
+				Original.MeshTextureId
+			Mesh.Scale =
+				Original.MeshScale
+			Mesh.Offset =
+				Original.MeshOffset
+		end)
+	SetVisibleHotbarIcon(
+		Original.TextureId
+	)
+	return Success
+end
+
+--============================================================
+-- RESTORE HOLSTER
+--============================================================
+
+local function RestoreHolster()
+
+	local Display =
+		FindLocalGunDisplay()
+	if not Display then
+		return false
+	end
+	local Original =
+		SavedHolsterState[Display]
+	if not Original then
+		return false
+	end
+	local Mesh =
+		Display:FindFirstChildOfClass(
+			"SpecialMesh"
+		)
+	local Attachment =
+		Display:FindFirstChildOfClass(
+			"Attachment"
+		)
+	local Success =
+		pcall(function()
+			Display.Size =
+				Original.Size
+			Display.Transparency =
+				Original.Transparency
+			Display.Massless =
+				Original.Massless
+			Display.CanCollide =
+				Original.CanCollide
+			if Mesh then
+				if Original.MeshType then
+					Mesh.MeshType =
+						Original.MeshType
+				end
+				Mesh.MeshId =
+					Original.MeshId
+					or ""
+				Mesh.TextureId =
+					Original.TextureId
+					or ""
+				Mesh.Scale =
+					Original.Scale
+					or Vector3.new(
+						1,
+						1,
+						1
+					)
+				Mesh.Offset =
+					Original.Offset
+					or Vector3.new(
+						0,
+						0,
+						0
+					)
+			end
+			if Attachment
+				and Original.AttachmentCFrame
+			then
+				Attachment.CFrame =
+					Original.AttachmentCFrame
+			end
+		end)
+	return Success
+end
+
+--============================================================
+-- APPLY CURRENT SELECTION
+--============================================================
+
+local function ApplyCurrentGunSkin()
+
+	local Selected =
+		SkinChanger.SelectedGun
+	local Gun =
+		GetGun()
+	if Selected
+		== "Default"
+	then
+		if Gun then
+			RestoreGun(
+				Gun
+			)
+		end
+		RestoreHolster()
+		return
+	end
+	local Skin =
+		GunSkins[
+			Selected
+		]
+	if not Skin then
+		return
+	end
+	if Gun then
+		CurrentGun =
+			Gun
+		ApplyGunSkinToTool(
+			Gun,
+			Skin
+		)
+	end
+	ApplyGunSkinToHolster(
+		Skin
+	)
+end
+
+SkinChanger.ApplyCurrentGunSkin =
+	ApplyCurrentGunSkin
 
 --============================================================
 -- MANUAL SELECTION
 --============================================================
 
-local function SelectGunSkin(Value, ShowNotification)
-	if type(Value) ~= "string" then
+local function SelectGunSkin(
+	Value,
+	ShowNotification
+)
+
+	if type(Value)
+		~= "string"
+	then
 		return
 	end
-
-	if Value ~= "Default" and not GunSkins[Value] then
+	if Value ~= "Default"
+		and not GunSkins[Value]
+	then
 		return
 	end
-
-	local Changed = Value ~= SkinChanger.SelectedGun
-	SkinChanger.SelectedGun = Value
-
+	local Changed =
+		Value
+		~= SkinChanger.SelectedGun
+	SkinChanger.SelectedGun =
+		Value
 	ApplyCurrentGunSkin()
-
-	if not ShowNotification or not Changed then
+	if not ShowNotification
+		or not Changed
+	then
 		return
 	end
-
 	if Value == "Default" then
-		NotifySkinChanger("Default Gun Equipped")
+		NotifySkinChanger(
+			"Default Gun Equipped"
+		)
 	else
-		NotifySkinChanger(Value .. " Equipped")
+		NotifySkinChanger(
+			Value
+			.. " Equipped"
+		)
 	end
 end
 
-local function SelectKnifeSkin(Value, ShowNotification)
-	if type(Value) ~= "string" then
-		return
-	end
-
-	if Value ~= "Default" and not KnifeSkins[Value] then
-		return
-	end
-
-	local Changed = Value ~= SkinChanger.SelectedKnife
-	SkinChanger.SelectedKnife = Value
-
-	ApplyCurrentKnifeSkin()
-
-	if not ShowNotification or not Changed then
-		return
-	end
-
-	if Value == "Default" then
-		NotifySkinChanger("Default Knife Equipped")
-	else
-		NotifySkinChanger(Value .. " Equipped")
-	end
-end
-
-SkinChanger.SelectGunSkin = SelectGunSkin
-SkinChanger.SelectKnifeSkin = SelectKnifeSkin
+SkinChanger.SelectGunSkin =
+	SelectGunSkin
 
 --============================================================
 -- WINDUI
+--
+-- IMPORTANT:
+-- UI IS CREATED BEFORE ANY PERSISTENCE WATCHERS.
 --============================================================
 
-print("[SkinChanger] Creating UI...")
+print(
+	"[SkinChanger] Creating UI..."
+)
 
 local GunSection =
 	UI.AddSection(
@@ -1584,7 +2229,9 @@ local GunSection =
 	)
 
 if not GunSection then
-	warn("[SkinChanger] Failed to create Gun section")
+	warn(
+		"[SkinChanger] Failed to create Gun section"
+	)
 end
 
 local GunDropdown =
@@ -1595,23 +2242,30 @@ local GunDropdown =
 		GunSkinOrder,
 		SkinChanger.SelectedGun,
 		function(Value)
-			SelectGunSkin(Value, true)
+			SelectGunSkin(
+				Value,
+				true
+			)
 		end
 	)
 
 if not GunDropdown then
-	warn("[SkinChanger] Failed to create Gun dropdown")
+	warn(
+		"[SkinChanger] Failed to create Gun dropdown"
+	)
 end
 
 local KnifeSection =
 	UI.AddSection(
 		UI.SkinChangerPage,
 		"Knife",
-		"Change the appearance of your knife"
+		"Knife skins will be added next"
 	)
 
 if not KnifeSection then
-	warn("[SkinChanger] Failed to create Knife section")
+	warn(
+		"[SkinChanger] Failed to create Knife section"
+	)
 end
 
 local KnifeDropdown =
@@ -1619,56 +2273,71 @@ local KnifeDropdown =
 		UI.SkinChangerPage,
 		"Knife Skin",
 		"Select a knife skin",
-		KnifeSkinOrder,
+		{
+			"Default",
+		},
 		SkinChanger.SelectedKnife,
 		function(Value)
-			SelectKnifeSkin(Value, true)
+			if type(Value)
+				== "string"
+			then
+				SkinChanger.SelectedKnife =
+					Value
+			end
 		end
 	)
 
 if not KnifeDropdown then
-	warn("[SkinChanger] Failed to create Knife dropdown")
+	warn(
+		"[SkinChanger] Failed to create Knife dropdown"
+	)
 end
 
-print("[SkinChanger] UI created successfully")
+print(
+	"[SkinChanger] UI created successfully"
+)
 
 --============================================================
--- TOOL WATCHING
+-- GUN WATCHING
 --============================================================
 
-local function WatchGun(Gun)
+local function WatchGun(
+	Gun
+)
+
 	if not Gun
 		or not Gun:IsA("Tool")
 		or Gun.Name ~= "Gun"
 	then
 		return
 	end
-
 	if CurrentGun == Gun then
 		return
 	end
-
-	CurrentGun = Gun
-
+	CurrentGun =
+		Gun
 	task.defer(function()
-		task.wait(0.15)
+		task.wait(
+			0.15
+		)
 		if Gun.Parent then
 			ApplyCurrentGunSkin()
 		end
 	end)
-
 	Track(
 		Gun.AncestryChanged:
 		Connect(function()
 			task.defer(function()
-				task.wait(0.05)
-
+				task.wait(
+					0.05
+				)
 				if not Gun.Parent then
 					return
 				end
-
-				if Gun.Parent == Backpack
-					or Gun.Parent == LocalPlayer.Character
+				if Gun.Parent
+						== Backpack
+					or Gun.Parent
+						== LocalPlayer.Character
 				then
 					ApplyCurrentGunSkin()
 				end
@@ -1677,56 +2346,17 @@ local function WatchGun(Gun)
 	)
 end
 
-local function WatchKnife(Knife)
-	if not Knife
-		or not Knife:IsA("Tool")
-		or Knife.Name ~= "Knife"
+local function CheckChild(
+	Child
+)
+
+	if Child
+		and Child:IsA("Tool")
+		and Child.Name == "Gun"
 	then
-		return
-	end
-
-	if CurrentKnife == Knife then
-		return
-	end
-
-	CurrentKnife = Knife
-
-	task.defer(function()
-		task.wait(0.15)
-		if Knife.Parent then
-			ApplyCurrentKnifeSkin()
-		end
-	end)
-
-	Track(
-		Knife.AncestryChanged:
-		Connect(function()
-			task.defer(function()
-				task.wait(0.05)
-
-				if not Knife.Parent then
-					return
-				end
-
-				if Knife.Parent == Backpack
-					or Knife.Parent == LocalPlayer.Character
-				then
-					ApplyCurrentKnifeSkin()
-				end
-			end)
-		end)
-	)
-end
-
-local function CheckChild(Child)
-	if not Child or not Child:IsA("Tool") then
-		return
-	end
-
-	if Child.Name == "Gun" then
-		WatchGun(Child)
-	elseif Child.Name == "Knife" then
-		WatchKnife(Child)
+		WatchGun(
+			Child
+		)
 	end
 end
 
@@ -1734,26 +2364,31 @@ end
 -- CHARACTER WATCHING
 --============================================================
 
-local function HookCharacter(Character)
+local function HookCharacter(
+	Character
+)
+
 	if not Character then
 		return
 	end
-
 	Track(
 		Character.ChildAdded:
-		Connect(function(Child)
-			CheckChild(Child)
+		Connect(function(
+			Child
+		)
+			CheckChild(
+				Child
+			)
 		end)
 	)
-
-	local Gun = Character:FindFirstChild("Gun")
+	local Gun =
+		Character:FindFirstChild(
+			"Gun"
+		)
 	if Gun then
-		WatchGun(Gun)
-	end
-
-	local Knife = Character:FindFirstChild("Knife")
-	if Knife then
-		WatchKnife(Knife)
+		WatchGun(
+			Gun
+		)
 	end
 end
 
@@ -1762,30 +2397,40 @@ end
 --============================================================
 
 local HookedWeaponDisplays =
-	setmetatable({}, {__mode = "k"})
+	setmetatable(
+		{},
+		{
+			__mode = "k"
+		}
+	)
 
-local function HookWeaponDisplays(WeaponDisplays)
+local function HookWeaponDisplays(
+	WeaponDisplays
+)
+
 	if not WeaponDisplays
-		or HookedWeaponDisplays[WeaponDisplays]
+		or HookedWeaponDisplays[
+			WeaponDisplays
+		]
 	then
 		return
 	end
-
-	HookedWeaponDisplays[WeaponDisplays] = true
-
+	HookedWeaponDisplays[
+		WeaponDisplays
+	] = true
 	Track(
 		WeaponDisplays.DescendantAdded:
 		Connect(function()
+			if SkinChanger.SelectedGun
+				== "Default"
+			then
+				return
+			end
 			task.defer(function()
-				task.wait(0.10)
-
-				if SkinChanger.SelectedGun ~= "Default" then
-					ApplyCurrentGunSkin()
-				end
-
-				if SkinChanger.SelectedKnife ~= "Default" then
-					ApplyCurrentKnifeSkin()
-				end
+				task.wait(
+					0.10
+				)
+				ApplyCurrentGunSkin()
 			end)
 		end)
 	)
@@ -1795,89 +2440,97 @@ end
 -- START WATCHERS
 --============================================================
 
-local WatcherOK, WatcherError =
+local WatcherOK,WatcherError =
 	pcall(function()
-
 		Track(
 			Backpack.ChildAdded:
-			Connect(function(Child)
-				CheckChild(Child)
+			Connect(function(
+				Child
+			)
+				CheckChild(
+					Child
+				)
 			end)
 		)
-
 		if LocalPlayer.Character then
-			HookCharacter(LocalPlayer.Character)
+			HookCharacter(
+				LocalPlayer.Character
+			)
 		end
-
 		Track(
 			LocalPlayer.CharacterAdded:
-			Connect(function(Character)
-
-				CurrentGun = nil
-				CurrentKnife = nil
-
-				HookCharacter(Character)
-
+			Connect(function(
+				Character
+			)
+				CurrentGun =
+					nil
+				HookCharacter(
+					Character
+				)
 				task.defer(function()
-					task.wait(0.5)
+					task.wait(
+						0.5
+					)
 					ApplyCurrentGunSkin()
-					ApplyCurrentKnifeSkin()
 				end)
 			end)
 		)
-
 		Track(
 			PlayerGui.DescendantAdded:
-			Connect(function(Descendant)
-
-				if Descendant.Name ~= "ToolIcon" then
+			Connect(function(
+				Descendant
+			)
+				if Descendant.Name
+					~= "ToolIcon"
+				then
 					return
 				end
-
 				if not (
-					Descendant:IsA("ImageLabel")
-					or Descendant:IsA("ImageButton")
+					Descendant:IsA(
+						"ImageLabel"
+					)
+					or Descendant:IsA(
+						"ImageButton"
+					)
 				)
 				then
 					return
 				end
-
 				task.defer(function()
-					task.wait(0.05)
-
-					local Knife = GetKnife()
-					local Gun = GetGun()
-
-					if Knife and SkinChanger.SelectedKnife ~= "Default" then
-						ApplyCurrentKnifeSkin()
-					elseif Gun and SkinChanger.SelectedGun ~= "Default" then
-						ApplyCurrentGunSkin()
-					end
+					task.wait(
+						0.05
+					)
+					ApplyCurrentGunSkin()
 				end)
 			end)
 		)
-
 		local WeaponDisplays =
-			Workspace:FindFirstChild("WeaponDisplays")
-
+			Workspace:FindFirstChild(
+				"WeaponDisplays"
+			)
 		if WeaponDisplays then
-			HookWeaponDisplays(WeaponDisplays)
+			HookWeaponDisplays(
+				WeaponDisplays
+			)
 		end
-
 		Track(
 			Workspace.ChildAdded:
-			Connect(function(Child)
-
-				if Child.Name ~= "WeaponDisplays" then
+			Connect(function(
+				Child
+			)
+				if Child.Name
+					~= "WeaponDisplays"
+				then
 					return
 				end
-
-				HookWeaponDisplays(Child)
-
+				HookWeaponDisplays(
+					Child
+				)
 				task.defer(function()
-					task.wait(0.25)
+					task.wait(
+						0.25
+					)
 					ApplyCurrentGunSkin()
-					ApplyCurrentKnifeSkin()
 				end)
 			end)
 		)
@@ -1889,7 +2542,9 @@ if not WatcherOK then
 		WatcherError
 	)
 else
-	print("[SkinChanger] Watchers started")
+	print(
+		"[SkinChanger] Watchers started"
+	)
 end
 
 --============================================================
@@ -1899,54 +2554,49 @@ end
 task.spawn(function()
 
 	while MM2.Running do
-
-		task.wait(0.25)
-
-		local Gun = GetGun()
-		local Knife = GetKnife()
-
-		if Gun and Gun ~= CurrentGun then
-			WatchGun(Gun)
+		task.wait(
+			0.25
+		)
+		local Gun =
+			GetGun()
+		if Gun
+			and Gun ~= CurrentGun
+		then
+			WatchGun(
+				Gun
+			)
 		end
-
-		if Knife and Knife ~= CurrentKnife then
-			WatchKnife(Knife)
-		end
-
-		if SkinChanger.SelectedGun ~= "Default" then
-			pcall(ApplyCurrentGunSkin)
-		end
-
-		if SkinChanger.SelectedKnife ~= "Default" then
-			pcall(ApplyCurrentKnifeSkin)
+		if SkinChanger.SelectedGun
+			~= "Default"
+		then
+			pcall(
+				ApplyCurrentGunSkin
+			)
 		end
 	end
 end)
 
 --============================================================
--- EXISTING TOOLS
+-- EXISTING GUN
 --============================================================
 
-local ExistingGun = GetGun()
+local ExistingGun =
+	GetGun()
 
 if ExistingGun then
 	task.defer(function()
-		task.wait(0.25)
-		WatchGun(ExistingGun)
+		task.wait(
+			0.25
+		)
+		WatchGun(
+			ExistingGun
+		)
 		ApplyCurrentGunSkin()
 	end)
 end
 
-local ExistingKnife = GetKnife()
-
-if ExistingKnife then
-	task.defer(function()
-		task.wait(0.25)
-		WatchKnife(ExistingKnife)
-		ApplyCurrentKnifeSkin()
-	end)
-end
-
-print("[Blizzard MM2] SkinChanger.lua loaded")
+print(
+	"[Blizzard MM2] SkinChanger.lua loaded"
+)
 
 return MM2
