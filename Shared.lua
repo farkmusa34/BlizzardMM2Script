@@ -14,10 +14,8 @@ local PreviousMM2 =
 
 if PreviousMM2 then
 
-	-- Stop old task.spawn / while loops.
 	PreviousMM2.Running = false
 
-	-- Disconnect old tracked events.
 	if PreviousMM2.Connections then
 		for _,connection in ipairs(
 			PreviousMM2.Connections
@@ -28,7 +26,6 @@ if PreviousMM2 then
 		end
 	end
 
-	-- Clear old ESP / visual objects.
 	if PreviousMM2.Functions then
 
 		if PreviousMM2.Functions.ClearPlayerESP then
@@ -64,7 +61,6 @@ if PreviousMM2 then
 		end)
 	end
 
-	-- Give old loops one scheduler cycle to see Running == false.
 	task.wait()
 end
 
@@ -158,8 +154,6 @@ MM2.Flags = {
 MM2.Config = {
 	MAX_ESP_DISTANCE = 2000,
 
-	-- Successful role polls must remain empty this long before
-	-- Role ESP considers the round fully cleared.
 	ROLE_CLEAR_GRACE = 1.0,
 
 	KnifeNames = {
@@ -193,12 +187,13 @@ MM2.State = {
 	ServerSheriff = nil,
 	ServerHero = nil,
 
-	-- Role ESP lifecycle.
-	-- Driven by server role assignments rather than
-	-- CoinsStarted / VictoryScreen.
 	RoleRoundActive = false,
 	RoleRoundSignature = nil,
 	RoleRolesMissingSince = nil,
+
+	-- Startup/intermission protection.
+	RoleBootstrapSeen = false,
+	RoleInactiveSignature = nil,
 
 	SuppressStaleRoles = false,
 	StaleSpecialSignature = nil,
@@ -386,14 +381,12 @@ function MM2.IsActuallyVisible(guiObject)
 		if current:IsA("GuiObject")
 			and not current.Visible
 		then
-
 			return false
 		end
 
 		if current:IsA("LayerCollector")
 			and not current.Enabled
 		then
-
 			return false
 		end
 
@@ -430,7 +423,6 @@ function MM2.GetLocalCharacter()
 	if not humanoid
 		or not hrp
 	then
-
 		return nil
 	end
 
@@ -499,7 +491,6 @@ local function BeginRoleRound(
 			newCache
 		)
 
-	-- New role assignment = new participant generation.
 	State.PlayerOutOfRound =
 		{}
 
@@ -562,6 +553,10 @@ local function EndRoleRound()
 
 	State.StaleSpecialSignature =
 		nil
+
+	-- Makes the next new assignment detectable.
+	State.RoleInactiveSignature =
+		""
 end
 
 MM2.Functions.BeginRoleRound =
@@ -569,6 +564,58 @@ MM2.Functions.BeginRoleRound =
 
 MM2.Functions.EndRoleRound =
 	EndRoleRound
+
+--============================================================
+-- LIVE ROUND EVIDENCE
+--============================================================
+
+local function HasLiveRoundEvidence()
+
+	-- Active maps normally contain the round CoinContainer.
+	if workspace:FindFirstChild(
+		"CoinContainer",
+		true
+	) then
+		return true
+	end
+
+	-- Dropped gun = strong live-round evidence.
+	if workspace:FindFirstChild(
+		"GunDrop",
+		true
+	) then
+		return true
+	end
+
+	-- Equipped round weapon on a player.
+	for _,player in ipairs(
+		S.Players:GetPlayers()
+	) do
+
+		local char =
+			player.Character
+
+		if char then
+
+			for _,obj in ipairs(
+				char:GetChildren()
+			) do
+
+				if obj:IsA("Tool")
+					and (
+						MM2.Config.KnifeNames[obj.Name]
+						or MM2.Config.GunNames[obj.Name]
+					)
+				then
+
+					return true
+				end
+			end
+		end
+	end
+
+	return false
+end
 
 --============================================================
 -- SERVER ROLE CACHE
@@ -595,7 +642,6 @@ function MM2.UpdateServerRoles()
 			"RemoteFunction"
 		)
 	then
-
 		return
 	end
 
@@ -606,11 +652,9 @@ function MM2.UpdateServerRoles()
 				State.GetPlayerDataRemote:InvokeServer()
 		end)
 
-	-- Failed requests are not round-end signals.
 	if not success
 		or type(rawRoles) ~= "table"
 	then
-
 		return
 	end
 
@@ -660,22 +704,84 @@ function MM2.UpdateServerRoles()
 		)
 
 	--========================================================
-	-- NEW ROUND DETECTION
+	-- STARTUP / NEW ROUND DETECTION
 	--========================================================
 
-	if not State.RoleRoundActive
-		and newMurder ~= nil
-		and newSheriff ~= nil
-	then
+	if not State.RoleRoundActive then
 
-		BeginRoleRound(
-			newCache,
-			newMurder,
-			newSheriff,
-			newHero
-		)
+		local hasAssignedPair =
+			newMurder ~= nil
+			and newSheriff ~= nil
 
-		return
+		-- First successful role snapshot after script load.
+		if not State.RoleBootstrapSeen then
+
+			State.RoleBootstrapSeen =
+				true
+
+			State.RoleInactiveSignature =
+				sig
+
+			-- If we launched in the middle of a REAL active
+			-- round, world evidence allows immediate activation.
+			if hasAssignedPair
+				and HasLiveRoundEvidence()
+			then
+
+				BeginRoleRound(
+					newCache,
+					newMurder,
+					newSheriff,
+					newHero
+				)
+
+				return
+			end
+
+			-- Otherwise this may just be stale intermission data.
+			State.ServerRolesCache =
+				newCache
+
+			State.ServerMurder =
+				newMurder
+
+			State.ServerSheriff =
+				newSheriff
+
+			State.ServerHero =
+				newHero
+
+			return
+		end
+
+		-- Once startup is synchronized, a changed special-role
+		-- signature means a fresh role assignment appeared.
+		if hasAssignedPair then
+
+			local assignmentChanged =
+				sig
+				~= State.RoleInactiveSignature
+
+			local alreadyRunning =
+				HasLiveRoundEvidence()
+
+			if assignmentChanged
+				or alreadyRunning
+			then
+
+				BeginRoleRound(
+					newCache,
+					newMurder,
+					newSheriff,
+					newHero
+				)
+
+				return
+			end
+		end
+
+		State.RoleInactiveSignature =
+			sig
 	end
 
 	--========================================================
@@ -711,7 +817,6 @@ function MM2.UpdateServerRoles()
 
 		else
 
-			-- Require continuously missing roles before ending.
 			if not State.RoleRolesMissingSince then
 
 				State.RoleRolesMissingSince =
@@ -808,7 +913,6 @@ function MM2.RegisterCharacterReset(player)
 	for _ in pairs(
 		State.RecentRespawns
 	) do
-
 		count += 1
 	end
 
@@ -938,7 +1042,6 @@ function MM2.GetPlayerRole(player)
 	if not player
 		or player == MM2.LocalPlayer
 	then
-
 		return "None"
 	end
 
@@ -963,22 +1066,18 @@ function MM2.GetPlayerRole(player)
 		or humanoid.Health <= 0
 		or not head
 	then
-
 		return "None"
 	end
 
-	-- If the cached role set became stale, don't turn everyone
-	-- into green Innocents. Hide uncertain ESP instead.
+	-- Never convert uncertain/stale roles into green ESP.
 	if MM2.State.SuppressStaleRoles then
 		return "None"
 	end
 
-	-- Eliminated/reset players must remain excluded for the
-	-- current round, even after they respawn into the lobby.
+	-- Player already eliminated/reset this round.
 	if MM2.State.PlayerOutOfRound[
 		player.Name
 	] then
-
 		return "None"
 	end
 
@@ -996,15 +1095,7 @@ function MM2.GetPlayerRole(player)
 		return role
 	end
 
-	-- IMPORTANT MID-ROUND JOIN FIX:
-	--
-	-- When the script starts during an already-running round,
-	-- some eliminated players may already be back in the lobby.
-	-- We never observed their CharacterAdded/death event, so
-	-- PlayerOutOfRound cannot identify them.
-	--
-	-- Never assume an unknown player is Innocent while a round
-	-- is active. Unknown means no ESP.
+	-- Mid-round startup protection.
 	if MM2.State.RoleRoundActive == true then
 		return "None"
 	end
@@ -1088,7 +1179,6 @@ function MM2.GetSpectatedPlayer()
 		if p
 			and p ~= MM2.LocalPlayer
 		then
-
 			return p
 		end
 
@@ -1108,7 +1198,6 @@ function MM2.GetSpectatedPlayer()
 		if p
 			and p ~= MM2.LocalPlayer
 		then
-
 			return p
 		end
 	end
@@ -1160,7 +1249,6 @@ function MM2.GetReferencePosition()
 		and humanoid.Health > 0
 		and hrp
 	then
-
 		return hrp.Position
 	end
 
