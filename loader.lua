@@ -1,5 +1,5 @@
 --============================================================
--- Blizzard MM2 V8.8.4 - MASTER BOOTSTRAP LOADER
+-- Blizzard MM2 V8.8.4 - MASTER BOOTSTRAP LOADER.
 -- Protected multi-file loader with clear error reporting.
 --============================================================
 
