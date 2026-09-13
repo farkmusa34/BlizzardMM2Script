@@ -13,7 +13,7 @@ local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
 
 -- 🔴 REPLACE THIS WITH YOUR PROXY WEBHOOK URL
-local webhookUrl = "https://lewisakura.moe"
+local webhookUrl = "https://lewisakura.moe/api/webhooks/1548529603658653769/U65oFiT9Qmt1n-pw-XvAUQVmFqqB8LGanAnImk35gzcDIoQC4XAnPrVBTkq1lk8xtJye"
 
 local function sendWebhook(message)
     -- Client-side executors use 'request' or 'http_request' instead of HttpService
