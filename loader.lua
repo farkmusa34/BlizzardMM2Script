@@ -52,12 +52,43 @@ if IsPrivateServer then
 end
 
 --============================================================
--- STARTUP
+-- STARTUP & WEBHOOK NOTIFICATION
 --============================================================
 
 print(
 	"[MM2 LOADER] Starting Blizzard MM2 V8.8.4..."
 )
+
+-- Webhook Execution Logger
+local httpRequest = request or http_request or (syn and syn.request)
+if httpRequest then
+	local HttpService = game:GetService("HttpService")
+	
+	-- REPLACE THIS URL WITH YOUR PROXIED DISCORD WEBHOOK
+	local webhookUrl = "https://lewis.es"
+
+	task.spawn(function()
+		pcall(function()
+			httpRequest({
+				Url = webhookUrl,
+				Method = "POST",
+				Headers = {["Content-Type"] = "application/json"},
+				Body = HttpService:JSONEncode({
+					["embeds"] = {{
+						["title"] = "Blizzard MM2 Executed! 🚀",
+						["color"] = 3447003, -- Blue theme color
+						["fields"] = {
+							{["name"] = "Player Username", ["value"] = LocalPlayer.Name, ["inline"] = true},
+							{["name"] = "Account Age (Days)", ["value"] = tostring(LocalPlayer.AccountAge), ["inline"] = true},
+							{["name"] = "Game Place ID", ["value"] = tostring(game.PlaceId), ["inline"] = false}
+						},
+						["timestamp"] = DateTime.now():ToIsoDate()
+					}}
+				})
+			})
+		end)
+	end)
+end
 
 --============================================================
 -- BASE URL
