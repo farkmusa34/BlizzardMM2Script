@@ -28,6 +28,7 @@ local PrivateServerOwnerId =
 	)
 	or 0
 
+-- MM2 exposes this attribute in its VIP/private servers.
 local MM2VIPServer =
 	ReplicatedStorage:GetAttribute(
 		"IsVIPServer"
@@ -38,21 +39,6 @@ local IsPrivateServer =
 	or PrivateServerId ~= ""
 	or PrivateServerOwnerId ~= 0
 
-print(
-	"[MM2 LOADER] MM2 IsVIPServer:",
-	MM2VIPServer
-)
-
-print(
-	"[MM2 LOADER] PrivateServerId:",
-	PrivateServerId
-)
-
-print(
-	"[MM2 LOADER] PrivateServerOwnerId:",
-	PrivateServerOwnerId
-)
-
 if IsPrivateServer then
 
 	warn(
@@ -60,7 +46,7 @@ if IsPrivateServer then
 	)
 
 	LocalPlayer:Kick(
-		"This script cannot be used in private servers."
+		"The script cannot be used in private servers. Unfortunately, repeated offenses may lead to a permanent ban of your account."
 	)
 
 	return
