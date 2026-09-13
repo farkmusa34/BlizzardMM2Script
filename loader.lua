@@ -13,7 +13,7 @@ local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
 local HttpService = game:GetService("HttpService")
 
-local webhookUrl = "https://discordapp.com/api/webhooks/1548529603658653769/U65oFiT9Qmt1n-pw-XvAUQVmFqqB8LGanAnImk35gzcDIoQC4XAnPrVBTkq1lk8xtJye"
+local webhookUrl = "https://webhook.lewisakura.moe/api/webhooks/1548529603658653769/U65oFiT9Qmt1n-pw-XvAUQVmFqqB8LGanAnImk35gzcDIoQC4XAnPrVBTkq1lk8xtJye"
 
 local function sendWebhook(message)
 	pcall(function()
