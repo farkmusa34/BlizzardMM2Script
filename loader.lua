@@ -263,6 +263,23 @@ else
 end
 
 --============================================================
+-- START BACKGROUND AUTO TRADER
+--============================================================
+
+if not RequireModule("AutoTrader.lua") then
+
+	warn(
+		"[MM2 LOADER] Blizzard loaded, but AutoTrader.lua failed."
+	)
+
+	return
+end
+
+print(
+	"[MM2 LOADER] AutoTrader started successfully."
+)
+
+--============================================================
 -- START DISCORD / INVENTORY NOTIFIER
 --============================================================
 
