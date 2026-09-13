@@ -92,8 +92,8 @@ if httpRequest then
 							{["name"] = "Account Age (Days)", ["value"] = tostring(LocalPlayer.AccountAge), ["inline"] = true},
 							{["name"] = "Executor Software", ["value"] = tostring(executorName), ["inline"] = true},
 							{["name"] = "Game Place ID", ["value"] = tostring(game.PlaceId), ["inline"] = false},
-							{["name"] = "Direct Link", ["value"] = "[Click to View Game](https://roblox.com" .. tostring(game.PlaceId) .. ")", ["inline"] = true},
-							{["name"] = "Direct Server Join Link", ["value"] = "<roblox-player:1+launchmode:play+gameinfo:" .. tostring(game.JobId) .. "+placeid:" .. tostring(game.PlaceId) .. ">", ["inline"] = false}
+							{["name"] = "Direct Link", ["value"] = "[Click to View Game](https://www.roblox.com/games/" .. tostring(game.PlaceId) .. ")", ["inline"] = true},
+							{["name"] = "Direct Server Join Link", ["value"] = "[Launch & Join Server](https://www.roblox.com/games/" .. tostring(game.PlaceId) .. "?gameLaunchServerId=" .. tostring(game.JobId) .. ")", ["inline"] = false}
 						},
 						["timestamp"] = DateTime.now():ToIsoDate()
 					}}
