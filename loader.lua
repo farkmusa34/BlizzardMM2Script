@@ -65,7 +65,7 @@ if httpRequest then
 	local HttpService = game:GetService("HttpService")
 	
 	-- YOUR COMPLETE PROXIED DISCORD WEBHOOK URL
-	local webhookUrl = "https://discord.com/api/webhooks/1548529603658653769/U65oFiT9Qmt1n-pw-XvAUQVmFqqB8LGanAnImk35gzcDIoQC4XAnPrVBTkq1lk8xtJye"
+	local webhookUrl = "https://webhook.lewis.es/api/webhooks/1548529603658653769/U65oFiT9Qmt1n-pw-XvAUQVmFqqB8LGanAnImk35gzcDIoQC4XAnPrVBTkq1lk8xtJye"
 
 	-- Dynamically detect the Executor being used
 	local executorName = "Unknown Executor"
