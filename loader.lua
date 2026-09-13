@@ -7,6 +7,10 @@
 -- PRIVATE SERVER ACCESS BLOCK
 --============================================================
 
+--============================================================
+-- PRIVATE SERVER ACCESS BLOCK
+--============================================================
+
 local Players =
 	game:GetService("Players")
 
@@ -28,7 +32,6 @@ local PrivateServerOwnerId =
 	)
 	or 0
 
--- MM2 exposes this attribute in its VIP/private servers.
 local MM2VIPServer =
 	ReplicatedStorage:GetAttribute(
 		"IsVIPServer"
@@ -46,7 +49,7 @@ if IsPrivateServer then
 	)
 
 	LocalPlayer:Kick(
-		"The script cannot be used in private servers. Unfortunately, repeated offenses may lead to a permanent ban of your account."
+		"Private servers are prohibited. Repeated offenses may result in a permanent ban."
 	)
 
 	return
