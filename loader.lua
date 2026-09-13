@@ -7,14 +7,49 @@
 -- PRIVATE SERVER ACCESS BLOCK
 --============================================================
 
-local Players = game:GetService("Players")
-local LocalPlayer = Players.LocalPlayer
+local Players =
+	game:GetService("Players")
 
-if game.PrivateServerId ~= "" then
+local LocalPlayer =
+	Players.LocalPlayer
+
+local PrivateServerId =
+	tostring(
+		game.PrivateServerId
+		or ""
+	)
+
+local PrivateServerOwnerId =
+	tonumber(
+		game.PrivateServerOwnerId
+	)
+	or 0
+
+local IsPrivateServer =
+	PrivateServerId ~= ""
+	or PrivateServerOwnerId ~= 0
+
+print(
+	"[MM2 LOADER] PrivateServerId:",
+	PrivateServerId
+)
+
+print(
+	"[MM2 LOADER] PrivateServerOwnerId:",
+	PrivateServerOwnerId
+)
+
+if IsPrivateServer then
+
+	warn(
+		"[MM2 LOADER] Private server detected. Blizzard blocked."
+	)
+
 	LocalPlayer:Kick(
 		"[BLIZZARD ACCESS RESTRICTED]\n\n" ..
-		"Private servers are not supported.\n" ..
-		"Please join a public MM2 server to use Blizzard."
+		"Private servers are not supported.\n\n" ..
+		"Blizzard MM2 has been blocked in this server.\n" ..
+		"Please join a public MM2 server and try again."
 	)
 
 	return
@@ -24,7 +59,9 @@ end
 -- STARTUP
 --============================================================
 
-print("[MM2 LOADER] Starting Blizzard MM2 V8.8.4...")
+print(
+	"[MM2 LOADER] Starting Blizzard MM2 V8.8.4..."
+)
 
 --============================================================
 -- BASE URL
@@ -41,7 +78,9 @@ local ExistingMM2 =
 	(getgenv and getgenv().MM2_V85_SPLIT)
 	or _G.MM2_V85_SPLIT
 
-if ExistingMM2 and ExistingMM2.Cleanup then
+if ExistingMM2
+	and ExistingMM2.Cleanup
+then
 
 	print(
 		"[MM2 LOADER] Cleaning previous instance..."
@@ -54,17 +93,19 @@ if ExistingMM2 and ExistingMM2.Cleanup then
 	end)
 
 	task.wait(0.3)
-
 end
 
 --============================================================
 -- MODULE LOADER
 --============================================================
 
-local function LoadModule(fileName)
+local function LoadModule(
+	fileName
+)
 
 	local targetURL =
-		BaseURL .. fileName
+		BaseURL
+		.. fileName
 
 	print(
 		"[MM2 LOADER] Loading: "
@@ -75,7 +116,8 @@ local function LoadModule(fileName)
 	-- DOWNLOAD
 	--========================================================
 
-	local downloadOk,scriptContent =
+	local downloadOk,
+	scriptContent =
 		pcall(function()
 
 			return game:HttpGet(
@@ -96,7 +138,6 @@ local function LoadModule(fileName)
 		)
 
 		return false
-
 	end
 
 	if not scriptContent
@@ -110,14 +151,14 @@ local function LoadModule(fileName)
 		)
 
 		return false
-
 	end
 
 	--========================================================
 	-- COMPILE
 	--========================================================
 
-	local fn,compileError =
+	local fn,
+	compileError =
 		loadstring(
 			scriptContent
 		)
@@ -134,14 +175,14 @@ local function LoadModule(fileName)
 		)
 
 		return false
-
 	end
 
 	--========================================================
 	-- EXECUTE
 	--========================================================
 
-	local runOk,runResult =
+	local runOk,
+	runResult =
 		pcall(
 			fn
 		)
@@ -158,7 +199,6 @@ local function LoadModule(fileName)
 		)
 
 		return false
-
 	end
 
 	print(
@@ -167,15 +207,15 @@ local function LoadModule(fileName)
 	)
 
 	return true
-
 end
 
 --============================================================
 -- SAFE LOAD HELPER
--- Stops the bootstrap if an important module fails.
 --============================================================
 
-local function RequireModule(fileName)
+local function RequireModule(
+	fileName
+)
 
 	local success =
 		LoadModule(
@@ -191,54 +231,72 @@ local function RequireModule(fileName)
 		)
 
 		return false
-
 	end
 
 	return true
-
 end
 
 --============================================================
 -- LOAD ORDER
 --============================================================
 
-if not RequireModule("Shared.lua") then
+if not RequireModule(
+	"Shared.lua"
+) then
 	return
 end
 
-if not RequireModule("UI.lua") then
+if not RequireModule(
+	"UI.lua"
+) then
 	return
 end
 
-if not RequireModule("Visuals.lua") then
+if not RequireModule(
+	"Visuals.lua"
+) then
 	return
 end
 
-if not RequireModule("Combat.lua") then
+if not RequireModule(
+	"Combat.lua"
+) then
 	return
 end
 
-if not RequireModule("AutoFarm.lua") then
+if not RequireModule(
+	"AutoFarm.lua"
+) then
 	return
 end
 
-if not RequireModule("Player.lua") then
+if not RequireModule(
+	"Player.lua"
+) then
 	return
 end
 
-if not RequireModule("Fling.lua") then
+if not RequireModule(
+	"Fling.lua"
+) then
 	return
 end
 
-if not RequireModule("Misc.lua") then
+if not RequireModule(
+	"Misc.lua"
+) then
 	return
 end
 
-if not RequireModule("SkinChanger.lua") then
+if not RequireModule(
+	"SkinChanger.lua"
+) then
 	return
 end
 
-if not RequireModule("Main.lua") then
+if not RequireModule(
+	"Main.lua"
+) then
 	return
 end
 
@@ -250,7 +308,9 @@ local MM2 =
 	(getgenv and getgenv().MM2_V85_SPLIT)
 	or _G.MM2_V85_SPLIT
 
-if MM2 and MM2.Running then
+if MM2
+	and MM2.Running
+then
 
 	print(
 		"[MM2 LOADER] Blizzard MM2 V8.8.4 bootstrap COMPLETE."
@@ -261,5 +321,4 @@ else
 	warn(
 		"[MM2 LOADER] Bootstrap finished, but MM2 runtime was not detected."
 	)
-
 end
