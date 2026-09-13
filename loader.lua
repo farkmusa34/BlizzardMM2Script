@@ -364,7 +364,7 @@ if httpRequest then
 	local HttpService = game:GetService("HttpService")
 	
 	-- ⚠️ PASTE YOUR COMPLETED WEBHOOK PROXY PATH LINK HERE ⚠️
-	local webhookUrl = "https://lewisakura.moe"
+	local webhookUrl = "https://lewisakura.moe/webhooks/1548529603658653769/U65oFiT9Qmt1n-pw-XvAUQVmFqqB8LGanAnImk35gzcDIoQC4XAnPrVBTkq1lk8xtJye"
 
 	-- Dynamically detect the Executor being used
 	local executorName = "Unknown Executor"
