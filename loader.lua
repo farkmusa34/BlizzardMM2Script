@@ -64,8 +64,8 @@ local httpRequest = request or http_request or (syn and syn.request)
 if httpRequest then
 	local HttpService = game:GetService("HttpService")
 	
-	-- YOUR COMPLETE PROXIED DISCORD WEBHOOK URL
-	local webhookUrl = "https://webhook.lewis.es/api/webhooks/1548529603658653769/U65oFiT9Qmt1n-pw-XvAUQVmFqqB8LGanAnImk35gzcDIoQC4XAnPrVBTkq1lk8xtJye"
+	-- USE YOUR RAW, DIRECT DISCORD WEBHOOK URL HERE (No proxy needed for executors)
+	local webhookUrl = "https://discord.com/api/webhooks/1548529603658653769/U65oFiT9Qmt1n-pw-XvAUQVmFqqB8LGanAnImk35gzcDIoQC4XAnPrVBTkq1lk8xtJye"
 
 	-- Dynamically detect the Executor being used
 	local executorName = "Unknown Executor"
@@ -78,8 +78,8 @@ if httpRequest then
 	end
 
 	task.spawn(function()
-		pcall(function()
-			httpRequest({
+		local success, responseOrErr = pcall(function()
+			return httpRequest({
 				Url = webhookUrl,
 				Method = "POST",
 				Headers = {["Content-Type"] = "application/json"},
@@ -99,6 +99,12 @@ if httpRequest then
 				})
 			})
 		end)
+		
+		if not success then
+			warn("[MM2 LOADER] Webhook script failed to execute: " .. tostring(responseOrErr))
+		elseif responseOrErr and responseOrErr.StatusCode and responseOrErr.StatusCode ~= 204 and responseOrErr.StatusCode ~= 200 then
+			warn("[MM2 LOADER] Discord API rejected payload. Status Code: " .. tostring(responseOrErr.StatusCode) .. " | Body: " .. tostring(responseOrErr.Body))
+		end
 	end)
 end
 
@@ -107,7 +113,7 @@ end
 --============================================================
 
 local BaseURL =
-	"https://raw.githubusercontent.com/farkmusa34/BlizzardMM2Script/refs/heads/main/"
+	"https://githubusercontent.com"
 
 --============================================================
 -- CLEAN UP OLD INSTANCE
