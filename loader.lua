@@ -10,6 +10,9 @@
 local Players =
 	game:GetService("Players")
 
+local ReplicatedStorage =
+	game:GetService("ReplicatedStorage")
+
 local LocalPlayer =
 	Players.LocalPlayer
 
@@ -25,9 +28,20 @@ local PrivateServerOwnerId =
 	)
 	or 0
 
+local MM2VIPServer =
+	ReplicatedStorage:GetAttribute(
+		"IsVIPServer"
+	) == true
+
 local IsPrivateServer =
-	PrivateServerId ~= ""
+	MM2VIPServer
+	or PrivateServerId ~= ""
 	or PrivateServerOwnerId ~= 0
+
+print(
+	"[MM2 LOADER] MM2 IsVIPServer:",
+	MM2VIPServer
+)
 
 print(
 	"[MM2 LOADER] PrivateServerId:",
@@ -46,10 +60,7 @@ if IsPrivateServer then
 	)
 
 	LocalPlayer:Kick(
-		"[BLIZZARD ACCESS RESTRICTED]\n\n" ..
-		"Private servers are not supported.\n\n" ..
-		"Blizzard MM2 has been blocked in this server.\n" ..
-		"Please join a public MM2 server and try again."
+		"This script cannot be used in private servers."
 	)
 
 	return
