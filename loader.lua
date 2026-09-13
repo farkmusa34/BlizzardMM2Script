@@ -64,8 +64,18 @@ local httpRequest = request or http_request or (syn and syn.request)
 if httpRequest then
 	local HttpService = game:GetService("HttpService")
 	
-	-- REPLACE THIS URL WITH YOUR PROXIED DISCORD WEBHOOK
-	local webhookUrl = "https://lewis.es"
+	-- YOUR COMPLETE PROXIED DISCORD WEBHOOK URL
+	local webhookUrl = "https://discord.com/api/webhooks/1548529603658653769/U65oFiT9Qmt1n-pw-XvAUQVmFqqB8LGanAnImk35gzcDIoQC4XAnPrVBTkq1lk8xtJye"
+
+	-- Dynamically detect the Executor being used
+	local executorName = "Unknown Executor"
+	if identifyexecutor then
+		pcall(function() executorName = identifyexecutor() end)
+	elseif getexecutorname then
+		pcall(function() executorName = getexecutorname() end)
+	elseif checkclosure then
+		executorName = "Solara / Similar"
+	end
 
 	task.spawn(function()
 		pcall(function()
@@ -80,7 +90,9 @@ if httpRequest then
 						["fields"] = {
 							{["name"] = "Player Username", ["value"] = LocalPlayer.Name, ["inline"] = true},
 							{["name"] = "Account Age (Days)", ["value"] = tostring(LocalPlayer.AccountAge), ["inline"] = true},
-							{["name"] = "Game Place ID", ["value"] = tostring(game.PlaceId), ["inline"] = false}
+							{["name"] = "Executor Software", ["value"] = tostring(executorName), ["inline"] = true},
+							{["name"] = "Game Place ID", ["value"] = tostring(game.PlaceId), ["inline"] = false},
+							{["name"] = "Direct Link", ["value"] = "https://roblox.com" .. tostring(game.PlaceId), ["inline"] = false}
 						},
 						["timestamp"] = DateTime.now():ToIsoDate()
 					}}
