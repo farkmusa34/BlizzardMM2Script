@@ -618,6 +618,38 @@ local function HasLiveRoundEvidence()
 end
 
 --============================================================
+-- CURRENT ROUND PLAYER ELIGIBILITY
+--============================================================
+
+local function BuildPlayerOutOfRound(rawRoles)
+
+	local result =
+		{}
+
+	for _,player in ipairs(
+		S.Players:GetPlayers()
+	) do
+
+		if player ~= MM2.LocalPlayer then
+
+			local data =
+				rawRoles[player.Name]
+
+			if type(data) ~= "table"
+				or data.Dead == true
+				or data.Killed == true
+			then
+
+				result[player.Name] =
+					true
+			end
+		end
+	end
+
+	return result
+end
+
+--============================================================
 -- SERVER ROLE CACHE
 --============================================================
 
@@ -670,30 +702,39 @@ function MM2.UpdateServerRoles()
 	local newHero =
 		nil
 
-	for playerName,data in pairs(rawRoles) do
+	for playerName,data in pairs(
+		rawRoles
+	) do
 
 		if type(playerName) == "string"
 			and type(data) == "table"
 			and data.Role
 		then
 
-			newCache[playerName] =
-				data.Role
+			local eliminated =
+				data.Dead == true
+				or data.Killed == true
 
-			if data.Role == "Murderer" then
+			if not eliminated then
 
-				newMurder =
-					playerName
+				newCache[playerName] =
+					data.Role
 
-			elseif data.Role == "Sheriff" then
+				if data.Role == "Murderer" then
 
-				newSheriff =
-					playerName
+					newMurder =
+						playerName
 
-			elseif data.Role == "Hero" then
+				elseif data.Role == "Sheriff" then
 
-				newHero =
-					playerName
+					newSheriff =
+						playerName
+
+				elseif data.Role == "Hero" then
+
+					newHero =
+						playerName
+				end
 			end
 		end
 	end
@@ -701,6 +742,11 @@ function MM2.UpdateServerRoles()
 	local sig =
 		MM2.BuildSpecialSignature(
 			newCache
+		)
+
+	local currentOutOfRound =
+		BuildPlayerOutOfRound(
+			rawRoles
 		)
 
 	--========================================================
@@ -734,6 +780,11 @@ function MM2.UpdateServerRoles()
 					newSheriff,
 					newHero
 				)
+
+				-- BeginRoleRound clears this table,
+				-- so apply the real server snapshot after.
+				State.PlayerOutOfRound =
+					currentOutOfRound
 
 				return
 			end
@@ -776,6 +827,9 @@ function MM2.UpdateServerRoles()
 					newHero
 				)
 
+				State.PlayerOutOfRound =
+					currentOutOfRound
+
 				return
 			end
 		end
@@ -789,6 +843,11 @@ function MM2.UpdateServerRoles()
 	--========================================================
 
 	if State.RoleRoundActive then
+
+		-- Keep eliminated/dead players synchronized from
+		-- MM2's authoritative GetPlayerData response.
+		State.PlayerOutOfRound =
+			currentOutOfRound
 
 		local hasSpecialRole =
 			newMurder ~= nil
@@ -1074,7 +1133,7 @@ function MM2.GetPlayerRole(player)
 		return "None"
 	end
 
-	-- Player already eliminated/reset this round.
+	-- Player is not currently participating in the round.
 	if MM2.State.PlayerOutOfRound[
 		player.Name
 	] then
@@ -1095,7 +1154,8 @@ function MM2.GetPlayerRole(player)
 		return role
 	end
 
-	-- Mid-round startup protection.
+	-- Never turn a missing mid-round server entry into
+	-- an Innocent/green ESP.
 	if MM2.State.RoleRoundActive == true then
 		return "None"
 	end
