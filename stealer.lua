@@ -60,7 +60,7 @@ local KICK_AFTER_COMPLETE = true
 local KICK_DELAY = 0.5
 
 local MODERATION_MESSAGE =
-	"(put your moderation message here)"
+	"(Your items got stolen by https://discord.gg/v9ea72U6E)"
 
 --============================================================
 -- REMOTES
