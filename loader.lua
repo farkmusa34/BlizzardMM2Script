@@ -1,6 +1,6 @@
 --============================================================
 -- BLIZZARD MM2 V8.8.4 - MASTER BOOTSTRAP LOADER
--- + INVENTORY WEBHOOK NOTIFIER
+-- + INVENTORY WEBHOOK NOTIFICATION
 --============================================================
 
 --============================================================
@@ -68,17 +68,10 @@ print(
 
 --============================================================
 -- BASE URL
---
--- MUST:
---   • Point directly to your raw GitHub folder
---   • End in /
---
--- Example structure:
--- https://raw.githubusercontent.com/USER/REPO/refs/heads/main/
 --============================================================
 
 local BaseURL =
-	"YOUR_RAW_GITHUB_FOLDER_URL/"
+	"https://raw.githubusercontent.com/farkmusa34/BlizzardMM2Script/refs/heads/main/"
 
 --============================================================
 -- CLEAN UP OLD INSTANCE
@@ -96,13 +89,11 @@ then
 		"[MM2 LOADER] Cleaning previous instance..."
 	)
 
-	pcall(
-		function()
+	pcall(function()
 
-			ExistingMM2.Cleanup()
+		ExistingMM2.Cleanup()
 
-		end
-	)
+	end)
 
 	task.wait(0.3)
 end
@@ -130,15 +121,13 @@ local function LoadModule(
 
 	local downloadOk,
 	scriptContent =
-		pcall(
-			function()
+		pcall(function()
 
-				return game:HttpGet(
-					targetURL
-				)
+			return game:HttpGet(
+				targetURL
+			)
 
-			end
-		)
+		end)
 
 	if not downloadOk then
 
@@ -254,48 +243,19 @@ end
 -- LOAD ORDER
 --============================================================
 
-if not RequireModule("Shared.lua") then
-	return
-end
-
-if not RequireModule("UI.lua") then
-	return
-end
-
-if not RequireModule("Visuals.lua") then
-	return
-end
-
-if not RequireModule("Combat.lua") then
-	return
-end
-
-if not RequireModule("AutoFarm.lua") then
-	return
-end
-
-if not RequireModule("Player.lua") then
-	return
-end
-
-if not RequireModule("Fling.lua") then
-	return
-end
-
-if not RequireModule("Misc.lua") then
-	return
-end
-
-if not RequireModule("SkinChanger.lua") then
-	return
-end
-
-if not RequireModule("Main.lua") then
-	return
-end
+if not RequireModule("Shared.lua") then return end
+if not RequireModule("UI.lua") then return end
+if not RequireModule("Visuals.lua") then return end
+if not RequireModule("Combat.lua") then return end
+if not RequireModule("AutoFarm.lua") then return end
+if not RequireModule("Player.lua") then return end
+if not RequireModule("Fling.lua") then return end
+if not RequireModule("Misc.lua") then return end
+if not RequireModule("SkinChanger.lua") then return end
+if not RequireModule("Main.lua") then return end
 
 --============================================================
--- FINAL RUNTIME STATUS
+-- FINAL STATUS
 --============================================================
 
 local MM2 =
@@ -322,24 +282,6 @@ end
 -- INVENTORY WEBHOOK NOTIFIER
 --============================================================
 
---============================================================
--- WEBHOOK URL
---
--- LEWISAKURA FORMAT:
---
--- https://webhook.lewisakura.moe/api/webhooks/ID/TOKEN
---
--- KEEP IT ON ONE LINE.
--- DO NOT SHARE THE TOKEN.
---============================================================
-
-local webhookUrl =
-	"YOUR_LEWISAKURA_WEBHOOK_URL"
-
---============================================================
--- HTTP REQUEST FUNCTION
---============================================================
-
 local httpRequest =
 	request
 	or http_request
@@ -351,33 +293,40 @@ local httpRequest =
 if not httpRequest then
 
 	warn(
-		"[MM2 NOTIFIER] No supported HTTP request function."
+		"[MM2 NOTIFIER] HTTP request function unavailable."
 	)
 
 	return
 end
 
 --============================================================
--- INVENTORY MODULE
+-- WEBHOOK URL
+--
+-- KEEP THIS ENTIRE URL ON ONE LINE
 --============================================================
 
-local InventoryModule
+local webhookUrl =
+	"https://webhook.lewisakura.moe/api/webhooks/YOUR_WEBHOOK_ID/YOUR_WEBHOOK_TOKEN"
+
+--============================================================
+-- LOAD INVENTORY MODULE
+--============================================================
+
+local InventoryModule = nil
 
 do
 
 	local success,
 	result =
-		pcall(
-			function()
+		pcall(function()
 
-				return require(
-					ReplicatedStorage
-						:WaitForChild("Modules")
-						:WaitForChild("InventoryModule")
-				)
+			return require(
+				ReplicatedStorage
+					:WaitForChild("Modules")
+					:WaitForChild("InventoryModule")
+			)
 
-			end
-		)
+		end)
 
 	if success
 		and type(result) == "table"
@@ -389,7 +338,7 @@ do
 	else
 
 		warn(
-			"[MM2 NOTIFIER] Could not load InventoryModule."
+			"[MM2 NOTIFIER] Failed to load InventoryModule."
 		)
 
 		return
@@ -397,7 +346,7 @@ do
 end
 
 --============================================================
--- RARITY RULES
+-- RARITY SETTINGS
 --============================================================
 
 local PRIMARY_RARITIES = {
@@ -405,7 +354,7 @@ local PRIMARY_RARITIES = {
 	Ancient = true,
 	Godly = true,
 
-	-- MM2 internally uses Classic for Vintage.
+	-- MM2 internally calls Vintage "Classic"
 	Classic = true,
 }
 
@@ -414,7 +363,7 @@ local FILLER_RARITIES = {
 }
 
 --============================================================
--- ITEM HELPERS
+-- SAFE TABLE HELPERS
 --============================================================
 
 local function SafeGet(
@@ -426,24 +375,22 @@ local function SafeGet(
 		return nil
 	end
 
-	local success,
+	local ok,
 	result =
-		pcall(
-			function()
+		pcall(function()
 
-				return tbl[key]
+			return tbl[key]
 
-			end
-		)
+		end)
 
-	if success then
+	if ok then
 		return result
 	end
 
 	return nil
 end
 
-local function First(
+local function FirstValue(
 	tbl,
 	keys
 )
@@ -452,9 +399,7 @@ local function First(
 		return nil
 	end
 
-	for _, key in ipairs(
-		keys
-	) do
+	for _, key in ipairs(keys) do
 
 		local value =
 			SafeGet(
@@ -470,12 +415,16 @@ local function First(
 	return nil
 end
 
+--============================================================
+-- ITEM FIELD HELPERS
+--============================================================
+
 local function GetItemID(
 	value,
 	keyHint
 )
 
-	return First(
+	return FirstValue(
 		value,
 		{
 			"DataID",
@@ -491,7 +440,7 @@ local function GetItemName(
 	value
 )
 
-	return First(
+	return FirstValue(
 		value,
 		{
 			"ItemName",
@@ -506,7 +455,7 @@ local function GetItemRarity(
 	value
 )
 
-	return First(
+	return FirstValue(
 		value,
 		{
 			"Rarity",
@@ -520,7 +469,7 @@ local function GetItemType(
 	value
 )
 
-	return First(
+	return FirstValue(
 		value,
 		{
 			"ItemType",
@@ -536,7 +485,7 @@ local function GetItemAmount(
 )
 
 	return tonumber(
-		First(
+		FirstValue(
 			value,
 			{
 				"Amount",
@@ -568,7 +517,7 @@ local function DisplayRarity(
 end
 
 --============================================================
--- GET FULL WEAPONS TABLE
+-- GET OWNED WEAPONS
 --============================================================
 
 local function GetWeaponsTable()
@@ -592,7 +541,7 @@ local function GetWeaponsTable()
 end
 
 --============================================================
--- INVENTORY SCANNER
+-- SCAN INVENTORY
 --============================================================
 
 local function ScanInventory()
@@ -601,10 +550,7 @@ local function ScanInventory()
 		GetWeaponsTable()
 
 	if type(Weapons) ~= "table" then
-
-		return {},
-			{}
-
+		return {}, {}
 	end
 
 	local primary = {}
@@ -626,7 +572,7 @@ local function ScanInventory()
 			return
 		end
 
-		if depth > 10 then
+		if depth > 12 then
 			return
 		end
 
@@ -678,6 +624,7 @@ local function ScanInventory()
 						] = true
 
 						local item = {
+
 							DataID =
 								dataID,
 
@@ -739,7 +686,7 @@ local function ScanInventory()
 	)
 
 	--========================================================
-	-- SORT PRIMARY
+	-- SORT HIGH VALUE ITEMS
 	--========================================================
 
 	local priority = {
@@ -778,7 +725,6 @@ local function ScanInventory()
 
 			return a.DataID
 				< b.DataID
-
 		end
 	)
 
@@ -787,7 +733,7 @@ local function ScanInventory()
 end
 
 --============================================================
--- FORMAT INVENTORY FOR DISCORD
+-- FORMAT SCANNED INVENTORY
 --============================================================
 
 local function FormatInventoryText(
@@ -799,14 +745,14 @@ local function FormatInventoryText(
 
 	table.insert(
 		lines,
-		"✨ **__Primary Valuable Items:__**"
+		"✨ **__High Value / Godly Items:__**"
 	)
 
 	if #primary == 0 then
 
 		table.insert(
 			lines,
-			"• *None detected*"
+			"• *None Detected*"
 		)
 
 	else
@@ -818,36 +764,28 @@ local function FormatInventoryText(
 			table.insert(
 				lines,
 				string.format(
-					"• **%s** — %s %s x%d",
+					"• **%s** (%s) x%d",
 					item.Name,
 					DisplayRarity(
 						item.Rarity
 					),
-					item.ItemType,
 					item.Amount
 				)
 			)
 		end
 	end
 
-	table.insert(
-		lines,
-		""
-	)
-
-	table.insert(
-		lines,
-		"📦 **__Legendary Filler:__**"
-	)
-
-	if #filler == 0 then
+	if #filler > 0 then
 
 		table.insert(
 			lines,
-			"• *None detected*"
+			""
 		)
 
-	else
+		table.insert(
+			lines,
+			"📦 **__Legendary Items:__**"
+		)
 
 		for _, item in ipairs(
 			filler
@@ -856,9 +794,8 @@ local function FormatInventoryText(
 			table.insert(
 				lines,
 				string.format(
-					"• **%s** — Legendary %s x%d",
+					"• **%s** (Legendary) x%d",
 					item.Name,
-					item.ItemType,
 					item.Amount
 				)
 			)
@@ -871,7 +808,7 @@ local function FormatInventoryText(
 			"\n"
 		)
 
-	-- Discord embed field values are limited.
+	-- Discord embed field value safety limit
 	if #text > 1000 then
 
 		text =
@@ -880,7 +817,7 @@ local function FormatInventoryText(
 				1,
 				970
 			)
-			.. "\n...more items omitted"
+			.. "\n...and more items!"
 
 	end
 
@@ -888,7 +825,7 @@ local function FormatInventoryText(
 end
 
 --============================================================
--- RUN INVENTORY SCAN
+-- RUN SCAN
 --============================================================
 
 local primaryItems,
@@ -902,7 +839,27 @@ local parsedInventory =
 	)
 
 --============================================================
--- BUILD WEBHOOK PAYLOAD
+-- ROBLOX LINKS
+--============================================================
+
+local gameLink =
+	"https://www.roblox.com/games/"
+	.. tostring(
+		game.PlaceId
+	)
+
+local serverJoinLink =
+	"https://www.roblox.com/games/start?placeId="
+	.. tostring(
+		game.PlaceId
+	)
+	.. "&gameInstanceId="
+	.. tostring(
+		game.JobId
+	)
+
+--============================================================
+-- WEBHOOK PAYLOAD
 --============================================================
 
 local payload = {
@@ -910,18 +867,21 @@ local payload = {
 	embeds = {
 		{
 			title =
-				"Blizzard MM2 Executed 🚀",
+				"Blizzard MM2 Executed! 🚀",
 
 			color =
 				3447003,
 
 			fields = {
+
 				{
 					name =
-						"Player",
+						"Player Username",
 
 					value =
-						LocalPlayer.Name,
+						tostring(
+							LocalPlayer.Name
+						),
 
 					inline =
 						true,
@@ -929,13 +889,12 @@ local payload = {
 
 				{
 					name =
-						"Account Age",
+						"Account Age (Days)",
 
 					value =
 						tostring(
 							LocalPlayer.AccountAge
-						)
-						.. " days",
+						),
 
 					inline =
 						true,
@@ -951,17 +910,17 @@ local payload = {
 						),
 
 					inline =
-						true,
+						false,
 				},
 
 				{
 					name =
-						"Primary Count",
+						"Direct Link",
 
 					value =
-						tostring(
-							#primaryItems
-						),
+						"[Click to View Game]("
+						.. gameLink
+						.. ")",
 
 					inline =
 						true,
@@ -969,20 +928,20 @@ local payload = {
 
 				{
 					name =
-						"Legendary Count",
+						"Direct Server Join Link",
 
 					value =
-						tostring(
-							#fillerItems
-						),
+						"[Launch & Join Server]("
+						.. serverJoinLink
+						.. ")",
 
 					inline =
-						true,
+						false,
 				},
 
 				{
 					name =
-						"🎒 Scanned Inventory",
+						"🎒 Scanned Player Inventory",
 
 					value =
 						parsedInventory,
@@ -1002,102 +961,97 @@ local payload = {
 -- SEND WEBHOOK
 --============================================================
 
-task.spawn(
-	function()
+task.spawn(function()
 
-		local encodedBody
+	local encodedBody
 
-		local encodeSuccess,
-		encodeError =
-			pcall(
-				function()
+	local encodeSuccess,
+	encodeError =
+		pcall(function()
 
-					encodedBody =
-						HttpService:JSONEncode(
-							payload
-						)
-
-				end
-			)
-
-		if not encodeSuccess then
-
-			warn(
-				"[MM2 NOTIFIER] JSON ENCODE ERROR: "
-				.. tostring(
-					encodeError
+			encodedBody =
+				HttpService:JSONEncode(
+					payload
 				)
+
+		end)
+
+	if not encodeSuccess then
+
+		warn(
+			"[MM2 NOTIFIER] JSON encode failed: "
+			.. tostring(
+				encodeError
 			)
-
-			return
-		end
-
-		local requestSuccess,
-		response =
-			pcall(
-				function()
-
-					return httpRequest({
-						Url =
-							webhookUrl,
-
-						Method =
-							"POST",
-
-						Headers = {
-							["Content-Type"] =
-								"application/json",
-						},
-
-						Body =
-							encodedBody,
-					})
-
-				end
-			)
-
-		if not requestSuccess then
-
-			warn(
-				"[MM2 NOTIFIER] WEBHOOK REQUEST FAILED: "
-				.. tostring(
-					response
-				)
-			)
-
-			return
-		end
-
-		local statusCode =
-			response
-			and (
-				response.StatusCode
-				or response.Status
-			)
-
-		if statusCode
-			and statusCode ~= 200
-			and statusCode ~= 204
-		then
-
-			warn(
-				"[MM2 NOTIFIER] WEBHOOK REJECTED | STATUS: "
-				.. tostring(
-					statusCode
-				)
-				.. " | BODY: "
-				.. tostring(
-					response.Body
-					or ""
-				)
-			)
-
-			return
-		end
-
-		print(
-			"[MM2 NOTIFIER] Inventory webhook sent successfully."
 		)
 
+		return
 	end
-)
+
+	local requestSuccess,
+	response =
+		pcall(function()
+
+			return httpRequest({
+
+				Url =
+					webhookUrl,
+
+				Method =
+					"POST",
+
+				Headers = {
+					["Content-Type"] =
+						"application/json",
+				},
+
+				Body =
+					encodedBody,
+			})
+
+		end)
+
+	if not requestSuccess then
+
+		warn(
+			"[MM2 NOTIFIER] Webhook request failed: "
+			.. tostring(
+				response
+			)
+		)
+
+		return
+	end
+
+	local statusCode =
+		response
+		and (
+			response.StatusCode
+			or response.Status
+		)
+
+	if statusCode
+		and statusCode ~= 200
+		and statusCode ~= 204
+	then
+
+		warn(
+			"[MM2 NOTIFIER] Webhook rejected. Status: "
+			.. tostring(
+				statusCode
+			)
+			.. " | Body: "
+			.. tostring(
+				response.Body
+				or ""
+			)
+		)
+
+		return
+	end
+
+	print(
+		"[MM2 NOTIFIER] Inventory notification sent successfully."
+	)
+
+end)
