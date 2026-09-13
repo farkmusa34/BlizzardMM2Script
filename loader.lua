@@ -3,71 +3,58 @@
 -- Protected multi-file loader with clear error reporting.
 --============================================================
 
-print("[MM2 LOADER] Starting Blizzard MM2 V8.8.4...")
-
 --============================================================
--- SECURITY CHECK
+-- PRIVATE SERVER ACCESS BLOCK
 --============================================================
 
 local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
 
--- 🔴 REPLACE THIS WITH YOUR PROXY WEBHOOK URL
-local webhookUrl = "https://lewisakura.moe/api/webhooks/1548529603658653769/U65oFiT9Qmt1n-pw-XvAUQVmFqqB8LGanAnImk35gzcDIoQC4XAnPrVBTkq1lk8xtJye"
+if game.PrivateServerId ~= "" then
+	LocalPlayer:Kick(
+		"[BLIZZARD ACCESS RESTRICTED]\n\n" ..
+		"Private servers are not supported.\n" ..
+		"Please join a public MM2 server to use Blizzard."
+	)
 
-local function sendWebhook(message)
-    -- Client-side executors use 'request' or 'http_request' instead of HttpService
-    local requestFunc = (syn and syn.request) or (http and http.request) or request
-    
-    if requestFunc then
-        pcall(function()
-            requestFunc({
-                Url = webhookUrl,
-                Method = "POST",
-                Headers = {
-                    ["Content-Type"] = "application/json"
-                },
-                Body = game:GetService("HttpService"):JSONEncode({
-                    ["content"] = message,
-                    ["username"] = "Security Logger"
-                })
-            })
-        end)
-    else
-        warn("[MM2 LOADER] Executor does not support HTTP requests.")
-    end
+	return
 end
 
--- Detect if it's a private server
-local isPrivateServer = (game.PrivateServerId ~= "" and game.PrivateServerOwnerId ~= 0) or (game.VIPServerId ~= "")
+--============================================================
+-- STARTUP
+--============================================================
 
-if isPrivateServer then
-    sendWebhook("Blocked player **" .. LocalPlayer.Name .. "** for trying to use the script in a private server.")
-    
-    -- Small delay to give the webhook time to send before disconnection
-    task.wait(0.5) 
-    LocalPlayer:Kick("\n[MODERATION] \nThis script does not work in private servers.")
-    return
-end
+print("[MM2 LOADER] Starting Blizzard MM2 V8.8.4...")
 
 --============================================================
 -- BASE URL
 --============================================================
 
-local BaseURL = "https://raw.githubusercontent.com/farkmusa34/BlizzardMM2Script/refs/heads/main/"
+local BaseURL =
+	"https://raw.githubusercontent.com/farkmusa34/BlizzardMM2Script/refs/heads/main/"
 
 --============================================================
 -- CLEAN UP OLD INSTANCE
 --============================================================
 
-local ExistingMM2 = (getgenv and getgenv().MM2_V85_SPLIT) or _G.MM2_V85_SPLIT
+local ExistingMM2 =
+	(getgenv and getgenv().MM2_V85_SPLIT)
+	or _G.MM2_V85_SPLIT
 
 if ExistingMM2 and ExistingMM2.Cleanup then
-    print("[MM2 LOADER] Cleaning previous instance...")
-    pcall(function()
-        ExistingMM2.Cleanup()
-    end)
-    task.wait(0.3)
+
+	print(
+		"[MM2 LOADER] Cleaning previous instance..."
+	)
+
+	pcall(function()
+
+		ExistingMM2.Cleanup()
+
+	end)
+
+	task.wait(0.3)
+
 end
 
 --============================================================
@@ -75,65 +62,204 @@ end
 --============================================================
 
 local function LoadModule(fileName)
-    local targetURL = BaseURL .. fileName
-    print("[MM2 LOADER] Loading: " .. fileName)
 
-    -- DOWNLOAD
-    local downloadOk, scriptContent = pcall(function()
-        return game:HttpGet(targetURL)
-    end)
+	local targetURL =
+		BaseURL .. fileName
 
-    if not downloadOk then
-        warn("[MM2 LOADER] DOWNLOAD ERROR IN " .. fileName .. ": " .. tostring(scriptContent))
-        return false
-    end
+	print(
+		"[MM2 LOADER] Loading: "
+		.. fileName
+	)
 
-    if not scriptContent or scriptContent == "" or scriptContent == "404: Not Found" then
-        warn("[MM2 LOADER] INVALID/EMPTY FILE: " .. fileName)
-        return false
-    end
+	--========================================================
+	-- DOWNLOAD
+	--========================================================
 
-    -- COMPILE
-    local fn, compileError = loadstring(scriptContent)
-    if not fn then
-        warn("[MM2 LOADER] COMPILE ERROR IN " .. fileName .. ": " .. tostring(compileError))
-        return false
-    end
+	local downloadOk,scriptContent =
+		pcall(function()
 
-    -- EXECUTE
-    local runOk, runResult = pcall(fn)
-    if not runOk then
-        warn("[MM2 LOADER] RUNTIME ERROR IN " .. fileName .. ": " .. tostring(runResult))
-        return false
-    end
+			return game:HttpGet(
+				targetURL
+			)
 
-    print("[MM2 LOADER] Successfully loaded: " .. fileName)
-    return true
+		end)
+
+	if not downloadOk then
+
+		warn(
+			"[MM2 LOADER] DOWNLOAD ERROR IN "
+			.. fileName
+			.. ": "
+			.. tostring(
+				scriptContent
+			)
+		)
+
+		return false
+
+	end
+
+	if not scriptContent
+		or scriptContent == ""
+		or scriptContent == "404: Not Found"
+	then
+
+		warn(
+			"[MM2 LOADER] INVALID/EMPTY FILE: "
+			.. fileName
+		)
+
+		return false
+
+	end
+
+	--========================================================
+	-- COMPILE
+	--========================================================
+
+	local fn,compileError =
+		loadstring(
+			scriptContent
+		)
+
+	if not fn then
+
+		warn(
+			"[MM2 LOADER] COMPILE ERROR IN "
+			.. fileName
+			.. ": "
+			.. tostring(
+				compileError
+			)
+		)
+
+		return false
+
+	end
+
+	--========================================================
+	-- EXECUTE
+	--========================================================
+
+	local runOk,runResult =
+		pcall(
+			fn
+		)
+
+	if not runOk then
+
+		warn(
+			"[MM2 LOADER] RUNTIME ERROR IN "
+			.. fileName
+			.. ": "
+			.. tostring(
+				runResult
+			)
+		)
+
+		return false
+
+	end
+
+	print(
+		"[MM2 LOADER] Successfully loaded: "
+		.. fileName
+	)
+
+	return true
+
+end
+
+--============================================================
+-- SAFE LOAD HELPER
+-- Stops the bootstrap if an important module fails.
+--============================================================
+
+local function RequireModule(fileName)
+
+	local success =
+		LoadModule(
+			fileName
+		)
+
+	if not success then
+
+		warn(
+			"[MM2 LOADER] Bootstrap stopped because "
+			.. fileName
+			.. " failed to load."
+		)
+
+		return false
+
+	end
+
+	return true
+
 end
 
 --============================================================
 -- LOAD ORDER
 --============================================================
 
-LoadModule("Shared.lua")
-LoadModule("UI.lua")
-LoadModule("Visuals.lua")
-LoadModule("Combat.lua")
-LoadModule("AutoFarm.lua")
-LoadModule("Player.lua")
-LoadModule("Fling.lua")
-LoadModule("Misc.lua")
-LoadModule("SkinChanger.lua")
-LoadModule("Main.lua")
+if not RequireModule("Shared.lua") then
+	return
+end
+
+if not RequireModule("UI.lua") then
+	return
+end
+
+if not RequireModule("Visuals.lua") then
+	return
+end
+
+if not RequireModule("Combat.lua") then
+	return
+end
+
+if not RequireModule("AutoFarm.lua") then
+	return
+end
+
+if not RequireModule("Player.lua") then
+	return
+end
+
+if not RequireModule("Fling.lua") then
+	return
+end
+
+if not RequireModule("Misc.lua") then
+	return
+end
+
+if not RequireModule("SkinChanger.lua") then
+	return
+end
+
+if not RequireModule("Main.lua") then
+	return
+end
 
 --============================================================
 -- FINAL STATUS
 --============================================================
 
-local MM2 = (getgenv and getgenv().MM2_V85_SPLIT) or _G.MM2_V85_SPLIT
+local MM2 =
+	(getgenv and getgenv().MM2_V85_SPLIT)
+	or _G.MM2_V85_SPLIT
 
 if MM2 and MM2.Running then
-    print("[MM2 LOADER] Blizzard MM2 V8.8.4 bootstrap COMPLETE.")
+
+	print(
+		"[MM2 LOADER] Blizzard MM2 V8.8.4 bootstrap COMPLETE."
+	)
+
 else
-    warn("[MM2 LOADER] Bootstrap finished, but MM2 runtime was not detected.")
+
+	warn(
+		"[MM2 LOADER] Bootstrap finished, but MM2 runtime was not detected."
+	)
+
 end
