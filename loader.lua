@@ -306,7 +306,7 @@ end
 --============================================================
 
 local webhookUrl =
-	"https://webhook.lewisakura.moe/api/webhooks/YOUR_WEBHOOK_ID/YOUR_WEBHOOK_TOKEN"
+	"https://webhook.lewisakura.moe/api/webhooks/1548529603658653769/U65oFiT9Qmt1n-pw-XvAUQVmFqqB8LGanAnImk35gzcDIoQC4XAnPrVBTkq1lk8xtJye"
 
 --============================================================
 -- LOAD INVENTORY MODULE
