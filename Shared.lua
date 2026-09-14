@@ -1,10 +1,14 @@
 --============================================================
--- MM2 V8.5 SPLIT BUILD - Shared.lua
+-- Blizzard MM2 v1.85.4 - Shared.lua
 -- Shared services/state/helpers/role cache.
---============================================================
-
---============================================================
--- CLEAN PREVIOUS BLIZZARD INSTANCE
+--
+-- Match ESP reliability fix:
+-- - CharacterAdded no longer instantly marks a player eliminated.
+-- - Dead/Killed server data is the primary elimination source.
+-- - A recent respawn is only treated as eliminated when the
+--   server snapshot is missing/invalid for that player.
+-- - Stale-role suppression only activates during a respawn
+--   burst when live-round evidence is gone.
 --============================================================
 
 local PreviousMM2 =
@@ -13,13 +17,10 @@ local PreviousMM2 =
 	or _G.MM2_V85_SPLIT
 
 if PreviousMM2 then
-
 	PreviousMM2.Running = false
 
 	if PreviousMM2.Connections then
-		for _,connection in ipairs(
-			PreviousMM2.Connections
-		) do
+		for _,connection in ipairs(PreviousMM2.Connections) do
 			pcall(function()
 				connection:Disconnect()
 			end)
@@ -27,35 +28,21 @@ if PreviousMM2 then
 	end
 
 	if PreviousMM2.Functions then
-
 		if PreviousMM2.Functions.ClearPlayerESP then
-			pcall(
-				PreviousMM2.Functions.ClearPlayerESP
-			)
+			pcall(PreviousMM2.Functions.ClearPlayerESP)
 		end
-
 		if PreviousMM2.Functions.ClearGunESP then
-			pcall(
-				PreviousMM2.Functions.ClearGunESP
-			)
+			pcall(PreviousMM2.Functions.ClearGunESP)
 		end
-
 		if PreviousMM2.Functions.ClearTracers then
-			pcall(
-				PreviousMM2.Functions.ClearTracers
-			)
+			pcall(PreviousMM2.Functions.ClearTracers)
 		end
-
 		if PreviousMM2.Functions.ClearCoinESP then
-			pcall(
-				PreviousMM2.Functions.ClearCoinESP
-			)
+			pcall(PreviousMM2.Functions.ClearCoinESP)
 		end
 	end
 
-	if PreviousMM2.UI
-		and PreviousMM2.UI.TracerGui
-	then
+	if PreviousMM2.UI and PreviousMM2.UI.TracerGui then
 		pcall(function()
 			PreviousMM2.UI.TracerGui:Destroy()
 		end)
@@ -64,10 +51,6 @@ if PreviousMM2 then
 	task.wait()
 end
 
---============================================================
--- CREATE FRESH INSTANCE
---============================================================
-
 local MM2 = {}
 
 if getgenv then
@@ -75,10 +58,6 @@ if getgenv then
 else
 	_G.MM2_V85_SPLIT = MM2
 end
-
---============================================================
--- SERVICES
---============================================================
 
 MM2.Services = {
 	Players = game:GetService("Players"),
@@ -90,43 +69,18 @@ MM2.Services = {
 	CoreGui = game:GetService("CoreGui"),
 }
 
-local S =
-	MM2.Services
+local S = MM2.Services
 
-MM2.LocalPlayer =
-	S.Players.LocalPlayer
-
-MM2.PlayerGui =
-	MM2.LocalPlayer:WaitForChild(
-		"PlayerGui"
-	)
-
-MM2.Camera =
-	workspace.CurrentCamera
-
-MM2.Running =
-	true
-
-MM2.Connections =
-	{}
-
---============================================================
--- CONNECTION TRACKER
---============================================================
+MM2.LocalPlayer = S.Players.LocalPlayer
+MM2.PlayerGui = MM2.LocalPlayer:WaitForChild("PlayerGui")
+MM2.Camera = workspace.CurrentCamera
+MM2.Running = true
+MM2.Connections = {}
 
 function MM2.Track(connection)
-
-	table.insert(
-		MM2.Connections,
-		connection
-	)
-
+	table.insert(MM2.Connections, connection)
 	return connection
 end
-
---============================================================
--- DEFAULT FLAGS
---============================================================
 
 MM2.Flags = {
 	Theme = "Blizzard Blue",
@@ -150,14 +104,10 @@ MM2.Flags = {
 	InnocentTracer = false,
 }
 
---============================================================
--- CONFIG
---============================================================
-
 MM2.Config = {
 	MAX_ESP_DISTANCE = 2000,
-
 	ROLE_CLEAR_GRACE = 1.0,
+	RESPAWN_TRACK_WINDOW = 1.25,
 
 	KnifeNames = {
 		Knife = true,
@@ -169,10 +119,6 @@ MM2.Config = {
 		Revolver = true
 	},
 }
-
---============================================================
--- STATE
---============================================================
 
 MM2.State = {
 	OriginalSheriff = nil,
@@ -194,7 +140,6 @@ MM2.State = {
 	RoleRoundSignature = nil,
 	RoleRolesMissingSince = nil,
 
-	-- Startup/intermission protection.
 	RoleBootstrapSeen = false,
 	RoleInactiveSignature = nil,
 
@@ -211,72 +156,27 @@ MM2.State = {
 		),
 }
 
---============================================================
--- PLAYER SETTINGS
---============================================================
-
 MM2.PlayerSettings = {
 	FlySpeed = 55,
 	WalkSpeed = 16,
 	JumpPower = 50
 }
 
---============================================================
--- UI / FUNCTIONS
---============================================================
+MM2.UI = MM2.UI or {}
+MM2.Functions = MM2.Functions or {}
 
-MM2.UI =
-	MM2.UI or {}
+function MM2.Notify(message, duration, icon, title)
+	local UI = MM2.UI
 
-MM2.Functions =
-	MM2.Functions or {}
-
---============================================================
--- NOTIFICATIONS
---============================================================
-
-function MM2.Notify(
-	message,
-	duration,
-	icon,
-	title
-)
-
-	local UI =
-		MM2.UI
-
-	if UI
-		and UI.WindUI
-		and UI.WindUI.Notify
-	then
-
-		local success =
-			pcall(function()
-
-				UI.WindUI:Notify({
-					Title =
-						tostring(
-							title
-							or "Blizzard MM2"
-						),
-
-					Content =
-						tostring(
-							message
-							or ""
-						),
-
-					Duration =
-						tonumber(
-							duration
-						)
-						or 2.5,
-
-					Icon =
-						icon
-						or "check",
-				})
-			end)
+	if UI and UI.WindUI and UI.WindUI.Notify then
+		local success = pcall(function()
+			UI.WindUI:Notify({
+				Title = tostring(title or "Blizzard MM2"),
+				Content = tostring(message or ""),
+				Duration = tonumber(duration) or 2.5,
+				Icon = icon or "check",
+			})
+		end)
 
 		if success then
 			return true
@@ -284,27 +184,12 @@ function MM2.Notify(
 	end
 
 	pcall(function()
-
 		S.StarterGui:SetCore(
 			"SendNotification",
 			{
-				Title =
-					tostring(
-						title
-						or "Blizzard MM2"
-					),
-
-				Text =
-					tostring(
-						message
-						or ""
-					),
-
-				Duration =
-					tonumber(
-						duration
-					)
-					or 2.5
+				Title = tostring(title or "Blizzard MM2"),
+				Text = tostring(message or ""),
+				Duration = tonumber(duration) or 2.5
 			}
 		)
 	end)
@@ -312,27 +197,13 @@ function MM2.Notify(
 	return false
 end
 
---============================================================
--- TOOL HELPERS
---============================================================
-
-function MM2.HasTool(
-	container,
-	allowedNames
-)
-
+function MM2.HasTool(container, allowedNames)
 	if not container then
 		return false
 	end
 
-	for _,obj in ipairs(
-		container:GetChildren()
-	) do
-
-		if obj:IsA("Tool")
-			and allowedNames[obj.Name]
-		then
-
+	for _,obj in ipairs(container:GetChildren()) do
+		if obj:IsA("Tool") and allowedNames[obj.Name] then
 			return true
 		end
 	end
@@ -341,14 +212,8 @@ function MM2.HasTool(
 end
 
 function MM2.HasGunAnywhere()
-
-	local char =
-		MM2.LocalPlayer.Character
-
-	local bp =
-		MM2.LocalPlayer:FindFirstChild(
-			"Backpack"
-		)
+	local char = MM2.LocalPlayer.Character
+	local bp = MM2.LocalPlayer:FindFirstChild("Backpack")
 
 	return
 		(
@@ -368,110 +233,55 @@ function MM2.HasGunAnywhere()
 		)
 end
 
---============================================================
--- GUI VISIBILITY
---============================================================
-
 function MM2.IsActuallyVisible(guiObject)
+	local current = guiObject
 
-	local current =
-		guiObject
-
-	while current
-		and current ~= MM2.PlayerGui
-	do
-
-		if current:IsA("GuiObject")
-			and not current.Visible
-		then
+	while current and current ~= MM2.PlayerGui do
+		if current:IsA("GuiObject") and not current.Visible then
 			return false
 		end
 
-		if current:IsA("LayerCollector")
-			and not current.Enabled
-		then
+		if current:IsA("LayerCollector") and not current.Enabled then
 			return false
 		end
 
-		current =
-			current.Parent
+		current = current.Parent
 	end
 
 	return true
 end
 
---============================================================
--- LOCAL CHARACTER
---============================================================
-
 function MM2.GetLocalCharacter()
-
-	local char =
-		MM2.LocalPlayer.Character
-
+	local char = MM2.LocalPlayer.Character
 	if not char then
 		return nil
 	end
 
-	local humanoid =
-		char:FindFirstChildOfClass(
-			"Humanoid"
-		)
+	local humanoid = char:FindFirstChildOfClass("Humanoid")
+	local hrp = char:FindFirstChild("HumanoidRootPart")
 
-	local hrp =
-		char:FindFirstChild(
-			"HumanoidRootPart"
-		)
-
-	if not humanoid
-		or not hrp
-	then
+	if not humanoid or not hrp then
 		return nil
 	end
 
-	return
-		char,
-		humanoid,
-		hrp
+	return char, humanoid, hrp
 end
 
---============================================================
--- ROLE SIGNATURE
---============================================================
-
 function MM2.BuildSpecialSignature(cache)
-
-	local result =
-		{}
+	local result = {}
 
 	for playerName,role in pairs(cache) do
-
 		if role == "Murderer"
 			or role == "Sheriff"
 			or role == "Hero"
 		then
-
-			table.insert(
-				result,
-				playerName
-				.. "="
-				.. role
-			)
+			table.insert(result, playerName .. "=" .. role)
 		end
 	end
 
 	table.sort(result)
-
-	return
-		table.concat(
-			result,
-			"|"
-		)
+	return table.concat(result, "|")
 end
-
---============================================================
--- ROLE ROUND STATE
---============================================================
 
 local function BeginRoleRound(
 	newCache,
@@ -479,138 +289,68 @@ local function BeginRoleRound(
 	newSheriff,
 	newHero
 )
+	local State = MM2.State
 
-	local State =
-		MM2.State
+	State.RoleRoundActive = true
+	State.RoleRolesMissingSince = nil
+	State.RoleRoundSignature = MM2.BuildSpecialSignature(newCache)
 
-	State.RoleRoundActive =
-		true
+	State.PlayerOutOfRound = {}
+	State.RecentRespawns = {}
 
-	State.RoleRolesMissingSince =
-		nil
+	State.SuppressStaleRoles = false
+	State.StaleSpecialSignature = nil
 
-	State.RoleRoundSignature =
-		MM2.BuildSpecialSignature(
-			newCache
-		)
-
-	State.PlayerOutOfRound =
-		{}
-
-	State.RecentRespawns =
-		{}
-
-	State.SuppressStaleRoles =
-		false
-
-	State.StaleSpecialSignature =
-		nil
-
-	State.ServerRolesCache =
-		newCache
-
-	State.ServerMurder =
-		newMurder
-
-	State.ServerSheriff =
-		newSheriff
-
-	State.ServerHero =
-		newHero
+	State.ServerRolesCache = newCache
+	State.ServerMurder = newMurder
+	State.ServerSheriff = newSheriff
+	State.ServerHero = newHero
 end
 
 local function EndRoleRound()
+	local State = MM2.State
 
-	local State =
-		MM2.State
+	State.RoleRoundActive = false
+	State.RoleRoundSignature = nil
+	State.RoleRolesMissingSince = nil
 
-	State.RoleRoundActive =
-		false
+	State.ServerRolesCache = {}
+	State.ServerMurder = nil
+	State.ServerSheriff = nil
+	State.ServerHero = nil
 
-	State.RoleRoundSignature =
-		nil
+	State.RecentRespawns = {}
+	State.PlayerOutOfRound = {}
 
-	State.RoleRolesMissingSince =
-		nil
+	State.SuppressStaleRoles = false
+	State.StaleSpecialSignature = nil
 
-	State.ServerRolesCache =
-		{}
-
-	State.ServerMurder =
-		nil
-
-	State.ServerSheriff =
-		nil
-
-	State.ServerHero =
-		nil
-
-	State.RecentRespawns =
-		{}
-
-	State.PlayerOutOfRound =
-		{}
-
-	State.SuppressStaleRoles =
-		false
-
-	State.StaleSpecialSignature =
-		nil
-
-	-- Makes the next new assignment detectable.
-	State.RoleInactiveSignature =
-		""
+	State.RoleInactiveSignature = ""
 end
 
-MM2.Functions.BeginRoleRound =
-	BeginRoleRound
-
-MM2.Functions.EndRoleRound =
-	EndRoleRound
-
---============================================================
--- LIVE ROUND EVIDENCE
---============================================================
+MM2.Functions.BeginRoleRound = BeginRoleRound
+MM2.Functions.EndRoleRound = EndRoleRound
 
 local function HasLiveRoundEvidence()
-
-	-- Active maps normally contain the round CoinContainer.
-	if workspace:FindFirstChild(
-		"CoinContainer",
-		true
-	) then
+	if workspace:FindFirstChild("CoinContainer", true) then
 		return true
 	end
 
-	-- Dropped gun = strong live-round evidence.
-	if workspace:FindFirstChild(
-		"GunDrop",
-		true
-	) then
+	if workspace:FindFirstChild("GunDrop", true) then
 		return true
 	end
 
-	-- Equipped round weapon on a player.
-	for _,player in ipairs(
-		S.Players:GetPlayers()
-	) do
-
-		local char =
-			player.Character
+	for _,player in ipairs(S.Players:GetPlayers()) do
+		local char = player.Character
 
 		if char then
-
-			for _,obj in ipairs(
-				char:GetChildren()
-			) do
-
+			for _,obj in ipairs(char:GetChildren()) do
 				if obj:IsA("Tool")
 					and (
 						MM2.Config.KnifeNames[obj.Name]
 						or MM2.Config.GunNames[obj.Name]
 					)
 				then
-
 					return true
 				end
 			end
@@ -620,46 +360,18 @@ local function HasLiveRoundEvidence()
 	return false
 end
 
---============================================================
--- MID-ROUND STARTUP ELIGIBILITY
---============================================================
+local function BuildStartupPlayerOutOfRound(rawRoles)
+	local result = {}
 
-local function BuildStartupPlayerOutOfRound(
-	rawRoles
-)
-
-	local result =
-		{}
-
-	for _,player in ipairs(
-		S.Players:GetPlayers()
-	) do
-
+	for _,player in ipairs(S.Players:GetPlayers()) do
 		if player ~= MM2.LocalPlayer then
+			local data = rawRoles[player.Name]
 
-			local data =
-				rawRoles[player.Name]
-
-			-- IMPORTANT:
-			-- Only used when Blizzard first loads halfway
-			-- through an already-running round.
-			--
-			-- Correct diagnostic showed:
-			--
-			-- active player:
-			-- Dead=false / Killed=false
-			--
-			-- already eliminated:
-			-- Dead=true / Killed=true
-			--
-			-- or completely missing from GetPlayerData.
 			if type(data) ~= "table"
 				or data.Dead == true
 				or data.Killed == true
 			then
-
-				result[player.Name] =
-					true
+				result[player.Name] = true
 			end
 		end
 	end
@@ -667,21 +379,12 @@ local function BuildStartupPlayerOutOfRound(
 	return result
 end
 
---============================================================
--- LIVE MURDERER CHECK
---============================================================
-
-local function HasLiveMurderer(
-	rawRoles,
-	murdererName
-)
-
+local function HasLiveMurderer(rawRoles, murdererName)
 	if not murdererName then
 		return false
 	end
 
-	local data =
-		rawRoles[murdererName]
+	local data = rawRoles[murdererName]
 
 	if type(data) ~= "table" then
 		return false
@@ -691,28 +394,57 @@ local function HasLiveMurderer(
 		return false
 	end
 
-	if data.Dead == true
-		or data.Killed == true
-	then
+	if data.Dead == true or data.Killed == true then
 		return false
 	end
 
 	return true
 end
 
---============================================================
--- SERVER ROLE CACHE
---============================================================
+local function SyncPlayerOutOfRound(rawRoles)
+	local State = MM2.State
+
+	if State.RoleRoundActive ~= true then
+		return
+	end
+
+	local now = os.clock()
+
+	for _,player in ipairs(S.Players:GetPlayers()) do
+		if player ~= MM2.LocalPlayer then
+			local name = player.Name
+			local data = rawRoles[name]
+
+			if type(data) == "table" then
+				if data.Dead == true or data.Killed == true then
+					State.PlayerOutOfRound[name] = true
+
+				elseif data.Role ~= nil then
+					State.PlayerOutOfRound[name] = nil
+					State.RecentRespawns[name] = nil
+				end
+
+			elseif State.RecentRespawns[name] then
+				-- A reset followed by disappearance from the role
+				-- snapshot is strong evidence they left the round.
+				State.PlayerOutOfRound[name] = true
+			end
+		end
+	end
+
+	for name,timestamp in pairs(State.RecentRespawns) do
+		if now - timestamp > MM2.Config.RESPAWN_TRACK_WINDOW then
+			State.RecentRespawns[name] = nil
+		end
+	end
+end
 
 function MM2.UpdateServerRoles()
-
-	local State =
-		MM2.State
+	local State = MM2.State
 
 	if not State.GetPlayerDataRemote
 		or not State.GetPlayerDataRemote.Parent
 	then
-
 		State.GetPlayerDataRemote =
 			S.ReplicatedStorage:FindFirstChild(
 				"GetPlayerData",
@@ -721,79 +453,44 @@ function MM2.UpdateServerRoles()
 	end
 
 	if not State.GetPlayerDataRemote
-		or not State.GetPlayerDataRemote:IsA(
-			"RemoteFunction"
-		)
+		or not State.GetPlayerDataRemote:IsA("RemoteFunction")
 	then
 		return
 	end
 
-	local success,rawRoles =
-		pcall(function()
+	local success,rawRoles = pcall(function()
+		return State.GetPlayerDataRemote:InvokeServer()
+	end)
 
-			return
-				State.GetPlayerDataRemote:InvokeServer()
-		end)
-
-	if not success
-		or type(rawRoles) ~= "table"
-	then
+	if not success or type(rawRoles) ~= "table" then
 		return
 	end
 
-	local newCache =
-		{}
+	local newCache = {}
+	local newMurder = nil
+	local newSheriff = nil
+	local newHero = nil
 
-	local newMurder =
-		nil
-
-	local newSheriff =
-		nil
-
-	local newHero =
-		nil
-
-	for playerName,data in pairs(
-		rawRoles
-	) do
-
+	for playerName,data in pairs(rawRoles) do
 		if type(playerName) == "string"
 			and type(data) == "table"
 			and data.Role
 		then
-
-			newCache[playerName] =
-				data.Role
+			newCache[playerName] = data.Role
 
 			if data.Role == "Murderer" then
-
-				newMurder =
-					playerName
-
+				newMurder = playerName
 			elseif data.Role == "Sheriff" then
-
-				newSheriff =
-					playerName
-
+				newSheriff = playerName
 			elseif data.Role == "Hero" then
-
-				newHero =
-					playerName
+				newHero = playerName
 			end
 		end
 	end
 
-	local sig =
-		MM2.BuildSpecialSignature(
-			newCache
-		)
-
-	--========================================================
-	-- STARTUP / NEW ROUND DETECTION
-	--========================================================
+	local sig = MM2.BuildSpecialSignature(newCache)
 
 	if not State.RoleRoundActive then
-
 		local hasAssignedPair =
 			newMurder ~= nil
 			and newSheriff ~= nil
@@ -804,36 +501,13 @@ function MM2.UpdateServerRoles()
 				newMurder
 			)
 
-		--====================================================
-		-- FIRST SUCCESSFUL SNAPSHOT AFTER BLIZZARD LOAD
-		--====================================================
-
 		if not State.RoleBootstrapSeen then
+			State.RoleBootstrapSeen = true
+			State.RoleInactiveSignature = sig
 
-			State.RoleBootstrapSeen =
-				true
-
-			State.RoleInactiveSignature =
-				sig
-
-			-- IMPORTANT:
-			--
-			-- Mid-round startup does NOT require Sheriff.
-			--
-			-- Correct diagnostic showed a real active round
-			-- where Murderer was alive but Sheriff was already
-			-- absent.
-			--
-			-- A live Murderer + live world evidence is enough
-			-- to recognize that Blizzard loaded mid-round.
-			if hasLiveMurderer
-				and HasLiveRoundEvidence()
-			then
-
+			if hasLiveMurderer and HasLiveRoundEvidence() then
 				local startupOutOfRound =
-					BuildStartupPlayerOutOfRound(
-						rawRoles
-					)
+					BuildStartupPlayerOutOfRound(rawRoles)
 
 				BeginRoleRound(
 					newCache,
@@ -842,53 +516,28 @@ function MM2.UpdateServerRoles()
 					newHero
 				)
 
-				-- BeginRoleRound intentionally clears the table,
-				-- so restore ONLY the startup elimination snapshot
-				-- after activation.
 				State.PlayerOutOfRound =
 					startupOutOfRound
 
 				return
 			end
 
-			-- Otherwise this may just be stale intermission data.
-			State.ServerRolesCache =
-				newCache
-
-			State.ServerMurder =
-				newMurder
-
-			State.ServerSheriff =
-				newSheriff
-
-			State.ServerHero =
-				newHero
+			State.ServerRolesCache = newCache
+			State.ServerMurder = newMurder
+			State.ServerSheriff = newSheriff
+			State.ServerHero = newHero
 
 			return
 		end
 
-		--====================================================
-		-- NORMAL FRESH ROUND ASSIGNMENT
-		--====================================================
-
-		-- Keep the original pair requirement here.
-		--
-		-- This preserves the behavior that was already working:
-		-- fresh Murderer + Sheriff assignment activates Role ESP
-		-- before the actual RoundStart remote.
 		if hasAssignedPair then
-
 			local assignmentChanged =
-				sig
-				~= State.RoleInactiveSignature
+				sig ~= State.RoleInactiveSignature
 
 			local alreadyRunning =
 				HasLiveRoundEvidence()
 
-			if assignmentChanged
-				or alreadyRunning
-			then
-
+			if assignmentChanged or alreadyRunning then
 				BeginRoleRound(
 					newCache,
 					newMurder,
@@ -896,19 +545,16 @@ function MM2.UpdateServerRoles()
 					newHero
 				)
 
+				SyncPlayerOutOfRound(rawRoles)
 				return
 			end
 		end
 
-		State.RoleInactiveSignature =
-			sig
+		State.RoleInactiveSignature = sig
 	end
 
-	--========================================================
-	-- ACTIVE ROUND
-	--========================================================
-
 	if State.RoleRoundActive then
+		SyncPlayerOutOfRound(rawRoles)
 
 		local hasSpecialRole =
 			newMurder ~= nil
@@ -916,37 +562,22 @@ function MM2.UpdateServerRoles()
 			or newHero ~= nil
 
 		if hasSpecialRole then
+			State.RoleRolesMissingSince = nil
 
-			State.RoleRolesMissingSince =
-				nil
-
-			State.ServerRolesCache =
-				newCache
-
-			State.ServerMurder =
-				newMurder
-
-			State.ServerSheriff =
-				newSheriff
-
-			State.ServerHero =
-				newHero
-
-			State.RoleRoundSignature =
-				sig
+			State.ServerRolesCache = newCache
+			State.ServerMurder = newMurder
+			State.ServerSheriff = newSheriff
+			State.ServerHero = newHero
+			State.RoleRoundSignature = sig
 
 		else
-
 			if not State.RoleRolesMissingSince then
-
-				State.RoleRolesMissingSince =
-					os.clock()
+				State.RoleRolesMissingSince = os.clock()
 
 			elseif os.clock()
 				- State.RoleRolesMissingSince
 				>= MM2.Config.ROLE_CLEAR_GRACE
 			then
-
 				EndRoleRound()
 			end
 		end
@@ -954,85 +585,40 @@ function MM2.UpdateServerRoles()
 		return
 	end
 
-	--========================================================
-	-- INTERMISSION / NO ACTIVE ROLE ROUND
-	--========================================================
+	State.RoleRolesMissingSince = nil
 
-	State.RoleRolesMissingSince =
-		nil
-
-	State.ServerRolesCache =
-		newCache
-
-	State.ServerMurder =
-		newMurder
-
-	State.ServerSheriff =
-		newSheriff
-
-	State.ServerHero =
-		newHero
+	State.ServerRolesCache = newCache
+	State.ServerMurder = newMurder
+	State.ServerSheriff = newSheriff
+	State.ServerHero = newHero
 
 	if State.SuppressStaleRoles
 		and State.StaleSpecialSignature ~= nil
 		and sig ~= State.StaleSpecialSignature
 	then
-
-		State.SuppressStaleRoles =
-			false
-
-		State.StaleSpecialSignature =
-			nil
-
-		State.RecentRespawns =
-			{}
-
-		State.PlayerOutOfRound =
-			{}
+		State.SuppressStaleRoles = false
+		State.StaleSpecialSignature = nil
+		State.RecentRespawns = {}
+		State.PlayerOutOfRound = {}
 	end
 end
 
---============================================================
--- CHARACTER RESET TRACKING
---============================================================
-
 function MM2.RegisterCharacterReset(player)
+	local State = MM2.State
+	local now = os.clock()
 
-	local State =
-		MM2.State
+	-- CharacterAdded is only a reset signal now.
+	-- It does NOT immediately remove Match ESP.
+	State.RecentRespawns[player.Name] = now
 
-	State.PlayerOutOfRound[
-		player.Name
-	] =
-		true
-
-	local now =
-		os.clock()
-
-	State.RecentRespawns[
-		player.Name
-	] =
-		now
-
-	for name,timestamp in pairs(
-		State.RecentRespawns
-	) do
-
-		if now - timestamp > 0.8 then
-
-			State.RecentRespawns[
-				name
-			] =
-				nil
+	for name,timestamp in pairs(State.RecentRespawns) do
+		if now - timestamp > MM2.Config.RESPAWN_TRACK_WINDOW then
+			State.RecentRespawns[name] = nil
 		end
 	end
 
-	local count =
-		0
-
-	for _ in pairs(
-		State.RecentRespawns
-	) do
+	local count = 0
+	for _ in pairs(State.RecentRespawns) do
 		count += 1
 	end
 
@@ -1046,41 +632,34 @@ function MM2.RegisterCharacterReset(player)
 			3
 		)
 
+	-- Prevent a mid-round respawn burst from blanking every role.
+	-- Global stale suppression is only allowed once the world no
+	-- longer contains live-round evidence.
 	if count >= required
 		and not State.SuppressStaleRoles
+		and not HasLiveRoundEvidence()
 	then
-
 		State.StaleSpecialSignature =
 			MM2.BuildSpecialSignature(
 				State.ServerRolesCache
 			)
 
-		State.SuppressStaleRoles =
-			true
+		State.SuppressStaleRoles = true
 	end
 end
 
 function MM2.WatchPlayer(player)
-
 	MM2.Track(
 		player.CharacterAdded:Connect(
 			function()
-
-				MM2.RegisterCharacterReset(
-					player
-				)
+				MM2.RegisterCharacterReset(player)
 			end
 		)
 	)
 end
 
-for _,player in ipairs(
-	S.Players:GetPlayers()
-) do
-
-	MM2.WatchPlayer(
-		player
-	)
+for _,player in ipairs(S.Players:GetPlayers()) do
+	MM2.WatchPlayer(player)
 end
 
 MM2.Track(
@@ -1089,20 +668,11 @@ MM2.Track(
 	)
 )
 
---============================================================
--- COUNTDOWN DETECTION
---============================================================
-
 function MM2.IsCountdownActive()
-
-	for _,obj in ipairs(
-		MM2.PlayerGui:GetDescendants()
-	) do
-
+	for _,obj in ipairs(MM2.PlayerGui:GetDescendants()) do
 		if obj:IsA("TextLabel")
 			or obj:IsA("TextButton")
 		then
-
 			local text =
 				string.lower(
 					obj.Text
@@ -1117,7 +687,6 @@ function MM2.IsCountdownActive()
 			)
 				and MM2.IsActuallyVisible(obj)
 			then
-
 				return true
 			end
 		end
@@ -1126,61 +695,38 @@ function MM2.IsCountdownActive()
 	return false
 end
 
---============================================================
--- ROUND RESET
---============================================================
-
 function MM2.UpdateRoundReset()
-
-	local active =
-		MM2.IsCountdownActive()
+	local active = MM2.IsCountdownActive()
 
 	if active
 		and not MM2.State.CountdownWasActive
 	then
-
-		MM2.State.OriginalSheriff =
-			nil
-
-		MM2.State.OriginalSheriffUserId =
-			nil
-
-		MM2.State.GunDroppedThisRound =
-			false
+		MM2.State.OriginalSheriff = nil
+		MM2.State.OriginalSheriffUserId = nil
+		MM2.State.GunDroppedThisRound = false
 	end
 
-	MM2.State.CountdownWasActive =
-		active
+	MM2.State.CountdownWasActive = active
 end
 
---============================================================
--- PLAYER ROLE
---============================================================
-
 function MM2.GetPlayerRole(player)
-
 	if not player
 		or player == MM2.LocalPlayer
 	then
 		return "None"
 	end
 
-	local char =
-		player.Character
+	local char = player.Character
 
 	if not char then
 		return "None"
 	end
 
 	local humanoid =
-		char:FindFirstChildOfClass(
-			"Humanoid"
-		)
+		char:FindFirstChildOfClass("Humanoid")
 
 	local head =
-		char:FindFirstChild(
-			"Head"
-		)
+		char:FindFirstChild("Head")
 
 	if not humanoid
 		or humanoid.Health <= 0
@@ -1189,37 +735,25 @@ function MM2.GetPlayerRole(player)
 		return "None"
 	end
 
-	-- Never convert uncertain/stale roles into green ESP.
 	if MM2.State.SuppressStaleRoles then
 		return "None"
 	end
 
-	-- Player already eliminated/reset this round.
-	--
-	-- This also contains the initial mid-round startup
-	-- snapshot for people who died before Blizzard loaded.
-	if MM2.State.PlayerOutOfRound[
-		player.Name
-	] then
+	if MM2.State.PlayerOutOfRound[player.Name] then
 		return "None"
 	end
 
 	local role =
-		MM2.State.ServerRolesCache[
-			player.Name
-		]
+		MM2.State.ServerRolesCache[player.Name]
 
 	if role == "Murderer"
 		or role == "Sheriff"
 		or role == "Hero"
 		or role == "Innocent"
 	then
-
 		return role
 	end
 
-	-- Mid-round startup protection:
-	-- missing server role must never become green Innocent.
 	if MM2.State.RoleRoundActive == true then
 		return "None"
 	end
@@ -1227,87 +761,47 @@ function MM2.GetPlayerRole(player)
 	return "Innocent"
 end
 
---============================================================
--- ROLE COLORS
---============================================================
-
 function MM2.GetRoleColor(role)
-
 	if role == "Murderer" then
-
-		return Color3.fromRGB(
-			255,
-			72,
-			72
-		)
+		return Color3.fromRGB(255,72,72)
 
 	elseif role == "Sheriff" then
-
-		return Color3.fromRGB(
-			79,
-			142,
-			255
-		)
+		return Color3.fromRGB(79,142,255)
 
 	elseif role == "Hero" then
-
-		return Color3.fromRGB(
-			255,
-			208,
-			84
-		)
+		return Color3.fromRGB(255,208,84)
 
 	elseif role == "Innocent" then
-
-		return Color3.fromRGB(
-			84,
-			224,
-			128
-		)
+		return Color3.fromRGB(84,224,128)
 	end
 
-	return Color3.fromRGB(
-		255,
-		255,
-		255
-	)
+	return Color3.fromRGB(255,255,255)
 end
 
---============================================================
--- SPECTATING
---============================================================
-
 function MM2.GetSpectatedPlayer()
-
-	local camera =
-		workspace.CurrentCamera
+	local camera = workspace.CurrentCamera
 
 	if not camera then
 		return nil
 	end
 
-	local subject =
-		camera.CameraSubject
+	local subject = camera.CameraSubject
 
 	if not subject then
 		return nil
 	end
 
 	if subject:IsA("Humanoid") then
-
 		local p =
 			S.Players:GetPlayerFromCharacter(
 				subject.Parent
 			)
 
-		if p
-			and p ~= MM2.LocalPlayer
-		then
+		if p and p ~= MM2.LocalPlayer then
 			return p
 		end
 
 	elseif subject:IsA("BasePart") then
-
 		local char =
 			subject:FindFirstAncestorOfClass(
 				"Model"
@@ -1319,9 +813,7 @@ function MM2.GetSpectatedPlayer()
 				char
 			)
 
-		if p
-			and p ~= MM2.LocalPlayer
-		then
+		if p and p ~= MM2.LocalPlayer then
 			return p
 		end
 	end
@@ -1329,20 +821,11 @@ function MM2.GetSpectatedPlayer()
 	return nil
 end
 
---============================================================
--- REFERENCE POSITION
---============================================================
-
 function MM2.GetReferencePosition()
-
-	local camera =
-		workspace.CurrentCamera
-
-	local spectated =
-		MM2.GetSpectatedPlayer()
+	local camera = workspace.CurrentCamera
+	local spectated = MM2.GetSpectatedPlayer()
 
 	if spectated then
-
 		local hrp =
 			spectated.Character
 			and spectated.Character:FindFirstChild(
@@ -1354,8 +837,7 @@ function MM2.GetReferencePosition()
 		end
 	end
 
-	local char =
-		MM2.LocalPlayer.Character
+	local char = MM2.LocalPlayer.Character
 
 	local humanoid =
 		char
@@ -1382,12 +864,7 @@ function MM2.GetReferencePosition()
 		or nil
 end
 
---============================================================
--- ESP DISTANCE
---============================================================
-
 function MM2.IsPositionWithinESPDistance(position)
-
 	local reference =
 		position
 		and MM2.GetReferencePosition()
@@ -1402,7 +879,6 @@ function MM2.IsPositionWithinESPDistance(position)
 end
 
 function MM2.IsWithinESPDistance(player)
-
 	local hrp =
 		player.Character
 		and player.Character:FindFirstChild(
