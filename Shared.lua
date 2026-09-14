@@ -129,7 +129,7 @@ end
 --============================================================
 
 MM2.Flags = {
-	Theme = "Summer Event",
+	Theme = "Blizzard Blue",
 	AntiFling = true,
 
 	MatchESP = false,
