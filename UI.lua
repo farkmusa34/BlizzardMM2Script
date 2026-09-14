@@ -1,5 +1,5 @@
 --============================================================
--- Blizzard MM2 V8.8.4 - UI.lua
+-- Blizzard MM2 v1.85.4 - UI.lua
 -- SIMPLE WINDUI BRIDGE
 --
 -- WindUI owns the visible menu and toolbar.
@@ -500,7 +500,7 @@ UI.WindUI =
 local Window =
 	WindUI:CreateWindow({
 		Title = "Blizzard MM2",
-		Author = "V8.8.4",
+		Author = "v1.85.4",
 		Folder = "BlizzardMM2",
 		Icon = "gamepad-2",
 		Theme = "Dark",
@@ -518,6 +518,20 @@ local Window =
 
 UI.Window =
 	Window
+
+--============================================================
+-- TOP STATUS TAG
+--============================================================
+
+pcall(function()
+
+	Window:Tag({
+		Title = "Latest Update",
+		Icon = "sparkles",
+		Border = true,
+	})
+
+end)
 
 --============================================================
 -- IMPORTANT:
@@ -796,9 +810,6 @@ local function LockSectionOpenAndHideArrow(section)
 			return
 		end
 
-		-- WindUI's section chevron lives inside a child Frame
-		-- in the top header. This does not touch Dropdown()
-		-- controls, so Fling player selection keeps its arrow.
 		for _,child in ipairs(top:GetChildren()) do
 			if child:IsA("Frame") then
 				for _,descendant in ipairs(
@@ -816,20 +827,16 @@ local function LockSectionOpenAndHideArrow(section)
 
 	HideChevron()
 
-	-- WindUI can finish some UI setup on deferred tasks.
-	-- Re-hide the chevron after that setup completes.
 	task.defer(function()
 		HideChevron()
 	end)
 
-	-- Keep the section open.
 	if section.Open then
 		pcall(function()
 			section:Open(true)
 		end)
 	end
 
-	-- Prevent later Close() calls from collapsing it.
 	if section.Close then
 		section.Close = function(self)
 			self.Opened = true
@@ -922,8 +929,6 @@ function UI.AddSection(
 		)
 	end
 
-	-- Feature controls remain parented to the real WindUI
-	-- section, preserving the old grouped layout.
 	UI.ActiveSection[page] =
 		section
 
@@ -939,9 +944,6 @@ end
 
 --============================================================
 -- DROPDOWN
---
--- Real dropdowns remain unchanged.
--- Fling -> Select Player to Target keeps its arrow.
 --============================================================
 
 function UI.CreateDropdown(
@@ -2080,7 +2082,7 @@ UI.ShowPage(
 )
 
 print(
-	"[Blizzard MM2 UI] Simple WindUI bridge V8.8.4 loaded"
+	"[Blizzard MM2 UI] Simple WindUI bridge v1.85.4 loaded"
 )
 
 return MM2
