@@ -1,5 +1,5 @@
 --============================================================
--- BLIZZARD MM2 V8.8.4 - LOADER.LUA
+-- Blizzard MM2 v1.85.4 - Loader.lua
 --============================================================
 
 --============================================================
@@ -89,7 +89,7 @@ end
 --============================================================
 
 print(
-	"[MM2 LOADER] Starting Blizzard MM2 V8.8.4..."
+	"[MM2 LOADER] Starting Blizzard MM2 v1.85.4..."
 )
 
 --============================================================
@@ -263,6 +263,7 @@ if not RequireModule("Visuals.lua") then return end
 if not RequireModule("Combat.lua") then return end
 if not RequireModule("AutoFarm.lua") then return end
 if not RequireModule("Player.lua") then return end
+if not RequireModule("Teleport.lua") then return end
 if not RequireModule("Fling.lua") then return end
 if not RequireModule("Misc.lua") then return end
 if not RequireModule("SkinChanger.lua") then return end
@@ -281,7 +282,7 @@ if MM2
 then
 
 	print(
-		"[MM2 LOADER] Blizzard MM2 V8.8.4 bootstrap COMPLETE."
+		"[MM2 LOADER] Blizzard MM2 v1.85.4 bootstrap COMPLETE."
 	)
 
 else
