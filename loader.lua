@@ -12,8 +12,38 @@ local Players =
 local ReplicatedStorage =
 	game:GetService("ReplicatedStorage")
 
+local UserInputService =
+	game:GetService("UserInputService")
+
 local LocalPlayer =
 	Players.LocalPlayer
+
+--============================================================
+-- DESKTOP / PC ACCESS BLOCK
+--
+-- Windows + macOS desktop Roblox are currently unsupported.
+-- Mobile continues normally.
+--============================================================
+
+local Platform =
+	UserInputService:GetPlatform()
+
+local IsDesktop =
+	Platform == Enum.Platform.Windows
+	or Platform == Enum.Platform.OSX
+
+if IsDesktop then
+
+	warn(
+		"[MM2 LOADER] Desktop Roblox detected. Blizzard blocked."
+	)
+
+	LocalPlayer:Kick(
+		"The script does not work on PC yet, use it on mobile for now."
+	)
+
+	return
+end
 
 --============================================================
 -- PRIVATE SERVER ACCESS BLOCK
