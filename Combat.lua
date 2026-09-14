@@ -72,10 +72,18 @@ UI.CreateToggle(UI.CombatPage, "Aim Lock", "Torso aim lock in first-person / loc
 
 UI.AddSection(UI.CombatPage, "Sheriff", "Legit and rage gun features")
 UI.CreateToggle(UI.CombatPage, "Shoot Murderer (Legit)", "Requires clear line of sight; does not shoot through walls", "ShowLegitShootButton", function(on)
-	if MM2.UI.FloatingLegitShootButton then MM2.UI.FloatingLegitShootButton.Visible = on end
+	if MM2.UI.FloatingLegitShootHolder then
+		MM2.UI.FloatingLegitShootHolder.Visible = on
+	elseif MM2.UI.FloatingLegitShootButton then
+		MM2.UI.FloatingLegitShootButton.Visible = on
+	end
 end)
 UI.CreateToggle(UI.CombatPage, "Shoot Murderer (Rage)", "Keeps the current behavior and can attempt shots through walls", "ShowShootButton", function(on)
-	if MM2.UI.FloatingShootButton then MM2.UI.FloatingShootButton.Visible = on end
+	if MM2.UI.FloatingShootHolder then
+		MM2.UI.FloatingShootHolder.Visible = on
+	elseif MM2.UI.FloatingShootButton then
+		MM2.UI.FloatingShootButton.Visible = on
+	end
 end)
 UI.CreateToggle(UI.CombatPage, "Auto Grab Gun", "Automatically grabs the gun without moving your body", "AutoGrab")
 
@@ -896,184 +904,101 @@ RunService:BindToRenderStep(
 	UpdateCombatFeatures
 )
 
-local function MakeShootButtonMovable(button)
-	local dragging = false
-	local moved = false
-	local dragStart
-	local startPosition
-	local dragInput
-	Track(button.InputBegan:Connect(function(input)
-		if input.UserInputType == Enum.UserInputType.MouseButton1
-			or input.UserInputType == Enum.UserInputType.Touch
-		then
-			dragging = true
-			moved = false
-			dragStart = input.Position
-			startPosition = button.Position
-			Track(input.Changed:Connect(function()
-				if input.UserInputState == Enum.UserInputState.End then
-					dragging = false
-					if moved then
-						button:SetAttribute("_JustDragged",true)
-						task.delay(0.10,function()
-							if button and button.Parent then
-								button:SetAttribute("_JustDragged",false)
-							end
-						end)
-					end
-				end
-			end))
-		end
-	end))
-	Track(button.InputChanged:Connect(function(input)
-		if input.UserInputType == Enum.UserInputType.MouseMovement
-			or input.UserInputType == Enum.UserInputType.Touch
-		then
-			dragInput = input
-		end
-	end))
-	Track(UIS.InputChanged:Connect(function(input)
-		if not dragging
-			or input ~= dragInput
-			or not dragStart
-			or not startPosition
-		then
-			return
-		end
-		local delta = input.Position-dragStart
-		if delta.Magnitude >= 4 then
-			moved = true
-		end
-		if moved then
-			button.Position = UDim2.new(
-				startPosition.X.Scale,
-				startPosition.X.Offset+delta.X,
-				startPosition.Y.Scale,
-				startPosition.Y.Offset+delta.Y
-			)
-		end
-	end))
-end
+--============================================================
+-- BLIZZARD FLOATING COMBAT CARDS
+--
+-- Uses UI.CreateMovableCardButton from UI.lua so the floating
+-- controls match the WindUI / Lucide visual language:
+--   SHOOT      -> crosshair
+--   RAGE SHOOT -> zap
+--   KILL ALL   -> swords
+--============================================================
 
-local FloatingShootButton = Instance.new("TextButton")
-FloatingShootButton.Name = "FloatingShootMurderer"
-FloatingShootButton.AnchorPoint = Vector2.new(0.5,0.5)
-FloatingShootButton.Position = UDim2.new(0.78,0,0.72,0)
-FloatingShootButton.Size = UDim2.fromOffset(190,60)
-FloatingShootButton.BackgroundColor3 = UI.COLORS.Card
-FloatingShootButton.BackgroundTransparency = 0.12
-FloatingShootButton.BorderSizePixel = 0
-FloatingShootButton.Text = "Shoot Murderer (Rage)"
-FloatingShootButton.TextColor3 = UI.COLORS.Text
-FloatingShootButton.Font = Enum.Font.GothamBold
-FloatingShootButton.TextSize = 15
-FloatingShootButton.AutoButtonColor = true
-FloatingShootButton.Active = true
-FloatingShootButton.Draggable = false
-FloatingShootButton.Visible = false
-FloatingShootButton.ZIndex = 300
-FloatingShootButton.Parent = UI.ScreenGui
+assert(
+	UI.CreateMovableCardButton,
+	"Updated UI.lua with CreateMovableCardButton is required"
+)
 
-MM2.UI.FloatingShootButton = FloatingShootButton
-MakeShootButtonMovable(FloatingShootButton)
-FloatingShootButton.Visible = Flags.ShowShootButton == true
-
-local c = Instance.new("UICorner")
-c.CornerRadius = UDim.new(0,18)
-c.Parent = FloatingShootButton
-
-local s = Instance.new("UIStroke")
-s.Color = UI.COLORS.Accent
-s.Thickness = 1.4
-s.Transparency = 0.2
-s.Parent = FloatingShootButton
-
-Track(FloatingShootButton.MouseButton1Click:Connect(function()
-	if FloatingShootButton:GetAttribute("_JustDragged") then return end
-	task.spawn(function()
-		local ok,success,message = pcall(function()
-			return MM2.Functions.ShootMurderer()
-		end)
-		if not ok then
-			warn("[MM2 V8.6.2 SHOOT] BUTTON CALL ERROR:",success)
-			CombatNotify("Shoot Murderer","Error","x",2)
-			return
-		end
-		NotifyShootResult(success,message)
-	end)
-end))
-
-local FloatingLegitShootButton = Instance.new("TextButton")
-FloatingLegitShootButton.Name = "FloatingLegitShootMurderer"
-FloatingLegitShootButton.AnchorPoint = Vector2.new(0.5,0.5)
-FloatingLegitShootButton.Position = UDim2.new(0.78,0,0.64,0)
-FloatingLegitShootButton.Size = UDim2.fromOffset(190,60)
-FloatingLegitShootButton.BackgroundColor3 = UI.COLORS.Card
-FloatingLegitShootButton.BackgroundTransparency = 0.12
-FloatingLegitShootButton.BorderSizePixel = 0
-FloatingLegitShootButton.Text = "Shoot Murderer (Legit)"
-FloatingLegitShootButton.TextColor3 = UI.COLORS.Text
-FloatingLegitShootButton.Font = Enum.Font.GothamBold
-FloatingLegitShootButton.TextSize = 15
-FloatingLegitShootButton.AutoButtonColor = true
-FloatingLegitShootButton.Active = true
-FloatingLegitShootButton.Draggable = false
-FloatingLegitShootButton.Visible = false
-FloatingLegitShootButton.ZIndex = 300
-FloatingLegitShootButton.Parent = UI.ScreenGui
-
-MM2.UI.FloatingLegitShootButton = FloatingLegitShootButton
-MakeShootButtonMovable(FloatingLegitShootButton)
-FloatingLegitShootButton.Visible = Flags.ShowLegitShootButton == true
-
-local legitCorner = Instance.new("UICorner")
-legitCorner.CornerRadius = UDim.new(0,18)
-legitCorner.Parent = FloatingLegitShootButton
-
-local legitStroke = Instance.new("UIStroke")
-legitStroke.Color = UI.COLORS.Accent
-legitStroke.Thickness = 1.4
-legitStroke.Transparency = 0.2
-legitStroke.Parent = FloatingLegitShootButton
-
-Track(FloatingLegitShootButton.MouseButton1Click:Connect(function()
-	if FloatingLegitShootButton:GetAttribute("_JustDragged") then return end
-	task.spawn(function()
-		local ok,success,message = pcall(function()
-			return MM2.Functions.ShootMurdererLegit()
-		end)
-		if not ok then
-			warn("[MM2 LEGIT SHOOT BUTTON]",success)
-			CombatNotify("Shoot Murderer","Error","x",2)
-			return
-		end
-		NotifyShootResult(success,message)
-	end)
-end))
-
-if UI.CreateMovableCircleButton then
-	local FloatingKillAllButton,FloatingKillAllHolder =
-		UI.CreateMovableCircleButton(
-			"FloatingKillAll",
-			"💀",
-			"KILL ALL",
-			UDim2.new(0.67,-52,0.78,-42),
-			function()
+-- Legit shot: clean crosshair card.
+local FloatingLegitShootButton,FloatingLegitShootHolder =
+	UI.CreateMovableCardButton(
+		"FloatingLegitShootMurderer",
+		"crosshair",
+		"SHOOT",
+		UDim2.new(0.78,0,0.64,0),
+		function()
+			task.spawn(function()
 				local ok,success,message = pcall(function()
-					return MM2.Functions.KillAllOnce()
+					return MM2.Functions.ShootMurdererLegit()
 				end)
+
 				if not ok then
-					warn("[MM2 KILL ALL BUTTON]",success)
-					CombatNotify("Kill All","Kill All error","x",2)
-				else
-					NotifyKillAllResult(success,message)
+					warn("[MM2 LEGIT SHOOT BUTTON]",success)
+					CombatNotify("Shoot Murderer","Error","x",2)
+					return
 				end
+
+				NotifyShootResult(success,message)
+			end)
+		end
+	)
+
+FloatingLegitShootHolder.Visible = Flags.ShowLegitShootButton == true
+MM2.UI.FloatingLegitShootButton = FloatingLegitShootButton
+MM2.UI.FloatingLegitShootHolder = FloatingLegitShootHolder
+
+-- Rage shot: lightning / zap card.
+local FloatingShootButton,FloatingShootHolder =
+	UI.CreateMovableCardButton(
+		"FloatingShootMurderer",
+		"zap",
+		"RAGE SHOOT",
+		UDim2.new(0.78,0,0.76,0),
+		function()
+			task.spawn(function()
+				local ok,success,message = pcall(function()
+					return MM2.Functions.ShootMurderer()
+				end)
+
+				if not ok then
+					warn("[MM2 V8.6.2 SHOOT] BUTTON CALL ERROR:",success)
+					CombatNotify("Shoot Murderer","Error","x",2)
+					return
+				end
+
+				NotifyShootResult(success,message)
+			end)
+		end
+	)
+
+FloatingShootHolder.Visible = Flags.ShowShootButton == true
+MM2.UI.FloatingShootButton = FloatingShootButton
+MM2.UI.FloatingShootHolder = FloatingShootHolder
+
+-- Kill All: crossed-swords Lucide icon.
+local FloatingKillAllButton,FloatingKillAllHolder =
+	UI.CreateMovableCardButton(
+		"FloatingKillAll",
+		"swords",
+		"KILL ALL",
+		UDim2.new(0.67,-52,0.78,-42),
+		function()
+			local ok,success,message = pcall(function()
+				return MM2.Functions.KillAllOnce()
+			end)
+
+			if not ok then
+				warn("[MM2 KILL ALL BUTTON]",success)
+				CombatNotify("Kill All","Kill All error","x",2)
+			else
+				NotifyKillAllResult(success,message)
 			end
-		)
-	FloatingKillAllHolder.Visible = false
-	MM2.UI.FloatingKillAllButton = FloatingKillAllButton
-	MM2.UI.FloatingKillAllHolder = FloatingKillAllHolder
-end
+		end
+	)
+
+FloatingKillAllHolder.Visible = Flags.ShowKillAllButton == true
+MM2.UI.FloatingKillAllButton = FloatingKillAllButton
+MM2.UI.FloatingKillAllHolder = FloatingKillAllHolder
 
 --============================================================
 -- AUTO GRAB GUN
