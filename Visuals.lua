@@ -1,7 +1,14 @@
 --============================================================
--- Blizzard MM2 V8.8.4 VISUALS - Visuals.lua
+-- Blizzard MM2 v1.85.4 VISUALS - Visuals.lua
 -- Native WindUI UI + existing visual feature logic
 -- Match ESP, Gun ESP, Coin ESP, Tracers, Round Timer.
+--
+-- Match ESP reliability update:
+-- - Shared.lua remains the authority for round/player state.
+-- - Eliminated players are removed immediately.
+-- - A very short role grace prevents one transient bad role
+--   snapshot from destroying otherwise-valid Match ESP.
+-- - Existing ESP is rebuilt automatically on new characters.
 --============================================================
 
 local MM2 = getgenv and getgenv().MM2_V85_SPLIT or _G.MM2_V85_SPLIT
@@ -222,207 +229,421 @@ end
 -- PLAYER ESP
 --============================================================
 
+local MATCH_ESP_ROLE_GRACE =
+	0.85
+
+MM2.State.MatchESPLastValid =
+	MM2.State.MatchESPLastValid
+	or {}
+
 local function RemovePlayerESP(player)
-	local char = player.Character
-	if not char then return end
 
-	local highlight = char:FindFirstChild("MM2_MatchESP")
-	if highlight then
-		highlight:Destroy()
-	end
-
-	local head = char:FindFirstChild("Head")
-	if head then
-		local tag = head:FindFirstChild("MM2_NameTag")
-		if tag then
-			tag:Destroy()
-		end
-	end
-end
-
-MM2.Functions.RemovePlayerESP = RemovePlayerESP
-
-MM2.Functions.ClearPlayerESP = function()
-	for _, player in ipairs(Players:GetPlayers()) do
-		RemovePlayerESP(player)
-	end
-end
-
-MM2.Functions.UpdatePlayerESP = function()
-
-	if not Flags.MatchESP then
+	if not player then
 		return
 	end
 
-	if MM2.State.RoleRoundActive ~= true then
-		MM2.Functions.ClearPlayerESP()
-		return
-	end
+	local char =
+		player.Character
 
-	for _, player in ipairs(Players:GetPlayers()) do
-
-		if player == LocalPlayer then
-			RemovePlayerESP(player)
-			continue
-		end
-
-		-- Once a remote player dies/resets during this round,
-		-- do not create ESP on their lobby respawn.
-		if MM2.State.PlayerOutOfRound[player.Name] then
-			RemovePlayerESP(player)
-			continue
-		end
-
-		local char = player.Character
-		local head = char and char:FindFirstChild("Head")
-		local hrp = char and char:FindFirstChild("HumanoidRootPart")
-		local humanoid =
-			char
-			and char:FindFirstChildOfClass("Humanoid")
-
-		if not char
-			or not head
-			or not hrp
-			or not humanoid
-			or humanoid.Health <= 0
-			or not MM2.IsPositionWithinESPDistance(hrp.Position)
-		then
-
-			RemovePlayerESP(player)
-			continue
-		end
-
-		local role =
-			MM2.GetPlayerRole(player)
-
-		if role == "None" then
-			RemovePlayerESP(player)
-			continue
-		end
-
-		local color =
-			MM2.GetRoleColor(role)
+	if char then
 
 		local highlight =
-			char:FindFirstChild("MM2_MatchESP")
+			char:FindFirstChild(
+				"MM2_MatchESP"
+			)
 
-		if not highlight then
+		if highlight then
+			highlight:Destroy()
+		end
+
+		local head =
+			char:FindFirstChild(
+				"Head"
+			)
+
+		if head then
+
+			local tag =
+				head:FindFirstChild(
+					"MM2_NameTag"
+				)
+
+			if tag then
+				tag:Destroy()
+			end
+		end
+	end
+
+	MM2.State.MatchESPLastValid[
+		player
+	] =
+		nil
+end
+
+MM2.Functions.RemovePlayerESP =
+	RemovePlayerESP
+
+MM2.Functions.ClearPlayerESP =
+	function()
+
+		for _,player in ipairs(
+			Players:GetPlayers()
+		) do
+
+			RemovePlayerESP(
+				player
+			)
+		end
+
+		table.clear(
+			MM2.State.MatchESPLastValid
+		)
+	end
+
+local function GetExistingPlayerESP(
+	char,
+	head
+)
+
+	if not char then
+		return nil,nil
+	end
+
+	local highlight =
+		char:FindFirstChild(
+			"MM2_MatchESP"
+		)
+
+	local tag =
+		head
+		and head:FindFirstChild(
+			"MM2_NameTag"
+		)
+		or nil
+
+	return highlight,tag
+end
+
+local function SaveValidMatchRole(
+	player,
+	char,
+	role
+)
+
+	MM2.State.MatchESPLastValid[
+		player
+	] =
+		{
+			Character = char,
+			Role = role,
+			Time = os.clock(),
+		}
+end
+
+local function GetGraceRole(
+	player,
+	char,
+	highlight,
+	tag
+)
+
+	local cached =
+		MM2.State.MatchESPLastValid[
+			player
+		]
+
+	if not cached
+		or cached.Character ~= char
+		or not cached.Role
+		or not cached.Time
+	then
+
+		return nil
+	end
+
+	-- Grace is only for already-rendered ESP. It must never
+	-- create fresh ESP from stale cached information.
+	if not highlight
+		and not tag
+	then
+
+		return nil
+	end
+
+	if os.clock()
+		- cached.Time
+		> MATCH_ESP_ROLE_GRACE
+	then
+
+		return nil
+	end
+
+	return cached.Role
+end
+
+MM2.Functions.UpdatePlayerESP =
+	function()
+
+		if not Flags.MatchESP then
+			return
+		end
+
+		if MM2.State.RoleRoundActive
+			~= true
+		then
+
+			MM2.Functions.ClearPlayerESP()
+			return
+		end
+
+		for _,player in ipairs(
+			Players:GetPlayers()
+		) do
+
+			if player == LocalPlayer then
+
+				RemovePlayerESP(
+					player
+				)
+
+				continue
+			end
+
+			-- Shared.lua is authoritative for elimination state.
+			-- Dead/killed players should disappear immediately,
+			-- with no role grace.
+			if MM2.State.PlayerOutOfRound[
+				player.Name
+			] then
+
+				RemovePlayerESP(
+					player
+				)
+
+				continue
+			end
+
+			local char =
+				player.Character
+
+			local head =
+				char
+				and char:FindFirstChild(
+					"Head"
+				)
+
+			local hrp =
+				char
+				and char:FindFirstChild(
+					"HumanoidRootPart"
+				)
+
+			local humanoid =
+				char
+				and char:FindFirstChildOfClass(
+					"Humanoid"
+				)
+
+			if not char
+				or not head
+				or not hrp
+				or not humanoid
+				or humanoid.Health <= 0
+				or not MM2.IsPositionWithinESPDistance(
+					hrp.Position
+				)
+			then
+
+				RemovePlayerESP(
+					player
+				)
+
+				continue
+			end
+
+			local highlight,tag =
+				GetExistingPlayerESP(
+					char,
+					head
+				)
+
+			local role =
+				MM2.GetPlayerRole(
+					player
+				)
+
+			if role == "None" then
+
+				-- GetPlayerData can occasionally give one bad /
+				-- incomplete snapshot. Keep already-visible ESP
+				-- for a fraction of a second so it does not blink
+				-- out or permanently disappear from that poll.
+				role =
+					GetGraceRole(
+						player,
+						char,
+						highlight,
+						tag
+					)
+
+				if not role then
+
+					RemovePlayerESP(
+						player
+					)
+
+					continue
+				end
+
+			else
+
+				SaveValidMatchRole(
+					player,
+					char,
+					role
+				)
+			end
+
+			local color =
+				MM2.GetRoleColor(
+					role
+				)
 
 			highlight =
-				Instance.new("Highlight")
+				char:FindFirstChild(
+					"MM2_MatchESP"
+				)
 
-			highlight.Name =
-				"MM2_MatchESP"
+			if not highlight then
+
+				highlight =
+					Instance.new(
+						"Highlight"
+					)
+
+				highlight.Name =
+					"MM2_MatchESP"
+
+				highlight.Adornee =
+					char
+
+				highlight.FillTransparency =
+					0.5
+
+				highlight.OutlineTransparency =
+					0
+
+				highlight.DepthMode =
+					Enum.HighlightDepthMode.AlwaysOnTop
+
+				highlight.Parent =
+					char
+			end
+
+			highlight.Enabled =
+				true
 
 			highlight.Adornee =
 				char
 
-			highlight.FillTransparency =
-				0.5
+			highlight.FillColor =
+				color
 
-			highlight.OutlineTransparency =
-				0
-
-			-- Match the friend's observed visibility behavior.
-			highlight.DepthMode =
-				Enum.HighlightDepthMode.AlwaysOnTop
-
-			highlight.Parent =
-				char
-		end
-
-		highlight.FillColor =
-			color
-
-		highlight.OutlineColor =
-			color
-
-		local tag =
-			head:FindFirstChild(
-				"MM2_NameTag"
-			)
-
-		if not tag then
+			highlight.OutlineColor =
+				color
 
 			tag =
-				Instance.new(
-					"BillboardGui"
+				head:FindFirstChild(
+					"MM2_NameTag"
 				)
 
-			tag.Name =
-				"MM2_NameTag"
+			if not tag then
+
+				tag =
+					Instance.new(
+						"BillboardGui"
+					)
+
+				tag.Name =
+					"MM2_NameTag"
+
+				tag.Adornee =
+					head
+
+				tag.Size =
+					UDim2.new(
+						0,
+						160,
+						0,
+						40
+					)
+
+				tag.StudsOffset =
+					Vector3.new(
+						0,
+						2.5,
+						0
+					)
+
+				tag.AlwaysOnTop =
+					true
+
+				tag.Parent =
+					head
+
+				local text =
+					Instance.new(
+						"TextLabel"
+					)
+
+				text.Name =
+					"TagText"
+
+				text.Size =
+					UDim2.new(
+						1,
+						0,
+						1,
+						0
+					)
+
+				text.BackgroundTransparency =
+					1
+
+				text.Font =
+					Enum.Font.GothamBold
+
+				text.TextSize =
+					12
+
+				text.TextStrokeTransparency =
+					0.5
+
+				text.Parent =
+					tag
+			end
+
+			tag.Enabled =
+				true
 
 			tag.Adornee =
 				head
 
-			tag.Size =
-				UDim2.new(
-					0,
-					160,
-					0,
-					40
-				)
-
-			tag.StudsOffset =
-				Vector3.new(
-					0,
-					2.5,
-					0
-				)
-
-			tag.AlwaysOnTop =
-				true
-
-			tag.Parent =
-				head
-
 			local text =
-				Instance.new(
-					"TextLabel"
+				tag:FindFirstChild(
+					"TagText"
 				)
 
-			text.Name =
-				"TagText"
+			if text then
 
-			text.Size =
-				UDim2.new(
-					1,
-					0,
-					1,
-					0
-				)
+				text.Text =
+					player.Name
 
-			text.BackgroundTransparency =
-				1
-
-			text.Font =
-				Enum.Font.GothamBold
-
-			text.TextSize =
-				12
-
-			text.TextStrokeTransparency =
-				0.5
-
-			text.Parent =
-				tag
-		end
-
-		local text =
-			tag:FindFirstChild(
-				"TagText"
-			)
-
-		if text then
-
-			text.Text =
-				player.Name
-
-			text.TextColor3 =
-				color
+				text.TextColor3 =
+					color
+			end
 		end
 	end
-end
 
 --============================================================
 -- COIN ESP
@@ -1160,8 +1381,6 @@ MM2.Functions.UpdateTracers = function()
 			continue
 		end
 
-		-- Eliminated players remain excluded even after they
-		-- receive a lobby respawn.
 		if MM2.State.PlayerOutOfRound[
 			player.Name
 		] then
@@ -1673,7 +1892,7 @@ end
 -- ROUND EVENT CONNECTIONS
 --
 -- IMPORTANT:
--- These remotes now control the ROUND TIMER ONLY.
+-- These remotes control the ROUND TIMER ONLY.
 -- Role ESP lifecycle is handled by Shared.lua's role data.
 --============================================================
 
@@ -1701,14 +1920,14 @@ local CoinsStartedRemote =
 	GameplayRemotes
 	and GameplayRemotes:
 	FindFirstChild(
-			"CoinsStarted"
+		"CoinsStarted"
 	)
 
 local VictoryScreenRemote =
 	GameplayRemotes
 	and GameplayRemotes:
 	FindFirstChild(
-			"VictoryScreen"
+		"VictoryScreen"
 	)
 
 if RoundStartRemote
@@ -1756,8 +1975,8 @@ then
 		Connect(function()
 
 			-- Do NOT clear Role ESP here.
-			-- Diagnostics showed live role state and spectator state
-			-- can continue after VictoryScreen.
+			-- Live role/spectator state can continue briefly
+			-- after VictoryScreen.
 
 			RoundTimerArmed =
 				false
@@ -1860,6 +2079,10 @@ Track(
 	Connect(
 		MM2.Functions.UpdateTracers
 	)
+)
+
+print(
+	"[Blizzard MM2 Visuals] v1.85.4 loaded"
 )
 
 return MM2
