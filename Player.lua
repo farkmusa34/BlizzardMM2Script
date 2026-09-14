@@ -1,5 +1,5 @@
 --============================================================
--- MM2 V8.8.4 - Player.lua
+-- Blizzard MM2 v1.85.4 - Player.lua
 -- Movement, Jump, Bomb Boost, Utility.
 --============================================================
 
@@ -37,6 +37,83 @@ local VoidFallStarted = nil
 
 local BombJumpBusy = false
 local FloatingBombButton = nil
+
+local WalkSpeedHumanoid = nil
+local WalkSpeedChangedConnection = nil
+local WalkSpeedEnforcerConnection = nil
+
+--============================================================
+-- WALK SPEED
+--============================================================
+
+local function DisconnectWalkSpeedWatcher()
+	if WalkSpeedChangedConnection then
+		WalkSpeedChangedConnection:Disconnect()
+		WalkSpeedChangedConnection = nil
+	end
+
+	WalkSpeedHumanoid = nil
+end
+
+local function ApplyWalkSpeed()
+	local _,humanoid = MM2.GetLocalCharacter()
+	if not humanoid then
+		return
+	end
+
+	local desired = math.clamp(
+		tonumber(Settings.WalkSpeed) or 16,
+		16,
+		120
+	)
+
+	if humanoid.WalkSpeed ~= desired then
+		humanoid.WalkSpeed = desired
+	end
+
+	if WalkSpeedHumanoid ~= humanoid then
+		DisconnectWalkSpeedWatcher()
+
+		WalkSpeedHumanoid = humanoid
+
+		WalkSpeedChangedConnection =
+			humanoid:GetPropertyChangedSignal("WalkSpeed"):Connect(function()
+				if not MM2.Running
+					or not WalkSpeedHumanoid
+					or not WalkSpeedHumanoid.Parent
+				then
+					return
+				end
+
+				local target = math.clamp(
+					tonumber(Settings.WalkSpeed) or 16,
+					16,
+					120
+				)
+
+				if WalkSpeedHumanoid.WalkSpeed ~= target then
+					WalkSpeedHumanoid.WalkSpeed = target
+				end
+			end)
+	end
+end
+
+local function StartWalkSpeedEnforcer()
+	if WalkSpeedEnforcerConnection then
+		return
+	end
+
+	WalkSpeedEnforcerConnection =
+		RunService.Stepped:Connect(function()
+			if MM2.Running then
+				ApplyWalkSpeed()
+			end
+		end)
+
+	Track(WalkSpeedEnforcerConnection)
+end
+
+MM2.Functions.ApplyWalkSpeed = ApplyWalkSpeed
 
 --============================================================
 -- MOBILE FLY CONTROLS
@@ -483,23 +560,42 @@ local function FindBombTool()
 			if IsBombTool(obj) then return obj end
 		end
 	end
+
 	local backpack = LocalPlayer:FindFirstChildOfClass("Backpack")
 	if backpack then
 		for _,obj in ipairs(backpack:GetChildren()) do
 			if IsBombTool(obj) then return obj end
 		end
 	end
+
 	return nil
 end
 
 local function TriggerBombJump()
-	if BombJumpBusy then return false end
+	if BombJumpBusy then
+		return false
+	end
+
 	BombJumpBusy = true
 
 	local char,humanoid,hrp = MM2.GetLocalCharacter()
 	local bomb = FindBombTool()
-	if not char or not humanoid or not hrp or not bomb then
+
+	if not char or not humanoid or not hrp then
 		BombJumpBusy = false
+		return false
+	end
+
+	if not bomb then
+		BombJumpBusy = false
+
+		MM2.Notify(
+			"No bomb in inventory.",
+			2.5,
+			"package-x",
+			"Bomb Jump"
+		)
+
 		return false
 	end
 
@@ -533,6 +629,7 @@ local function TriggerBombJump()
 	task.delay(0.30,function()
 		BombJumpBusy = false
 	end)
+
 	return true
 end
 
@@ -670,15 +767,24 @@ UI.CreateToggle(
 UI.CreateSlider(
 	UI.PlayerPage,
 	"Walk Speed",
-	"Sets your walk speed",
-	function() return Settings.WalkSpeed end,
+	"Sets and keeps your selected walk speed",
+	function()
+		return Settings.WalkSpeed
+	end,
 	function(value)
-		Settings.WalkSpeed = value
-		local _,humanoid = MM2.GetLocalCharacter()
-		if humanoid then humanoid.WalkSpeed = value end
+		Settings.WalkSpeed = math.clamp(
+			tonumber(value) or 16,
+			16,
+			120
+		)
+
+		ApplyWalkSpeed()
 	end,
 	16,120,4
 )
+
+StartWalkSpeedEnforcer()
+ApplyWalkSpeed()
 
 --============================================================
 -- JUMP SECTION
@@ -782,14 +888,17 @@ Track(LocalPlayer.CharacterAdded:Connect(function(char)
 	MobileFlyUp = false
 	MobileFlyDown = false
 
+	DisconnectWalkSpeedWatcher()
+
 	task.wait(0.25)
 
 	local humanoid = char:FindFirstChildOfClass("Humanoid")
 	if humanoid then
-		humanoid.WalkSpeed = Settings.WalkSpeed
 		humanoid.UseJumpPower = true
 		humanoid.JumpPower = Settings.JumpPower
 	end
+
+	ApplyWalkSpeed()
 
 	if Flags.Fly then StartFly() end
 	if Flags.Noclip then StartPlayerNoclip() end
