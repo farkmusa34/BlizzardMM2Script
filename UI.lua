@@ -434,7 +434,13 @@ UI.WindTabs.Combat =
 UI.WindTabs.Player =
 	Window:Tab({
 		Title = "Player",
-		Icon = "shield"
+		Icon = "shield-check"
+	})
+
+UI.WindTabs.Teleport =
+	Window:Tab({
+		Title = "Teleport",
+		Icon = "navigation"
 	})
 
 UI.WindTabs.Fling =
@@ -502,6 +508,7 @@ end
 UI.VisualsPage = NewLegacyPage("Visuals")
 UI.CombatPage = NewLegacyPage("Combat")
 UI.PlayerPage = NewLegacyPage("Player")
+UI.TeleportPage = NewLegacyPage("Teleport")
 UI.FlingPage = NewLegacyPage("Fling")
 UI.AutoFarmPage = NewLegacyPage("AutoFarm")
 UI.SkinChangerPage = NewLegacyPage("SkinChanger")
@@ -511,6 +518,7 @@ UI.Pages = {
 	Visuals = UI.VisualsPage,
 	Combat = UI.CombatPage,
 	Player = UI.PlayerPage,
+	Teleport = UI.TeleportPage,
 	Fling = UI.FlingPage,
 	AutoFarm = UI.AutoFarmPage,
 	SkinChanger = UI.SkinChangerPage,
@@ -521,6 +529,7 @@ UI.PageMap = {
 	[UI.VisualsPage] = UI.WindTabs.Visuals,
 	[UI.CombatPage] = UI.WindTabs.Combat,
 	[UI.PlayerPage] = UI.WindTabs.Player,
+	[UI.TeleportPage] = UI.WindTabs.Teleport,
 	[UI.FlingPage] = UI.WindTabs.Fling,
 	[UI.AutoFarmPage] = UI.WindTabs.AutoFarm,
 	[UI.SkinChangerPage] = UI.WindTabs.SkinChanger,
