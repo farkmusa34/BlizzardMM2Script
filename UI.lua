@@ -63,82 +63,17 @@ end
 --============================================================
 
 local COLORS = {
-	Background =
-		Color3.fromRGB(
-			15,
-			16,
-			20
-		),
-
-	Sidebar =
-		Color3.fromRGB(
-			18,
-			19,
-			24
-		),
-
-	Card =
-		Color3.fromRGB(
-			24,
-			25,
-			31
-		),
-
-	CardHover =
-		Color3.fromRGB(
-			29,
-			31,
-			38
-		),
-
-	Stroke =
-		Color3.fromRGB(
-			54,
-			57,
-			68
-		),
-
-	Text =
-		Color3.fromRGB(
-			240,
-			242,
-			248
-		),
-
-	Muted =
-		Color3.fromRGB(
-			157,
-			163,
-			178
-		),
-
-	Accent =
-		Color3.fromRGB(
-			64,
-			174,
-			255
-		),
-
-	Accent2 =
-		Color3.fromRGB(
-			75,
-			230,
-			255
-		),
-
-	Success =
-		Color3.fromRGB(
-			80,
-			215,
-			135
-		),
-
-	Danger =
-		Color3.fromRGB(
-			255,
-			92,
-			105
-		),
+	Background = Color3.fromRGB(15,16,20),
+	Sidebar = Color3.fromRGB(18,19,24),
+	Card = Color3.fromRGB(24,25,31),
+	CardHover = Color3.fromRGB(29,31,38),
+	Stroke = Color3.fromRGB(54,57,68),
+	Text = Color3.fromRGB(240,242,248),
+	Muted = Color3.fromRGB(157,163,178),
+	Accent = Color3.fromRGB(64,174,255),
+	Accent2 = Color3.fromRGB(75,230,255),
+	Success = Color3.fromRGB(80,215,135),
+	Danger = Color3.fromRGB(255,92,105),
 }
 
 UI.COLORS = COLORS
@@ -147,177 +82,65 @@ UI.COLORS = COLORS
 -- REAL COMPATIBILITY SCREENGUI
 --============================================================
 
-local ScreenGui =
-	Instance.new("ScreenGui")
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "MM2_UTILITY_V8"
+ScreenGui.ResetOnSpawn = false
+ScreenGui.IgnoreGuiInset = true
+ScreenGui.DisplayOrder = 80
+ScreenGui.Parent = PlayerGui
 
-ScreenGui.Name =
-	"MM2_UTILITY_V8"
+UI.ScreenGui = ScreenGui
+UI.Gui = ScreenGui
 
-ScreenGui.ResetOnSpawn =
-	false
+local MainFrame = Instance.new("Frame")
+MainFrame.Name = "LegacyMainFrame"
+MainFrame.Size = UDim2.fromOffset(1,1)
+MainFrame.Position = UDim2.fromOffset(-10000,-10000)
+MainFrame.BackgroundTransparency = 1
+MainFrame.BorderSizePixel = 0
+MainFrame.Visible = true
+MainFrame.Parent = ScreenGui
 
-ScreenGui.IgnoreGuiInset =
-	true
-
-ScreenGui.DisplayOrder =
-	80
-
-ScreenGui.Parent =
-	PlayerGui
-
-UI.ScreenGui =
-	ScreenGui
-
-UI.Gui =
-	ScreenGui
-
-local MainFrame =
-	Instance.new("Frame")
-
-MainFrame.Name =
-	"LegacyMainFrame"
-
-MainFrame.Size =
-	UDim2.fromOffset(
-		1,
-		1
-	)
-
-MainFrame.Position =
-	UDim2.fromOffset(
-		-10000,
-		-10000
-	)
-
-MainFrame.BackgroundTransparency =
-	1
-
-MainFrame.BorderSizePixel =
-	0
-
-MainFrame.Visible =
-	true
-
-MainFrame.Parent =
-	ScreenGui
-
-UI.MainFrame =
-	MainFrame
-
-UI.Main =
-	MainFrame
+UI.MainFrame = MainFrame
+UI.Main = MainFrame
 
 --============================================================
 -- EXACT OLD SNOWFLAKE HELPER
 --============================================================
 
-local function NewLine(
-	parent,
-	w,
-	h,
-	x,
-	y,
-	rotation,
-	color,
-	z
-)
+local function NewLine(parent,w,h,x,y,rotation,color,z)
 
-	local line =
-		Instance.new("Frame")
+	local line = Instance.new("Frame")
+	line.AnchorPoint = Vector2.new(0.5,0.5)
+	line.Size = UDim2.fromOffset(w,h)
+	line.Position = UDim2.fromOffset(x,y)
+	line.BackgroundColor3 = color
+	line.BorderSizePixel = 0
+	line.Rotation = rotation
+	line.ZIndex = z or 3
+	line.Parent = parent
 
-	line.AnchorPoint =
-		Vector2.new(
-			0.5,
-			0.5
-		)
-
-	line.Size =
-		UDim2.fromOffset(
-			w,
-			h
-		)
-
-	line.Position =
-		UDim2.fromOffset(
-			x,
-			y
-		)
-
-	line.BackgroundColor3 =
-		color
-
-	line.BorderSizePixel =
-		0
-
-	line.Rotation =
-		rotation
-
-	line.ZIndex =
-		z or 3
-
-	line.Parent =
-		parent
-
-	local corner =
-		Instance.new("UICorner")
-
-	corner.CornerRadius =
-		UDim.new(
-			1,
-			0
-		)
-
-	corner.Parent =
-		line
+	local corner = Instance.new("UICorner")
+	corner.CornerRadius = UDim.new(1,0)
+	corner.Parent = line
 
 	return line
 end
 
-local function CreateSnowflake(
-	parent,
-	size,
-	color
-)
+local function CreateSnowflake(parent,size,color)
 
-	local holder =
-		Instance.new("Frame")
+	local holder = Instance.new("Frame")
+	holder.Size = UDim2.fromOffset(size,size)
+	holder.BackgroundTransparency = 1
+	holder.BorderSizePixel = 0
+	holder.Parent = parent
 
-	holder.Size =
-		UDim2.fromOffset(
-			size,
-			size
-		)
+	local cx = size / 2
+	local cy = size / 2
+	local armLength = size * 0.82
+	local thickness = math.max(1,size * 0.075)
 
-	holder.BackgroundTransparency =
-		1
-
-	holder.BorderSizePixel =
-		0
-
-	holder.Parent =
-		parent
-
-	local cx =
-		size / 2
-
-	local cy =
-		size / 2
-
-	local armLength =
-		size * 0.82
-
-	local thickness =
-		math.max(
-			1,
-			size * 0.075
-		)
-
-	for _,rotation in ipairs({
-		0,
-		60,
-		120
-	}) do
-
+	for _,rotation in ipairs({0,60,120}) do
 		NewLine(
 			holder,
 			armLength,
@@ -330,23 +153,14 @@ local function CreateSnowflake(
 		)
 	end
 
-	local branchLength =
-		size * 0.25
-
-	local branchOffset =
-		size * 0.27
+	local branchLength = size * 0.25
+	local branchOffset = size * 0.27
 
 	for _,rotation in ipairs({
-		0,
-		60,
-		120,
-		180,
-		240,
-		300
+		0,60,120,180,240,300
 	}) do
 
-		local r =
-			math.rad(rotation)
+		local r = math.rad(rotation)
 
 		local bx =
 			cx
@@ -384,73 +198,41 @@ local function CreateSnowflake(
 	return holder
 end
 
-UI.CreateSnowflake =
-	CreateSnowflake
+UI.CreateSnowflake = CreateSnowflake
 
 --============================================================
 -- RGB / BLUE CYAN STROKE
 --============================================================
 
-function UI.CreateBlueCyanStroke(
-	parent,
-	thickness,
-	transparency
-)
+function UI.CreateBlueCyanStroke(parent,thickness,transparency)
 
-	local stroke =
-		Instance.new("UIStroke")
+	local stroke = Instance.new("UIStroke")
+	stroke.Thickness = thickness or 1.4
+	stroke.Transparency = transparency or 0.10
+	stroke.Color = Color3.fromRGB(60,175,255)
+	stroke.Parent = parent
 
-	stroke.Thickness =
-		thickness or 1.4
-
-	stroke.Transparency =
-		transparency or 0.10
-
-	stroke.Color =
-		Color3.fromRGB(
-			60,
-			175,
-			255
-		)
-
-	stroke.Parent =
-		parent
-
-	local gradient =
-		Instance.new("UIGradient")
+	local gradient = Instance.new("UIGradient")
 
 	gradient.Color =
 		ColorSequence.new({
 			ColorSequenceKeypoint.new(
 				0,
-				Color3.fromRGB(
-					55,
-					110,
-					255
-				)
+				Color3.fromRGB(55,110,255)
 			),
 
 			ColorSequenceKeypoint.new(
 				0.5,
-				Color3.fromRGB(
-					55,
-					235,
-					255
-				)
+				Color3.fromRGB(55,235,255)
 			),
 
 			ColorSequenceKeypoint.new(
 				1,
-				Color3.fromRGB(
-					55,
-					110,
-					255
-				)
+				Color3.fromRGB(55,110,255)
 			),
 		})
 
-	gradient.Parent =
-		stroke
+	gradient.Parent = stroke
 
 	task.spawn(function()
 
@@ -465,9 +247,7 @@ function UI.CreateBlueCyanStroke(
 				)
 				% 360
 
-			task.wait(
-				0.03
-			)
+			task.wait(0.03)
 		end
 	end)
 
@@ -494,8 +274,7 @@ assert(
 	"Failed to load WindUI"
 )
 
-UI.WindUI =
-	WindUI
+UI.WindUI = WindUI
 
 local Window =
 	WindUI:CreateWindow({
@@ -503,7 +282,9 @@ local Window =
 		Author = "v1.85.4",
 		Folder = "BlizzardMM2",
 		Icon = "gamepad-2",
-		Theme = "Dark",
+
+		-- Blizzard Blue factory/default appearance.
+		Theme = "Sky",
 
 		Size =
 			UDim2.fromOffset(
@@ -516,22 +297,116 @@ local Window =
 		ScrollBarEnabled = false,
 	})
 
-UI.Window =
-	Window
+UI.Window = Window
 
 --============================================================
 -- TOP STATUS TAG
+--
+-- Misc.lua controls this color whenever the selected
+-- appearance/theme changes.
+--
+-- Blizzard Blue is used before Misc.lua has loaded.
 --============================================================
 
-pcall(function()
+local DEFAULT_BLIZZARD_BLUE =
+	Color3.fromRGB(
+		55,
+		145,
+		255
+	)
 
-	Window:Tag({
-		Title = "Latest Update",
-		Icon = "sparkles",
-		Border = true,
-	})
+UI.CurrentThemeAccent =
+	UI.CurrentThemeAccent
+	or DEFAULT_BLIZZARD_BLUE
 
-end)
+local LatestUpdateTag = nil
+
+local function CreateLatestUpdateTag(color)
+
+	color =
+		typeof(color) == "Color3"
+		and color
+		or DEFAULT_BLIZZARD_BLUE
+
+	local ok,result =
+		pcall(function()
+
+			return Window:Tag({
+				Title = "Latest Update",
+				Icon = "sparkles",
+				Color = color,
+				Border = true,
+			})
+		end)
+
+	if ok then
+
+		LatestUpdateTag = result
+		UI.LatestUpdateTag = result
+
+		return result
+	end
+
+	warn(
+		"[Blizzard UI] Latest Update tag failed:",
+		result
+	)
+
+	return nil
+end
+
+function UI.SetLatestUpdateTheme(color)
+
+	color =
+		typeof(color) == "Color3"
+		and color
+		or DEFAULT_BLIZZARD_BLUE
+
+	UI.CurrentThemeAccent = color
+
+	-- Prefer WindUI's native tag color updater.
+	if LatestUpdateTag
+		and LatestUpdateTag.SetColor
+	then
+
+		local success =
+			pcall(function()
+
+				LatestUpdateTag:SetColor(
+					color
+				)
+			end)
+
+		if success then
+
+			UI.LatestUpdateTag =
+				LatestUpdateTag
+
+			return LatestUpdateTag
+		end
+	end
+
+	-- Fallback for WindUI builds without SetColor().
+	if LatestUpdateTag
+		and LatestUpdateTag.Destroy
+	then
+
+		pcall(function()
+			LatestUpdateTag:Destroy()
+		end)
+	end
+
+	LatestUpdateTag = nil
+	UI.LatestUpdateTag = nil
+
+	return CreateLatestUpdateTag(
+		color
+	)
+end
+
+CreateLatestUpdateTag(
+	UI.CurrentThemeAccent
+)
 
 --============================================================
 -- IMPORTANT:
@@ -595,159 +470,61 @@ UI.WindTabs.Misc =
 -- HIDDEN LEGACY PAGES
 --============================================================
 
-local LegacyHost =
-	Instance.new("Frame")
-
-LegacyHost.Name =
-	"BlizzardMM2_LegacyHost"
-
-LegacyHost.Size =
-	UDim2.fromOffset(
-		1,
-		1
-	)
-
-LegacyHost.Position =
-	UDim2.fromOffset(
-		-20000,
-		-20000
-	)
-
-LegacyHost.BackgroundTransparency =
-	1
-
-LegacyHost.Visible =
-	false
-
-LegacyHost.Parent =
-	ScreenGui
+local LegacyHost = Instance.new("Frame")
+LegacyHost.Name = "BlizzardMM2_LegacyHost"
+LegacyHost.Size = UDim2.fromOffset(1,1)
+LegacyHost.Position = UDim2.fromOffset(-20000,-20000)
+LegacyHost.BackgroundTransparency = 1
+LegacyHost.Visible = false
+LegacyHost.Parent = ScreenGui
 
 local function NewLegacyPage(name)
 
-	local page =
-		Instance.new(
-			"ScrollingFrame"
-		)
+	local page = Instance.new("ScrollingFrame")
+	page.Name = name .. "Page"
+	page.Size = UDim2.fromOffset(500,1000)
+	page.BackgroundTransparency = 1
+	page.BorderSizePixel = 0
+	page.ScrollBarThickness = 0
+	page.CanvasSize = UDim2.fromOffset(0,0)
+	page.AutomaticCanvasSize = Enum.AutomaticSize.Y
+	page.Visible = true
+	page.Parent = LegacyHost
 
-	page.Name =
-		name .. "Page"
-
-	page.Size =
-		UDim2.fromOffset(
-			500,
-			1000
-		)
-
-	page.BackgroundTransparency =
-		1
-
-	page.BorderSizePixel =
-		0
-
-	page.ScrollBarThickness =
-		0
-
-	page.CanvasSize =
-		UDim2.fromOffset(
-			0,
-			0
-		)
-
-	page.AutomaticCanvasSize =
-		Enum.AutomaticSize.Y
-
-	page.Visible =
-		true
-
-	page.Parent =
-		LegacyHost
-
-	local layout =
-		Instance.new(
-			"UIListLayout"
-		)
-
-	layout.Padding =
-		UDim.new(
-			0,
-			6
-		)
-
-	layout.SortOrder =
-		Enum.SortOrder.LayoutOrder
-
-	layout.Parent =
-		page
+	local layout = Instance.new("UIListLayout")
+	layout.Padding = UDim.new(0,6)
+	layout.SortOrder = Enum.SortOrder.LayoutOrder
+	layout.Parent = page
 
 	return page
 end
 
-UI.VisualsPage =
-	NewLegacyPage("Visuals")
-
-UI.CombatPage =
-	NewLegacyPage("Combat")
-
-UI.PlayerPage =
-	NewLegacyPage("Player")
-
-UI.FlingPage =
-	NewLegacyPage("Fling")
-
-UI.AutoFarmPage =
-	NewLegacyPage("AutoFarm")
-
-UI.SkinChangerPage =
-	NewLegacyPage("SkinChanger")
-
-UI.MiscPage =
-	NewLegacyPage("Misc")
+UI.VisualsPage = NewLegacyPage("Visuals")
+UI.CombatPage = NewLegacyPage("Combat")
+UI.PlayerPage = NewLegacyPage("Player")
+UI.FlingPage = NewLegacyPage("Fling")
+UI.AutoFarmPage = NewLegacyPage("AutoFarm")
+UI.SkinChangerPage = NewLegacyPage("SkinChanger")
+UI.MiscPage = NewLegacyPage("Misc")
 
 UI.Pages = {
-	Visuals =
-		UI.VisualsPage,
-
-	Combat =
-		UI.CombatPage,
-
-	Player =
-		UI.PlayerPage,
-
-	Fling =
-		UI.FlingPage,
-
-	AutoFarm =
-		UI.AutoFarmPage,
-
-	SkinChanger =
-		UI.SkinChangerPage,
-
-	Misc =
-		UI.MiscPage,
+	Visuals = UI.VisualsPage,
+	Combat = UI.CombatPage,
+	Player = UI.PlayerPage,
+	Fling = UI.FlingPage,
+	AutoFarm = UI.AutoFarmPage,
+	SkinChanger = UI.SkinChangerPage,
+	Misc = UI.MiscPage,
 }
 
-
 UI.PageMap = {
-	[UI.VisualsPage] =
-		UI.WindTabs.Visuals,
-
-	[UI.CombatPage] =
-		UI.WindTabs.Combat,
-
-	[UI.PlayerPage] =
-		UI.WindTabs.Player,
-
-	[UI.FlingPage] =
-		UI.WindTabs.Fling,
-
-	[UI.AutoFarmPage] =
-		UI.WindTabs.AutoFarm,
-
-	[UI.SkinChangerPage] =
-		UI.WindTabs.SkinChanger,
-
-	[UI.MiscPage] =
-		UI.WindTabs.Misc,
+	[UI.VisualsPage] = UI.WindTabs.Visuals,
+	[UI.CombatPage] = UI.WindTabs.Combat,
+	[UI.PlayerPage] = UI.WindTabs.Player,
+	[UI.FlingPage] = UI.WindTabs.Fling,
+	[UI.AutoFarmPage] = UI.WindTabs.AutoFarm,
+	[UI.SkinChangerPage] = UI.WindTabs.SkinChanger,
+	[UI.MiscPage] = UI.WindTabs.Misc,
 }
 
 UI.ActiveSection = {}
@@ -787,6 +564,7 @@ end
 --============================================================
 
 local function LockSectionOpenAndHideArrow(section)
+
 	if not section then
 		return
 	end
@@ -794,7 +572,9 @@ local function LockSectionOpenAndHideArrow(section)
 	section.Opened = true
 
 	local function HideChevron()
+
 		local main = section.ElementFrame
+
 		if not main then
 			return
 		end
@@ -811,13 +591,17 @@ local function LockSectionOpenAndHideArrow(section)
 		end
 
 		for _,child in ipairs(top:GetChildren()) do
+
 			if child:IsA("Frame") then
+
 				for _,descendant in ipairs(
 					child:GetDescendants()
 				) do
+
 					if descendant:IsA("ImageLabel")
 						or descendant:IsA("ImageButton")
 					then
+
 						descendant.Visible = false
 					end
 				end
@@ -838,28 +622,26 @@ local function LockSectionOpenAndHideArrow(section)
 	end
 
 	if section.Close then
-		section.Close = function(self)
-			self.Opened = true
 
-			if self.Open then
-				pcall(function()
-					self:Open(true)
-				end)
+		section.Close =
+			function(self)
+
+				self.Opened = true
+
+				if self.Open then
+					pcall(function()
+						self:Open(true)
+					end)
+				end
+
+				HideChevron()
 			end
-
-			HideChevron()
-		end
 	end
 end
 
-function UI.AddSection(
-	page,
-	titleText,
-	subtitleText
-)
+function UI.AddSection(page,titleText,subtitleText)
 
-	local tab =
-		UI.PageMap[page]
+	local tab = UI.PageMap[page]
 
 	if not tab then
 
@@ -892,7 +674,9 @@ function UI.AddSection(
 		end)
 
 	if ok and result then
+
 		section = result
+
 	else
 
 		local ok2,result2 =
@@ -909,7 +693,9 @@ function UI.AddSection(
 			end)
 
 		if ok2 and result2 then
+
 			section = result2
+
 		else
 
 			warn(
@@ -929,8 +715,7 @@ function UI.AddSection(
 		)
 	end
 
-	UI.ActiveSection[page] =
-		section
+	UI.ActiveSection[page] = section
 
 	return section
 end
@@ -981,14 +766,9 @@ function UI.CreateDropdown(
 				description or ""
 			),
 
-		Values =
-			values or {},
-
-		AllowNone =
-			true,
-
-		SearchBarEnabled =
-			true,
+		Values = values or {},
+		AllowNone = true,
+		SearchBarEnabled = true,
 
 		Callback =
 			function(value)
@@ -1014,8 +794,7 @@ function UI.CreateDropdown(
 	}
 
 	if defaultValue ~= nil then
-		config.Value =
-			defaultValue
+		config.Value = defaultValue
 	end
 
 	local ok,result =
@@ -1027,7 +806,9 @@ function UI.CreateDropdown(
 		end)
 
 	if ok then
+
 		dropdown = result
+
 	else
 
 		warn(
@@ -1082,7 +863,9 @@ function UI.CreateInfo(
 		end)
 
 	if ok then
+
 		control = result
+
 	else
 
 		warn(
@@ -1117,8 +900,7 @@ function UI.CreateInfo(
 		pcall(function()
 
 			if control.Desc ~= nil then
-				control.Desc =
-					newText
+				control.Desc = newText
 			end
 		end)
 	end
@@ -1143,11 +925,8 @@ function UI.SetToggleState(
 			flagName
 		]
 
-	value =
-		value == true
-
-	Flags[flagName] =
-		value
+	value = value == true
+	Flags[flagName] = value
 
 	if entry
 		and entry.Render
@@ -1172,8 +951,7 @@ function UI.SetToggleState(
 	return value
 end
 
-UI.SetToggle =
-	UI.SetToggleState
+UI.SetToggle = UI.SetToggleState
 
 function UI.CreateToggle(
 	page,
@@ -1187,6 +965,7 @@ function UI.CreateToggle(
 		GetControlParent(page)
 
 	if not parent then
+
 		warn(
 			"[Blizzard UI] Toggle has no parent:",
 			titleText
@@ -1199,8 +978,7 @@ function UI.CreateToggle(
 		Flags[flagName] == true
 
 	local control
-	local ignoreNextCallback =
-		false
+	local ignoreNextCallback = false
 
 	local ok,result =
 		pcall(function()
@@ -1233,6 +1011,7 @@ function UI.CreateToggle(
 						end
 
 						if callback then
+
 							local cbOk,cbErr =
 								pcall(
 									callback,
@@ -1240,6 +1019,7 @@ function UI.CreateToggle(
 								)
 
 							if not cbOk then
+
 								warn(
 									"[Blizzard UI Toggle Callback]",
 									flagName,
@@ -1249,6 +1029,7 @@ function UI.CreateToggle(
 						end
 
 						pcall(function()
+
 							WindUI:Notify({
 								Title =
 									tostring(
@@ -1267,8 +1048,7 @@ function UI.CreateToggle(
 									and "check"
 									or "x",
 
-								Duration =
-									2.5,
+								Duration = 2.5,
 							})
 						end)
 					end,
@@ -1276,9 +1056,11 @@ function UI.CreateToggle(
 		end)
 
 	if ok then
-		control =
-			result
+
+		control = result
+
 	else
+
 		warn(
 			"[Blizzard UI] Toggle create failed:",
 			titleText,
@@ -1291,18 +1073,14 @@ function UI.CreateToggle(
 		runCallback
 	)
 
-		value =
-			value == true
-
-		Flags[flagName] =
-			value
+		value = value == true
+		Flags[flagName] = value
 
 		if control
 			and control.Set
 		then
 
-			ignoreNextCallback =
-				true
+			ignoreNextCallback = true
 
 			pcall(function()
 				control:Set(
@@ -1310,13 +1088,13 @@ function UI.CreateToggle(
 				)
 			end)
 
-			ignoreNextCallback =
-				false
+			ignoreNextCallback = false
 		end
 
 		if runCallback
 			and callback
 		then
+
 			pcall(
 				callback,
 				value
@@ -1325,14 +1103,9 @@ function UI.CreateToggle(
 	end
 
 	UI.ToggleRegistry[flagName] = {
-		Control =
-			control,
-
-		Render =
-			render,
-
-		Callback =
-			callback,
+		Control = control,
+		Render = render,
+		Callback = callback,
 	}
 
 	return
@@ -1405,7 +1178,9 @@ function UI.CreateActionFeature(
 		end)
 
 	if ok then
+
 		control = result
+
 	else
 
 		warn(
@@ -1435,16 +1210,12 @@ function UI.CreateActionButton(
 		)
 	end
 
-	if typeof(parent)
-		~= "Instance"
-	then
+	if typeof(parent) ~= "Instance" then
 		return nil
 	end
 
 	local button =
-		Instance.new(
-			"TextButton"
-		)
+		Instance.new("TextButton")
 
 	button.Size =
 		UDim2.new(
@@ -1459,39 +1230,21 @@ function UI.CreateActionButton(
 		and COLORS.Danger
 		or COLORS.Card
 
-	button.BorderSizePixel =
-		0
+	button.BorderSizePixel = 0
 
 	button.Text =
 		tostring(
 			text or ""
 		)
 
-	button.TextColor3 =
-		COLORS.Text
+	button.TextColor3 = COLORS.Text
+	button.TextSize = 11
+	button.Font = Enum.Font.GothamBold
+	button.Parent = parent
 
-	button.TextSize =
-		11
-
-	button.Font =
-		Enum.Font.GothamBold
-
-	button.Parent =
-		parent
-
-	local corner =
-		Instance.new(
-			"UICorner"
-		)
-
-	corner.CornerRadius =
-		UDim.new(
-			0,
-			9
-		)
-
-	corner.Parent =
-		button
+	local corner = Instance.new("UICorner")
+	corner.CornerRadius = UDim.new(0,9)
+	corner.Parent = button
 
 	Track(
 		button.MouseButton1Click:Connect(
@@ -1555,8 +1308,7 @@ local function CreateMappedSlider(
 		)
 		or 1
 
-	local defaultValue =
-		minValue
+	local defaultValue = minValue
 
 	if getter then
 
@@ -1599,18 +1351,12 @@ local function CreateMappedSlider(
 						description or ""
 					),
 
-				Step =
-					step,
+				Step = step,
 
 				Value = {
-					Min =
-						minValue,
-
-					Max =
-						maxValue,
-
-					Default =
-						defaultValue,
+					Min = minValue,
+					Max = maxValue,
+					Default = defaultValue,
 				},
 
 				Callback =
@@ -1644,7 +1390,9 @@ local function CreateMappedSlider(
 		end)
 
 	if ok then
+
 		slider = result
+
 	else
 
 		warn(
@@ -1714,8 +1462,7 @@ function UI.CreateMovableCircleButton(
 	callback
 )
 
-	local holder =
-		Instance.new("Frame")
+	local holder = Instance.new("Frame")
 
 	holder.Name =
 		tostring(
@@ -1742,22 +1489,12 @@ function UI.CreateMovableCircleButton(
 			84
 		)
 
-	holder.BackgroundTransparency =
-		1
+	holder.BackgroundTransparency = 1
+	holder.Active = true
+	holder.ZIndex = 250
+	holder.Parent = ScreenGui
 
-	holder.Active =
-		true
-
-	holder.ZIndex =
-		250
-
-	holder.Parent =
-		ScreenGui
-
-	local button =
-		Instance.new(
-			"TextButton"
-		)
+	local button = Instance.new("TextButton")
 
 	button.Name =
 		tostring(
@@ -1789,48 +1526,24 @@ function UI.CreateMovableCircleButton(
 			26
 		)
 
-	button.BackgroundTransparency =
-		0.08
-
-	button.BorderSizePixel =
-		0
+	button.BackgroundTransparency = 0.08
+	button.BorderSizePixel = 0
 
 	button.Text =
 		tostring(
 			icon or ""
 		)
 
-	button.TextColor3 =
-		COLORS.Text
+	button.TextColor3 = COLORS.Text
+	button.TextSize = 22
+	button.Font = Enum.Font.GothamBold
+	button.Active = true
+	button.ZIndex = 251
+	button.Parent = holder
 
-	button.TextSize =
-		22
-
-	button.Font =
-		Enum.Font.GothamBold
-
-	button.Active =
-		true
-
-	button.ZIndex =
-		251
-
-	button.Parent =
-		holder
-
-	local corner =
-		Instance.new(
-			"UICorner"
-		)
-
-	corner.CornerRadius =
-		UDim.new(
-			1,
-			0
-		)
-
-	corner.Parent =
-		button
+	local corner = Instance.new("UICorner")
+	corner.CornerRadius = UDim.new(1,0)
+	corner.Parent = button
 
 	UI.CreateBlueCyanStroke(
 		button,
@@ -1838,10 +1551,7 @@ function UI.CreateMovableCircleButton(
 		0.12
 	)
 
-	local label =
-		Instance.new(
-			"TextLabel"
-		)
+	local label = Instance.new("TextLabel")
 
 	label.AnchorPoint =
 		Vector2.new(
@@ -1865,34 +1575,21 @@ function UI.CreateMovableCircleButton(
 			18
 		)
 
-	label.BackgroundTransparency =
-		1
+	label.BackgroundTransparency = 1
 
 	label.Text =
 		tostring(
 			labelText or ""
 		)
 
-	label.TextColor3 =
-		COLORS.Text
+	label.TextColor3 = COLORS.Text
+	label.TextSize = 9
+	label.Font = Enum.Font.GothamBold
+	label.ZIndex = 252
+	label.Parent = holder
 
-	label.TextSize =
-		9
-
-	label.Font =
-		Enum.Font.GothamBold
-
-	label.ZIndex =
-		252
-
-	label.Parent =
-		holder
-
-	local dragging =
-		false
-
-	local moved =
-		false
+	local dragging = false
+	local moved = false
 
 	local dragStart
 	local startPos
@@ -1908,17 +1605,10 @@ function UI.CreateMovableCircleButton(
 					== Enum.UserInputType.Touch
 				then
 
-					dragging =
-						true
-
-					moved =
-						false
-
-					dragStart =
-						input.Position
-
-					startPos =
-						holder.Position
+					dragging = true
+					moved = false
+					dragStart = input.Position
+					startPos = holder.Position
 
 					Track(
 						input.Changed:Connect(
@@ -1928,8 +1618,7 @@ function UI.CreateMovableCircleButton(
 									== Enum.UserInputState.End
 								then
 
-									dragging =
-										false
+									dragging = false
 								end
 							end
 						)
@@ -1949,8 +1638,7 @@ function UI.CreateMovableCircleButton(
 					== Enum.UserInputType.Touch
 				then
 
-					dragInput =
-						input
+					dragInput = input
 				end
 			end
 		)
@@ -1973,12 +1661,8 @@ function UI.CreateMovableCircleButton(
 					input.Position
 					- dragStart
 
-				if delta.Magnitude
-					>= 4
-				then
-
-					moved =
-						true
+				if delta.Magnitude >= 4 then
+					moved = true
 				end
 
 				if moved then
@@ -2004,9 +1688,7 @@ function UI.CreateMovableCircleButton(
 
 				if moved then
 
-					moved =
-						false
-
+					moved = false
 					return
 				end
 
@@ -2038,9 +1720,7 @@ Track(
 		"Visible"
 	):Connect(function()
 
-		if MainFrame.Visible
-			== false
-		then
+		if MainFrame.Visible == false then
 
 			pcall(function()
 
