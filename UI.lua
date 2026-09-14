@@ -1469,19 +1469,33 @@ function UI.CreateValueControl(
 end
 
 --============================================================
--- MOVABLE BLIZZARD CARD BUTTONS
+-- MOVABLE BLIZZARD QUICK BUTTONS
 --
--- Backward compatible with the old CreateMovableCircleButton()
--- name so Player/Fling/Combat modules do not break.
+-- Shared floating-button system used by Combat / Fling / Player.
 --
--- Visual style:
+-- Features:
 --   • rounded dark glass card
 --   • WindUI / Lucide icon centered above the label
 --   • selected Blizzard theme color as the outline
---   • draggable on touch and mouse
+--   • quick click flash / blink feedback
+--   • global lock / size / reset controls
+--   • draggable on touch and mouse while unlocked
+--   • 25% smaller factory card size than the old 98x98 cards
 --============================================================
 
 UI.FloatingCardRegistry = UI.FloatingCardRegistry or {}
+UI.QuickButtons = UI.FloatingCardRegistry
+
+local QUICK_BUTTON_BASE_SIZE = 74
+local QUICK_BUTTON_MIN_SCALE = 60
+local QUICK_BUTTON_MAX_SCALE = 140
+
+Flags.QuickButtonsLocked = Flags.QuickButtonsLocked == true
+Flags.QuickButtonScale = math.clamp(
+	tonumber(Flags.QuickButtonScale) or 100,
+	QUICK_BUTTON_MIN_SCALE,
+	QUICK_BUTTON_MAX_SCALE
+)
 
 local LEGACY_ICON_ALIASES = {
 	["💀"] = "skull",
@@ -1535,6 +1549,94 @@ local function ResolveWindUIIcon(iconName)
 	return nil,nil,nil
 end
 
+local function ApplyQuickButtonScaleToEntry(entry)
+	if not entry or not entry.Holder then
+		return
+	end
+
+	local scale = math.clamp(
+		tonumber(Flags.QuickButtonScale) or 100,
+		QUICK_BUTTON_MIN_SCALE,
+		QUICK_BUTTON_MAX_SCALE
+	) / 100
+
+	if entry.UIScale then
+		entry.UIScale.Scale = scale
+	end
+end
+
+function UI.SetQuickButtonsLocked(value)
+	Flags.QuickButtonsLocked = value == true
+	return Flags.QuickButtonsLocked
+end
+
+function UI.SetQuickButtonScale(value)
+	Flags.QuickButtonScale = math.clamp(
+		tonumber(value) or 100,
+		QUICK_BUTTON_MIN_SCALE,
+		QUICK_BUTTON_MAX_SCALE
+	)
+
+	for _,entry in pairs(UI.FloatingCardRegistry) do
+		ApplyQuickButtonScaleToEntry(entry)
+	end
+
+	return Flags.QuickButtonScale
+end
+
+function UI.ResetQuickButtonPositions()
+	for _,entry in pairs(UI.FloatingCardRegistry) do
+		if entry and entry.Holder and entry.DefaultPosition then
+			entry.Holder.Position = entry.DefaultPosition
+		end
+	end
+	return true
+end
+
+function UI.ResetQuickButtons()
+	UI.ResetQuickButtonPositions()
+	UI.SetQuickButtonScale(100)
+	UI.SetQuickButtonsLocked(false)
+	return true
+end
+
+local function FlashQuickButton(entry)
+	if not entry or not entry.Button or not entry.Stroke then
+		return
+	end
+
+	local button = entry.Button
+	local stroke = entry.Stroke
+	entry.FlashToken = (entry.FlashToken or 0) + 1
+	local token = entry.FlashToken
+
+	button.BackgroundTransparency = 0.01
+	stroke.Transparency = 0
+	stroke.Thickness = 3.2
+
+	if entry.Icon then
+		pcall(function()
+			entry.Icon.ImageColor3 = UI.CurrentThemeAccent or DEFAULT_BLIZZARD_BLUE
+		end)
+	end
+
+	task.delay(0.11,function()
+		if not entry.Button or not entry.Button.Parent or entry.FlashToken ~= token then
+			return
+		end
+
+		button.BackgroundTransparency = 0.10
+		stroke.Transparency = 0.05
+		stroke.Thickness = 2.0
+
+		if entry.Icon then
+			pcall(function()
+				entry.Icon.ImageColor3 = Color3.fromRGB(255,255,255)
+			end)
+		end
+	end)
+end
+
 function UI.CreateMovableCardButton(
 	name,
 	icon,
@@ -1543,16 +1645,22 @@ function UI.CreateMovableCardButton(
 	callback
 )
 	local cleanName = tostring(name or "Floating")
+	local defaultPosition = startPosition or UDim2.fromScale(0.8,0.75)
 
 	local holder = Instance.new("Frame")
 	holder.Name = cleanName .. "Holder"
 	holder.AnchorPoint = Vector2.new(0.5,0.5)
-	holder.Position = startPosition or UDim2.fromScale(0.8,0.75)
-	holder.Size = UDim2.fromOffset(98,98)
+	holder.Position = defaultPosition
+	holder.Size = UDim2.fromOffset(QUICK_BUTTON_BASE_SIZE,QUICK_BUTTON_BASE_SIZE)
 	holder.BackgroundTransparency = 1
 	holder.Active = true
 	holder.ZIndex = 250
 	holder.Parent = ScreenGui
+
+	local uiScale = Instance.new("UIScale")
+	uiScale.Name = "QuickButtonScale"
+	uiScale.Scale = Flags.QuickButtonScale / 100
+	uiScale.Parent = holder
 
 	local button = Instance.new("TextButton")
 	button.Name = cleanName
@@ -1568,14 +1676,14 @@ function UI.CreateMovableCardButton(
 	button.Parent = holder
 
 	local corner = Instance.new("UICorner")
-	corner.CornerRadius = UDim.new(0,18)
+	corner.CornerRadius = UDim.new(0,14)
 	corner.Parent = button
 
 	local stroke = Instance.new("UIStroke")
 	stroke.Name = "ThemeStroke"
 	stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
 	stroke.Color = UI.CurrentThemeAccent or DEFAULT_BLIZZARD_BLUE
-	stroke.Thickness = 2.2
+	stroke.Thickness = 2.0
 	stroke.Transparency = 0.05
 	stroke.Parent = button
 
@@ -1586,8 +1694,8 @@ function UI.CreateMovableCardButton(
 		local image = Instance.new("ImageLabel")
 		image.Name = "Icon"
 		image.AnchorPoint = Vector2.new(0.5,0)
-		image.Position = UDim2.new(0.5,0,0,14)
-		image.Size = UDim2.fromOffset(34,34)
+		image.Position = UDim2.new(0.5,0,0,9)
+		image.Size = UDim2.fromOffset(26,26)
 		image.BackgroundTransparency = 1
 		image.Image = iconImage
 		image.ImageColor3 = Color3.fromRGB(255,255,255)
@@ -1602,16 +1710,15 @@ function UI.CreateMovableCardButton(
 		image.Parent = button
 		iconObject = image
 	else
-		-- Compatibility fallback for an icon string that is not in Lucide.
 		local fallback = Instance.new("TextLabel")
 		fallback.Name = "IconFallback"
 		fallback.AnchorPoint = Vector2.new(0.5,0)
-		fallback.Position = UDim2.new(0.5,0,0,12)
-		fallback.Size = UDim2.fromOffset(38,38)
+		fallback.Position = UDim2.new(0.5,0,0,7)
+		fallback.Size = UDim2.fromOffset(29,29)
 		fallback.BackgroundTransparency = 1
 		fallback.Text = tostring(icon or "")
 		fallback.TextColor3 = Color3.fromRGB(255,255,255)
-		fallback.TextSize = 28
+		fallback.TextSize = 21
 		fallback.Font = Enum.Font.GothamBold
 		fallback.ZIndex = 252
 		fallback.Parent = button
@@ -1621,18 +1728,31 @@ function UI.CreateMovableCardButton(
 	local label = Instance.new("TextLabel")
 	label.Name = "Label"
 	label.AnchorPoint = Vector2.new(0.5,0)
-	label.Position = UDim2.new(0.5,0,0,56)
-	label.Size = UDim2.new(1,-12,0,32)
+	label.Position = UDim2.new(0.5,0,0,40)
+	label.Size = UDim2.new(1,-8,0,27)
 	label.BackgroundTransparency = 1
 	label.Text = string.upper(tostring(labelText or ""))
 	label.TextColor3 = Color3.fromRGB(255,255,255)
-	label.TextSize = 12
+	label.TextSize = 9
 	label.Font = Enum.Font.GothamBold
 	label.TextWrapped = true
 	label.TextXAlignment = Enum.TextXAlignment.Center
 	label.TextYAlignment = Enum.TextYAlignment.Center
 	label.ZIndex = 252
 	label.Parent = button
+
+	local entry = {
+		Button = button,
+		Holder = holder,
+		Stroke = stroke,
+		Icon = iconObject,
+		Label = label,
+		UIScale = uiScale,
+		DefaultPosition = defaultPosition,
+		DefaultSize = QUICK_BUTTON_BASE_SIZE,
+	}
+
+	UI.FloatingCardRegistry[cleanName] = entry
 
 	local dragging = false
 	local moved = false
@@ -1644,6 +1764,12 @@ function UI.CreateMovableCardButton(
 		if input.UserInputType == Enum.UserInputType.MouseButton1
 			or input.UserInputType == Enum.UserInputType.Touch
 		then
+			if Flags.QuickButtonsLocked then
+				dragging = false
+				moved = false
+				return
+			end
+
 			dragging = true
 			moved = false
 			dragStart = input.Position
@@ -1666,6 +1792,11 @@ function UI.CreateMovableCardButton(
 	end))
 
 	Track(UIS.InputChanged:Connect(function(input)
+		if Flags.QuickButtonsLocked then
+			dragging = false
+			return
+		end
+
 		if not dragging
 			or input ~= dragInput
 			or not dragStart
@@ -1696,6 +1827,8 @@ function UI.CreateMovableCardButton(
 			return
 		end
 
+		FlashQuickButton(entry)
+
 		if callback then
 			local ok,err = pcall(callback)
 			if not ok then
@@ -1704,13 +1837,7 @@ function UI.CreateMovableCardButton(
 		end
 	end))
 
-	UI.FloatingCardRegistry[cleanName] = {
-		Button = button,
-		Holder = holder,
-		Stroke = stroke,
-		Icon = iconObject,
-		Label = label,
-	}
+	ApplyQuickButtonScaleToEntry(entry)
 
 	return button,holder,label,iconObject
 end
