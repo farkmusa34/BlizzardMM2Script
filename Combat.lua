@@ -13,6 +13,59 @@ local Track = MM2.Track
 local CombatOverlay = UI.TracerGui or UI.ScreenGui
 assert(CombatOverlay, "Combat overlay GUI not found")
 
+local function CombatNotify(title,content,icon,duration)
+	local wind = UI.WindUI
+	if wind and wind.Notify then
+		local ok = pcall(function()
+			wind:Notify({
+				Title = tostring(title or "Combat"),
+				Content = tostring(content or ""),
+				Icon = tostring(icon or "info"),
+				Duration = tonumber(duration) or 2.5,
+			})
+		end)
+		if ok then return end
+	end
+	if MM2.Notify then
+		pcall(MM2.Notify,tostring(content or title or "Combat"),tonumber(duration) or 2.5,icon,title)
+	end
+end
+
+local function NormalizeShootMessage(message)
+	if message == "No Murderer"
+		or message == "No Gun"
+		or message == "No Target"
+	then
+		return "No Gun or Murderer"
+	end
+	return message
+end
+
+local function NotifyShootResult(success,message)
+	message = NormalizeShootMessage(message)
+	if success then
+		CombatNotify("Shoot Murderer",message or "Shot Fired","check",1.8)
+	elseif message and message ~= "Cooldown" and message ~= "Busy" then
+		CombatNotify("Shoot Murderer",message,"x",2.5)
+	end
+end
+
+local function NormalizeKillAllMessage(message)
+	if message == "No Knife" or message == "Murderer Role Required" then
+		return "Murderer Role Required"
+	end
+	return message
+end
+
+local function NotifyKillAllResult(success,message)
+	message = NormalizeKillAllMessage(message)
+	if success then
+		CombatNotify("Kill All",message or "Activated","check",1.8)
+	elseif message and message ~= "Cooldown" and message ~= "Busy" then
+		CombatNotify("Kill All",message,"x",2.5)
+	end
+end
+
 UI.AddSection(UI.CombatPage, "Aim", "Crosshair and aiming features")
 UI.CreateToggle(UI.CombatPage, "TriggerBot", "Fire when the crosshair is on the murderer", "TriggerBot")
 UI.CreateToggle(UI.CombatPage, "Aim Lock", "Torso aim lock in first-person / lock-center", "AimLock")
@@ -81,9 +134,9 @@ UI.CreateActionFeature(UI.CombatPage, "Kill All", "Uses one knife activation at 
 		local ok,success,message = pcall(MM2.Functions.KillAllOnce)
 		if not ok then
 			warn("[MM2 KILL ALL ACTION]",success)
-			MM2.Notify("Kill All error",2)
-		elseif message and message ~= "Cooldown" then
-			MM2.Notify(message,1.5)
+			CombatNotify("Kill All","Kill All error","x",2)
+		else
+			NotifyKillAllResult(success,message)
 		end
 	end
 end)
@@ -311,23 +364,23 @@ MM2.Functions.ShootMurderer = function()
 	local ok, success, message = pcall(function()
 		local murderer = FindLiveMurderer()
 		if not murderer then
-			return false,"No Murderer"
+			return false,"No Gun or Murderer"
 		end
 		local torso = GetCombatTorso(murderer.Character)
 		if not torso then
-			return false,"No Target"
+			return false,"No Gun or Murderer"
 		end
 		local gun = EnsureCombatGun()
 		if not gun then
-			return false,"No Gun"
+			return false,"No Gun or Murderer"
 		end
 		task.wait(0.12)
 		if not IsLivePlayer(murderer) then
-			return false,"No Murderer"
+			return false,"No Gun or Murderer"
 		end
 		torso = GetCombatTorso(murderer.Character)
 		if not torso then
-			return false,"No Target"
+			return false,"No Gun or Murderer"
 		end
 		local fired = FireCombatGun(gun,torso.Position)
 		if not fired then
@@ -351,16 +404,16 @@ MM2.Functions.ShootMurdererLegit = function()
 	ShootBusy = true
 	local ok,success,message = pcall(function()
 		local murderer = FindLiveMurderer()
-		if not murderer then return false,"No Murderer" end
+		if not murderer then return false,"No Gun or Murderer" end
 		local torso = GetCombatTorso(murderer.Character)
-		if not torso then return false,"No Target" end
+		if not torso then return false,"No Gun or Murderer" end
 		if not HasClearLineOfSight(torso) then return false,"Murderer Behind Wall" end
 		local gun = EnsureCombatGun()
-		if not gun then return false,"No Gun" end
+		if not gun then return false,"No Gun or Murderer" end
 		task.wait(0.12)
-		if not IsLivePlayer(murderer) then return false,"No Murderer" end
+		if not IsLivePlayer(murderer) then return false,"No Gun or Murderer" end
 		torso = GetCombatTorso(murderer.Character)
-		if not torso then return false,"No Target" end
+		if not torso then return false,"No Gun or Murderer" end
 		if not HasClearLineOfSight(torso) then return false,"Murderer Behind Wall" end
 		if not FireCombatGun(gun,torso.Position) then return false,"Shot Failed" end
 		LastManualShot = os.clock()
@@ -727,7 +780,7 @@ MM2.Functions.KillAllOnce = function()
 	local ok,err = pcall(function()
 		local knife = EnsureKnifeEquipped()
 		if not knife then
-			message = "No Knife"
+			message = "Murderer Role Required"
 			return
 		end
 		local handle = GetKnifeHandle(knife)
@@ -816,31 +869,25 @@ local function UpdateCombatFeatures()
 	end
 	local targetPart = GetCombatTorso(targetPlayer.Character)
 
-if not targetPart then
-	return
-end
+	if not targetPart then
+		return
+	end
 
-local targetPosition = rayResult.Position
-
-local velocity = targetPart.AssemblyLinearVelocity
-
-local horizontalVelocity = Vector3.new(
-	velocity.X,
-	0,
-	velocity.Z
-)
-
-local predictionTime = 0.06
-
-if horizontalVelocity.Magnitude > 120 then
-	horizontalVelocity = horizontalVelocity.Unit * 120
-end
-
-targetPosition += horizontalVelocity * predictionTime
-
-if FireCombatGun(gun,targetPosition) then
-	LastTriggerShot = os.clock()
-end
+	local targetPosition = rayResult.Position
+	local velocity = targetPart.AssemblyLinearVelocity
+	local horizontalVelocity = Vector3.new(
+		velocity.X,
+		0,
+		velocity.Z
+	)
+	local predictionTime = 0.06
+	if horizontalVelocity.Magnitude > 120 then
+		horizontalVelocity = horizontalVelocity.Unit * 120
+	end
+	targetPosition += horizontalVelocity * predictionTime
+	if FireCombatGun(gun,targetPosition) then
+		LastTriggerShot = os.clock()
+	end
 end
 
 RunService:BindToRenderStep(
@@ -928,9 +975,7 @@ FloatingShootButton.ZIndex = 300
 FloatingShootButton.Parent = UI.ScreenGui
 
 MM2.UI.FloatingShootButton = FloatingShootButton
-
 MakeShootButtonMovable(FloatingShootButton)
-
 FloatingShootButton.Visible = Flags.ShowShootButton == true
 
 local c = Instance.new("UICorner")
@@ -945,29 +990,16 @@ s.Parent = FloatingShootButton
 
 Track(FloatingShootButton.MouseButton1Click:Connect(function()
 	if FloatingShootButton:GetAttribute("_JustDragged") then return end
-	FloatingShootButton.Text = "CLICK DETECTED"
 	task.spawn(function()
 		local ok,success,message = pcall(function()
 			return MM2.Functions.ShootMurderer()
 		end)
-		if FloatingShootButton and FloatingShootButton.Parent then
-			if not ok then
-				warn("[MM2 V8.6.2 SHOOT] BUTTON CALL ERROR:",success)
-				FloatingShootButton.Text = "Error"
-			else
-				FloatingShootButton.Text = tostring(
-					message or (
-						success and "Shot Fired"
-						or "Shot Failed"
-					)
-				)
-			end
+		if not ok then
+			warn("[MM2 V8.6.2 SHOOT] BUTTON CALL ERROR:",success)
+			CombatNotify("Shoot Murderer","Error","x",2)
+			return
 		end
-		task.delay(1,function()
-			if FloatingShootButton and FloatingShootButton.Parent then
-				FloatingShootButton.Text = "Shoot Murderer (Rage)"
-			end
-		end)
+		NotifyShootResult(success,message)
 	end)
 end))
 
@@ -991,9 +1023,7 @@ FloatingLegitShootButton.ZIndex = 300
 FloatingLegitShootButton.Parent = UI.ScreenGui
 
 MM2.UI.FloatingLegitShootButton = FloatingLegitShootButton
-
 MakeShootButtonMovable(FloatingLegitShootButton)
-
 FloatingLegitShootButton.Visible = Flags.ShowLegitShootButton == true
 
 local legitCorner = Instance.new("UICorner")
@@ -1012,21 +1042,12 @@ Track(FloatingLegitShootButton.MouseButton1Click:Connect(function()
 		local ok,success,message = pcall(function()
 			return MM2.Functions.ShootMurdererLegit()
 		end)
-		if FloatingLegitShootButton and FloatingLegitShootButton.Parent then
-			FloatingLegitShootButton.Text = ok
-				and tostring(
-					message or (
-						success and "Shot Fired"
-						or "Shot Failed"
-					)
-				)
-				or "Error"
-			task.delay(1,function()
-				if FloatingLegitShootButton and FloatingLegitShootButton.Parent then
-					FloatingLegitShootButton.Text = "Shoot Murderer (Legit)"
-				end
-			end)
+		if not ok then
+			warn("[MM2 LEGIT SHOOT BUTTON]",success)
+			CombatNotify("Shoot Murderer","Error","x",2)
+			return
 		end
+		NotifyShootResult(success,message)
 	end)
 end))
 
@@ -1043,9 +1064,9 @@ if UI.CreateMovableCircleButton then
 				end)
 				if not ok then
 					warn("[MM2 KILL ALL BUTTON]",success)
-					MM2.Notify("Kill All error",2)
-				elseif message and message ~= "Cooldown" then
-					MM2.Notify(message,1.5)
+					CombatNotify("Kill All","Kill All error","x",2)
+				else
+					NotifyKillAllResult(success,message)
 				end
 			end
 		)
@@ -1056,23 +1077,6 @@ end
 
 --============================================================
 -- AUTO GRAB GUN
---
--- NO DISTANCE LIMIT
---
--- AutoFarm OFF:
---     Original HRP-first pickup behavior.
---
--- AutoFarm ON:
---     Torso-first pickup behavior so the enlarged AutoFarm HRP does not
---     become the primary gun-touch part. HRP remains a fallback.
---
--- Still blocked when:
---     - Auto Grab is OFF
---     - Intermission / pre-round is active
---     - Already picking up
---     - You already have the gun
---     - You are the Murderer
---     - You are dead / character is invalid
 --============================================================
 
 local AUTO_GRAB_TOUCH_BURST = 2
@@ -1153,7 +1157,6 @@ MM2.Functions.UpdateAutoGrab = function()
 		return
 	end
 	local targetPart = GetPickupPart(gunDrop)
-	-- No distance check anymore.
 	if not targetPart
 		or not targetPart.Parent
 	then
@@ -1162,7 +1165,6 @@ MM2.Functions.UpdateAutoGrab = function()
 	local char = LocalPlayer.Character
 	local humanoid = char and char:FindFirstChildOfClass("Humanoid")
 	local hrp = char and char:FindFirstChild("HumanoidRootPart")
-	-- Dead / invalid character protection remains unchanged.
 	if not char
 		or not hrp
 		or not humanoid
@@ -1182,18 +1184,7 @@ MM2.Functions.UpdateAutoGrab = function()
 			then
 				break
 			end
-			--====================================================
-			-- AutoFarm compatibility.
-			--
-			-- AutoFarm ON:
-			--     Torso first because AutoFarm enlarges the HRP.
-			--     HRP is still used as fallback.
-			--
-			-- AutoFarm OFF:
-			--     Preserve the original HRP-first behavior.
-			--====================================================
 			if Flags.AutoFarm then
-				-- AutoFarm-safe order: torso -> HRP.
 				if torso then
 					TouchAutoGrabPart(torso,targetPart)
 				end
@@ -1205,7 +1196,6 @@ MM2.Functions.UpdateAutoGrab = function()
 					break
 				end
 			else
-				-- Original order: HRP -> torso
 				TouchAutoGrabPart(hrp,targetPart)
 				if MM2.HasGunAnywhere() or not gunDrop.Parent then
 					break
