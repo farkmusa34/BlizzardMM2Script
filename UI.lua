@@ -364,6 +364,15 @@ function UI.SetLatestUpdateTheme(color)
 
 	UI.CurrentThemeAccent = color
 
+	-- Keep every floating Blizzard card synced to the selected theme.
+	if UI.FloatingCardRegistry then
+		for _,entry in pairs(UI.FloatingCardRegistry) do
+			if entry and entry.Stroke then
+				entry.Stroke.Color = color
+			end
+		end
+	end
+
 	-- Prefer WindUI's native tag color updater.
 	if LatestUpdateTag
 		and LatestUpdateTag.SetColor
@@ -434,13 +443,7 @@ UI.WindTabs.Combat =
 UI.WindTabs.Player =
 	Window:Tab({
 		Title = "Player",
-		Icon = "shield-check"
-	})
-
-UI.WindTabs.Teleport =
-	Window:Tab({
-		Title = "Teleport",
-		Icon = "navigation"
+		Icon = "shield"
 	})
 
 UI.WindTabs.Fling =
@@ -508,7 +511,6 @@ end
 UI.VisualsPage = NewLegacyPage("Visuals")
 UI.CombatPage = NewLegacyPage("Combat")
 UI.PlayerPage = NewLegacyPage("Player")
-UI.TeleportPage = NewLegacyPage("Teleport")
 UI.FlingPage = NewLegacyPage("Fling")
 UI.AutoFarmPage = NewLegacyPage("AutoFarm")
 UI.SkinChangerPage = NewLegacyPage("SkinChanger")
@@ -518,7 +520,6 @@ UI.Pages = {
 	Visuals = UI.VisualsPage,
 	Combat = UI.CombatPage,
 	Player = UI.PlayerPage,
-	Teleport = UI.TeleportPage,
 	Fling = UI.FlingPage,
 	AutoFarm = UI.AutoFarmPage,
 	SkinChanger = UI.SkinChangerPage,
@@ -529,7 +530,6 @@ UI.PageMap = {
 	[UI.VisualsPage] = UI.WindTabs.Visuals,
 	[UI.CombatPage] = UI.WindTabs.Combat,
 	[UI.PlayerPage] = UI.WindTabs.Player,
-	[UI.TeleportPage] = UI.WindTabs.Teleport,
 	[UI.FlingPage] = UI.WindTabs.Fling,
 	[UI.AutoFarmPage] = UI.WindTabs.AutoFarm,
 	[UI.SkinChangerPage] = UI.WindTabs.SkinChanger,
@@ -1460,258 +1460,254 @@ function UI.CreateValueControl(
 end
 
 --============================================================
--- MOVABLE CIRCLE BUTTON COMPATIBILITY
+-- MOVABLE BLIZZARD CARD BUTTONS
+--
+-- Backward compatible with the old CreateMovableCircleButton()
+-- name so Player/Fling/Combat modules do not break.
+--
+-- Visual style:
+--   • rounded dark glass card
+--   • WindUI / Lucide icon centered above the label
+--   • selected Blizzard theme color as the outline
+--   • draggable on touch and mouse
 --============================================================
 
-function UI.CreateMovableCircleButton(
+UI.FloatingCardRegistry = UI.FloatingCardRegistry or {}
+
+local LEGACY_ICON_ALIASES = {
+	["💀"] = "skull",
+	["🎯"] = "crosshair",
+	["⚡"] = "zap",
+	["💣"] = "bomb",
+	["🛡️"] = "shield",
+	["🛡"] = "shield",
+	["❄️"] = "snowflake",
+	["❄"] = "snowflake",
+}
+
+local function ResolveWindUIIcon(iconName)
+	iconName = tostring(iconName or "")
+	iconName = LEGACY_ICON_ALIASES[iconName] or iconName
+
+	if iconName == "" then
+		return nil,nil,nil
+	end
+
+	local creator = WindUI and WindUI.Creator
+	local icons = creator and creator.Icons
+	if not icons or not icons.Icon2 then
+		return nil,nil,nil
+	end
+
+	local ok,data = pcall(function()
+		return icons.Icon2(iconName,"lucide")
+	end)
+
+	if not ok or not data then
+		return nil,nil,nil
+	end
+
+	if typeof(data) == "string" then
+		return data,nil,nil
+	end
+
+	if type(data) == "table" then
+		local image = data[1]
+		local info = data[2]
+
+		if typeof(image) == "string" then
+			return
+				image,
+				info and info.ImageRectSize or nil,
+				info and info.ImageRectPosition or nil
+		end
+	end
+
+	return nil,nil,nil
+end
+
+function UI.CreateMovableCardButton(
 	name,
 	icon,
 	labelText,
 	startPosition,
 	callback
 )
+	local cleanName = tostring(name or "Floating")
 
 	local holder = Instance.new("Frame")
-
-	holder.Name =
-		tostring(
-			name or "Floating"
-		)
-		.. "Holder"
-
-	holder.AnchorPoint =
-		Vector2.new(
-			0.5,
-			0.5
-		)
-
-	holder.Position =
-		startPosition
-		or UDim2.fromScale(
-			0.8,
-			0.75
-		)
-
-	holder.Size =
-		UDim2.fromOffset(
-			84,
-			84
-		)
-
+	holder.Name = cleanName .. "Holder"
+	holder.AnchorPoint = Vector2.new(0.5,0.5)
+	holder.Position = startPosition or UDim2.fromScale(0.8,0.75)
+	holder.Size = UDim2.fromOffset(98,98)
 	holder.BackgroundTransparency = 1
 	holder.Active = true
 	holder.ZIndex = 250
 	holder.Parent = ScreenGui
 
 	local button = Instance.new("TextButton")
-
-	button.Name =
-		tostring(
-			name or "Floating"
-		)
-
-	button.AnchorPoint =
-		Vector2.new(
-			0.5,
-			0.5
-		)
-
-	button.Position =
-		UDim2.fromScale(
-			0.5,
-			0.42
-		)
-
-	button.Size =
-		UDim2.fromOffset(
-			54,
-			54
-		)
-
-	button.BackgroundColor3 =
-		Color3.fromRGB(
-			18,
-			20,
-			26
-		)
-
-	button.BackgroundTransparency = 0.08
+	button.Name = cleanName
+	button.Size = UDim2.fromScale(1,1)
+	button.Position = UDim2.fromScale(0,0)
+	button.BackgroundColor3 = Color3.fromRGB(14,16,22)
+	button.BackgroundTransparency = 0.10
 	button.BorderSizePixel = 0
-
-	button.Text =
-		tostring(
-			icon or ""
-		)
-
-	button.TextColor3 = COLORS.Text
-	button.TextSize = 22
-	button.Font = Enum.Font.GothamBold
+	button.Text = ""
+	button.AutoButtonColor = false
 	button.Active = true
 	button.ZIndex = 251
 	button.Parent = holder
 
 	local corner = Instance.new("UICorner")
-	corner.CornerRadius = UDim.new(1,0)
+	corner.CornerRadius = UDim.new(0,18)
 	corner.Parent = button
 
-	UI.CreateBlueCyanStroke(
-		button,
-		1.5,
-		0.12
-	)
+	local stroke = Instance.new("UIStroke")
+	stroke.Name = "ThemeStroke"
+	stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+	stroke.Color = UI.CurrentThemeAccent or DEFAULT_BLIZZARD_BLUE
+	stroke.Thickness = 2.2
+	stroke.Transparency = 0.05
+	stroke.Parent = button
+
+	local iconImage,rectSize,rectOffset = ResolveWindUIIcon(icon)
+	local iconObject
+
+	if iconImage then
+		local image = Instance.new("ImageLabel")
+		image.Name = "Icon"
+		image.AnchorPoint = Vector2.new(0.5,0)
+		image.Position = UDim2.new(0.5,0,0,14)
+		image.Size = UDim2.fromOffset(34,34)
+		image.BackgroundTransparency = 1
+		image.Image = iconImage
+		image.ImageColor3 = Color3.fromRGB(255,255,255)
+		image.ScaleType = Enum.ScaleType.Fit
+		image.ZIndex = 252
+		if rectSize then
+			image.ImageRectSize = rectSize
+		end
+		if rectOffset then
+			image.ImageRectOffset = rectOffset
+		end
+		image.Parent = button
+		iconObject = image
+	else
+		-- Compatibility fallback for an icon string that is not in Lucide.
+		local fallback = Instance.new("TextLabel")
+		fallback.Name = "IconFallback"
+		fallback.AnchorPoint = Vector2.new(0.5,0)
+		fallback.Position = UDim2.new(0.5,0,0,12)
+		fallback.Size = UDim2.fromOffset(38,38)
+		fallback.BackgroundTransparency = 1
+		fallback.Text = tostring(icon or "")
+		fallback.TextColor3 = Color3.fromRGB(255,255,255)
+		fallback.TextSize = 28
+		fallback.Font = Enum.Font.GothamBold
+		fallback.ZIndex = 252
+		fallback.Parent = button
+		iconObject = fallback
+	end
 
 	local label = Instance.new("TextLabel")
-
-	label.AnchorPoint =
-		Vector2.new(
-			0.5,
-			0
-		)
-
-	label.Position =
-		UDim2.new(
-			0.5,
-			0,
-			1,
-			-18
-		)
-
-	label.Size =
-		UDim2.new(
-			2,
-			0,
-			0,
-			18
-		)
-
+	label.Name = "Label"
+	label.AnchorPoint = Vector2.new(0.5,0)
+	label.Position = UDim2.new(0.5,0,0,56)
+	label.Size = UDim2.new(1,-12,0,32)
 	label.BackgroundTransparency = 1
-
-	label.Text =
-		tostring(
-			labelText or ""
-		)
-
-	label.TextColor3 = COLORS.Text
-	label.TextSize = 9
+	label.Text = string.upper(tostring(labelText or ""))
+	label.TextColor3 = Color3.fromRGB(255,255,255)
+	label.TextSize = 12
 	label.Font = Enum.Font.GothamBold
+	label.TextWrapped = true
+	label.TextXAlignment = Enum.TextXAlignment.Center
+	label.TextYAlignment = Enum.TextYAlignment.Center
 	label.ZIndex = 252
-	label.Parent = holder
+	label.Parent = button
 
 	local dragging = false
 	local moved = false
-
 	local dragStart
 	local startPos
 	local dragInput
 
-	Track(
-		button.InputBegan:Connect(
-			function(input)
+	Track(button.InputBegan:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseButton1
+			or input.UserInputType == Enum.UserInputType.Touch
+		then
+			dragging = true
+			moved = false
+			dragStart = input.Position
+			startPos = holder.Position
 
-				if input.UserInputType
-					== Enum.UserInputType.MouseButton1
-					or input.UserInputType
-					== Enum.UserInputType.Touch
-				then
-
-					dragging = true
-					moved = false
-					dragStart = input.Position
-					startPos = holder.Position
-
-					Track(
-						input.Changed:Connect(
-							function()
-
-								if input.UserInputState
-									== Enum.UserInputState.End
-								then
-
-									dragging = false
-								end
-							end
-						)
-					)
+			Track(input.Changed:Connect(function()
+				if input.UserInputState == Enum.UserInputState.End then
+					dragging = false
 				end
+			end))
+		end
+	end))
+
+	Track(button.InputChanged:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseMovement
+			or input.UserInputType == Enum.UserInputType.Touch
+		then
+			dragInput = input
+		end
+	end))
+
+	Track(UIS.InputChanged:Connect(function(input)
+		if not dragging
+			or input ~= dragInput
+			or not dragStart
+			or not startPos
+		then
+			return
+		end
+
+		local delta = input.Position - dragStart
+
+		if delta.Magnitude >= 4 then
+			moved = true
+		end
+
+		if moved then
+			holder.Position = UDim2.new(
+				startPos.X.Scale,
+				startPos.X.Offset + delta.X,
+				startPos.Y.Scale,
+				startPos.Y.Offset + delta.Y
+			)
+		end
+	end))
+
+	Track(button.MouseButton1Click:Connect(function()
+		if moved then
+			moved = false
+			return
+		end
+
+		if callback then
+			local ok,err = pcall(callback)
+			if not ok then
+				warn("[Blizzard UI Floating Card]",cleanName,err)
 			end
-		)
-	)
+		end
+	end))
 
-	Track(
-		button.InputChanged:Connect(
-			function(input)
+	UI.FloatingCardRegistry[cleanName] = {
+		Button = button,
+		Holder = holder,
+		Stroke = stroke,
+		Icon = iconObject,
+		Label = label,
+	}
 
-				if input.UserInputType
-					== Enum.UserInputType.MouseMovement
-					or input.UserInputType
-					== Enum.UserInputType.Touch
-				then
-
-					dragInput = input
-				end
-			end
-		)
-	)
-
-	Track(
-		UIS.InputChanged:Connect(
-			function(input)
-
-				if not dragging
-					or input ~= dragInput
-					or not dragStart
-					or not startPos
-				then
-
-					return
-				end
-
-				local delta =
-					input.Position
-					- dragStart
-
-				if delta.Magnitude >= 4 then
-					moved = true
-				end
-
-				if moved then
-
-					holder.Position =
-						UDim2.new(
-							startPos.X.Scale,
-							startPos.X.Offset
-								+ delta.X,
-
-							startPos.Y.Scale,
-							startPos.Y.Offset
-								+ delta.Y
-						)
-				end
-			end
-		)
-	)
-
-	Track(
-		button.MouseButton1Click:Connect(
-			function()
-
-				if moved then
-
-					moved = false
-					return
-				end
-
-				if callback then
-					pcall(
-						callback
-					)
-				end
-			end
-		)
-	)
-
-	return button,holder
+	return button,holder,label,iconObject
 end
+
+-- Old API name kept so existing modules automatically receive the new card.
+UI.CreateMovableCircleButton = UI.CreateMovableCardButton
 
 --============================================================
 -- WINDUI TOOLBAR
