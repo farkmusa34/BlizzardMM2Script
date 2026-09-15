@@ -179,6 +179,225 @@ local function GetCombatTorso(character)
 		or character:FindFirstChild("HumanoidRootPart")
 end
 
+--============================================================
+-- REAL SHOOT PATH DIAGNOSTIC
+-- Observes the production SHOOT / RAGE SHOOT path.
+-- It does not change the 0.12 second wait or shot arguments.
+--============================================================
+
+local ShootDiagnostic = {
+	Logs = {},
+	ShotNumber = 0,
+	Current = nil,
+}
+
+local function ShootDiagVec(v)
+	if typeof(v) ~= "Vector3" then return "nil" end
+	return string.format("(%.3f, %.3f, %.3f)",v.X,v.Y,v.Z)
+end
+
+local function ShootDiagLog(text)
+	text = tostring(text)
+	table.insert(ShootDiagnostic.Logs,text)
+	print("[REAL SHOOT DIAG] "..text)
+end
+
+local function ShootDiagLOS(targetPart)
+	local character = LocalPlayer.Character
+	if not character or not targetPart or not targetPart.Parent then return false,"nil" end
+	local originPart = character:FindFirstChild("Head") or character:FindFirstChild("HumanoidRootPart")
+	if not originPart then return false,"nil" end
+	local direction = targetPart.Position-originPart.Position
+	if direction.Magnitude <= 0.1 then return true,"target" end
+	local params = RaycastParams.new()
+	params.FilterType = Enum.RaycastFilterType.Exclude
+	params.FilterDescendantsInstances = {character}
+	params.IgnoreWater = true
+	local result = workspace:Raycast(originPart.Position,direction,params)
+	if not result then return true,"nil" end
+	return result.Instance:IsDescendantOf(targetPart.Parent),result.Instance:GetFullName()
+end
+
+local function ShootDiagBegin(mode,murderer,targetPart)
+	ShootDiagnostic.ShotNumber += 1
+	local shot = {
+		Number = ShootDiagnostic.ShotNumber,
+		Mode = mode,
+		Player = murderer,
+		Character = murderer and murderer.Character,
+		StartTime = os.clock(),
+	}
+	ShootDiagLog("============================================================")
+	ShootDiagLog("REAL COMBAT SHOT #"..shot.Number)
+	ShootDiagLog("Mode="..tostring(mode))
+	ShootDiagLog("ProductionTaskWait=0.120s")
+	ShootDiagLog("Target="..tostring(murderer and murderer.Name or "nil"))
+	if targetPart then
+		shot.BeforePosition = targetPart.Position
+		shot.BeforeVelocity = targetPart.AssemblyLinearVelocity
+		ShootDiagLog("BEFORE WAIT Part="..targetPart.Name.." Pos="..ShootDiagVec(shot.BeforePosition).." Vel="..ShootDiagVec(shot.BeforeVelocity))
+		ShootDiagLog(string.format("BEFORE WAIT Speed=%.3f",shot.BeforeVelocity.Magnitude))
+		local clear,hit = ShootDiagLOS(targetPart)
+		ShootDiagLog("BEFORE WAIT LOS="..tostring(clear).." Hit="..tostring(hit))
+	end
+	return shot
+end
+
+local function ShootDiagAfterWait(shot,targetPart)
+	if not shot or not targetPart then return end
+	shot.AfterWaitTime = os.clock()-shot.StartTime
+	shot.AfterPosition = targetPart.Position
+	shot.AfterVelocity = targetPart.AssemblyLinearVelocity
+	ShootDiagLog(string.format("AFTER WAIT ActualElapsed=%.3fms",shot.AfterWaitTime*1000))
+	ShootDiagLog("AFTER WAIT Part="..targetPart.Name.." Pos="..ShootDiagVec(shot.AfterPosition).." Vel="..ShootDiagVec(shot.AfterVelocity))
+	if shot.BeforePosition then
+		ShootDiagLog(string.format("MovementDuringWait=%.3f studs",(shot.AfterPosition-shot.BeforePosition).Magnitude))
+	end
+	local clear,hit = ShootDiagLOS(targetPart)
+	ShootDiagLog("AFTER WAIT LOS="..tostring(clear).." Hit="..tostring(hit))
+end
+
+local function ShootDiagObserveResult(shot)
+	if not shot or not shot.Player then return end
+	task.spawn(function()
+		local sent = shot.FireTime or os.clock()
+		local originalCharacter = shot.Character
+		local deathTime = nil
+		for _,checkpoint in ipairs({0.05,0.10,0.20,0.40,0.80}) do
+			local remaining = checkpoint-(os.clock()-sent)
+			if remaining > 0 then task.wait(remaining) end
+			local character = shot.Player.Character
+			local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+			local part = GetCombatTorso(character)
+			local health = humanoid and humanoid.Health or -1
+			if humanoid and humanoid.Health <= 0 and not deathTime then
+				deathTime = os.clock()-sent
+			end
+			ShootDiagLog(string.format("+%03dms Health=%.1f Pos=%s",checkpoint*1000,health,part and ShootDiagVec(part.Position) or "nil"))
+		end
+		if deathTime and shot.Player.Character == originalCharacter then
+			ShootDiagLog(string.format("RESULT=HIT DeathAt=%.2fms",deathTime*1000))
+		else
+			ShootDiagLog("RESULT=MISS/NO DEATH OBSERVED")
+		end
+		ShootDiagLog("============================================================")
+	end)
+end
+
+-- Small mobile-friendly log panel. It only copies/clears diagnostic logs.
+do
+	local playerGui = LocalPlayer:FindFirstChildOfClass("PlayerGui")
+	if playerGui then
+		local old = playerGui:FindFirstChild("BlizzardRealShootDiagnostic")
+		if old then old:Destroy() end
+		local gui = Instance.new("ScreenGui")
+		gui.Name = "BlizzardRealShootDiagnostic"
+		gui.ResetOnSpawn = false
+		gui.DisplayOrder = 999999
+		gui.Parent = playerGui
+
+		local frame = Instance.new("Frame")
+		frame.Size = UDim2.fromOffset(280,118)
+		frame.Position = UDim2.new(0.5,-140,0.12,0)
+		frame.BackgroundColor3 = Color3.fromRGB(18,20,27)
+		frame.BorderSizePixel = 0
+		frame.Active = true
+		frame.Parent = gui
+		Instance.new("UICorner",frame).CornerRadius = UDim.new(0,12)
+		local stroke = Instance.new("UIStroke")
+		stroke.Color = Color3.fromRGB(60,170,255)
+		stroke.Thickness = 1.5
+		stroke.Parent = frame
+
+		local title = Instance.new("TextLabel")
+		title.BackgroundTransparency = 1
+		title.Position = UDim2.fromOffset(12,8)
+		title.Size = UDim2.new(1,-24,0,24)
+		title.Font = Enum.Font.GothamBold
+		title.TextSize = 14
+		title.TextColor3 = Color3.new(1,1,1)
+		title.TextXAlignment = Enum.TextXAlignment.Left
+		title.Text = "REAL SHOOT DIAGNOSTIC"
+		title.Parent = frame
+
+		local status = Instance.new("TextLabel")
+		status.BackgroundTransparency = 1
+		status.Position = UDim2.fromOffset(12,34)
+		status.Size = UDim2.new(1,-24,0,28)
+		status.Font = Enum.Font.Gotham
+		status.TextSize = 11
+		status.TextColor3 = Color3.fromRGB(220,225,235)
+		status.TextWrapped = true
+		status.TextXAlignment = Enum.TextXAlignment.Left
+		status.Text = "Use the real SHOOT button, then Copy Logs."
+		status.Parent = frame
+
+		local copy = Instance.new("TextButton")
+		copy.Position = UDim2.fromOffset(12,72)
+		copy.Size = UDim2.fromOffset(160,34)
+		copy.BackgroundColor3 = Color3.fromRGB(31,35,46)
+		copy.BorderSizePixel = 0
+		copy.Font = Enum.Font.GothamBold
+		copy.TextSize = 12
+		copy.TextColor3 = Color3.new(1,1,1)
+		copy.Text = "COPY LOGS"
+		copy.Parent = frame
+		Instance.new("UICorner",copy).CornerRadius = UDim.new(0,8)
+
+		local clear = Instance.new("TextButton")
+		clear.Position = UDim2.fromOffset(180,72)
+		clear.Size = UDim2.fromOffset(88,34)
+		clear.BackgroundColor3 = Color3.fromRGB(31,35,46)
+		clear.BorderSizePixel = 0
+		clear.Font = Enum.Font.GothamBold
+		clear.TextSize = 12
+		clear.TextColor3 = Color3.new(1,1,1)
+		clear.Text = "CLEAR"
+		clear.Parent = frame
+		Instance.new("UICorner",clear).CornerRadius = UDim.new(0,8)
+
+		copy.Activated:Connect(function()
+			local text = table.concat(ShootDiagnostic.Logs,"\n")
+			if setclipboard then
+				local ok = pcall(setclipboard,text)
+				status.Text = ok and ("Copied "..#ShootDiagnostic.Logs.." lines") or "Copy failed"
+			else
+				status.Text = "setclipboard unavailable"
+			end
+		end)
+
+		clear.Activated:Connect(function()
+			table.clear(ShootDiagnostic.Logs)
+			ShootDiagnostic.ShotNumber = 0
+			status.Text = "Logs cleared"
+		end)
+
+		local dragging,dragStart,startPos = false,nil,nil
+		frame.InputBegan:Connect(function(input)
+			if input.UserInputType == Enum.UserInputType.Touch or input.UserInputType == Enum.UserInputType.MouseButton1 then
+				dragging = true
+				dragStart = input.Position
+				startPos = frame.Position
+			end
+		end)
+		UIS.InputChanged:Connect(function(input)
+			if dragging and (input.UserInputType == Enum.UserInputType.Touch or input.UserInputType == Enum.UserInputType.MouseMovement) then
+				local delta = input.Position-dragStart
+				frame.Position = UDim2.new(startPos.X.Scale,startPos.X.Offset+delta.X,startPos.Y.Scale,startPos.Y.Offset+delta.Y)
+			end
+		end)
+		UIS.InputEnded:Connect(function(input)
+			if input.UserInputType == Enum.UserInputType.Touch or input.UserInputType == Enum.UserInputType.MouseButton1 then
+				dragging = false
+			end
+		end)
+	end
+end
+
+ShootDiagLog("REAL SHOOT DIAGNOSTIC LOADED")
+ShootDiagLog("ProductionTaskWait=0.120s")
+ShootDiagLog("TriggerBot logic unchanged=true")
+
 local function IsLivePlayer(player)
 	if not player or player == LocalPlayer then return false end
 	local character = player.Character
@@ -356,7 +575,28 @@ local function FireCombatGun(gun,targetPosition)
 		targetPosition
 	)
 	local destinationCFrame = CFrame.new(targetPosition)
+
+	local diagnosticShot = ShootDiagnostic.Current
+	if diagnosticShot then
+		diagnosticShot.FireTime = os.clock()
+		diagnosticShot.TargetPosition = targetPosition
+		ShootDiagLog("FIRE TargetPosition="..ShootDiagVec(targetPosition))
+		ShootDiagLog("FIRE ShooterHRP="..ShootDiagVec(hrp.Position))
+		ShootDiagLog(string.format("FIRE Distance=%.3f",direction.Magnitude))
+		ShootDiagLog("FIRE Origin="..ShootDiagVec(originCFrame.Position))
+		ShootDiagLog("FIRE Destination="..ShootDiagVec(destinationCFrame.Position))
+		ShootDiagLog(string.format("StartToFireServer=%.3fms",(diagnosticShot.FireTime-diagnosticShot.StartTime)*1000))
+	end
+
+	local beforeFire = os.clock()
 	shoot:FireServer(originCFrame,destinationCFrame)
+	local afterFire = os.clock()
+
+	if diagnosticShot then
+		ShootDiagLog(string.format("FireServerCall=%.3fms",(afterFire-beforeFire)*1000))
+		ShootDiagnostic.Current = nil
+		ShootDiagObserveResult(diagnosticShot)
+	end
 	return true
 end
 
@@ -382,14 +622,19 @@ MM2.Functions.ShootMurderer = function()
 		if not gun then
 			return false,"No Gun or Murderer"
 		end
+		local diagnosticShot = ShootDiagBegin("RAGE SHOOT",murderer,torso)
 		task.wait(0.12)
 		if not IsLivePlayer(murderer) then
+			ShootDiagLog("ABORT=Target no longer live after wait")
 			return false,"No Gun or Murderer"
 		end
 		torso = GetCombatTorso(murderer.Character)
 		if not torso then
+			ShootDiagLog("ABORT=No target part after wait")
 			return false,"No Gun or Murderer"
 		end
+		ShootDiagAfterWait(diagnosticShot,torso)
+		ShootDiagnostic.Current = diagnosticShot
 		local fired = FireCombatGun(gun,torso.Position)
 		if not fired then
 			return false,"Shot Failed"
@@ -418,12 +663,27 @@ MM2.Functions.ShootMurdererLegit = function()
 		if not HasClearLineOfSight(torso) then return false,"Murderer Behind Wall" end
 		local gun = EnsureCombatGun()
 		if not gun then return false,"No Gun or Murderer" end
+		local diagnosticShot = ShootDiagBegin("LEGIT SHOOT",murderer,torso)
 		task.wait(0.12)
-		if not IsLivePlayer(murderer) then return false,"No Gun or Murderer" end
+		if not IsLivePlayer(murderer) then
+			ShootDiagLog("ABORT=Target no longer live after wait")
+			return false,"No Gun or Murderer"
+		end
 		torso = GetCombatTorso(murderer.Character)
-		if not torso then return false,"No Gun or Murderer" end
-		if not HasClearLineOfSight(torso) then return false,"Murderer Behind Wall" end
-		if not FireCombatGun(gun,torso.Position) then return false,"Shot Failed" end
+		if not torso then
+			ShootDiagLog("ABORT=No target part after wait")
+			return false,"No Gun or Murderer"
+		end
+		ShootDiagAfterWait(diagnosticShot,torso)
+		if not HasClearLineOfSight(torso) then
+			ShootDiagLog("ABORT=Murderer Behind Wall after wait")
+			return false,"Murderer Behind Wall"
+		end
+		ShootDiagnostic.Current = diagnosticShot
+		if not FireCombatGun(gun,torso.Position) then
+			ShootDiagnostic.Current = nil
+			return false,"Shot Failed"
+		end
 		LastManualShot = os.clock()
 		return true,"Shot Fired"
 	end)
@@ -994,8 +1254,6 @@ local FloatingKillAllButton,FloatingKillAllHolder =
 				NotifyKillAllResult(success,message)
 			end
 		end
-,
-		"red"
 	)
 
 FloatingKillAllHolder.Visible = Flags.ShowKillAllButton == true
