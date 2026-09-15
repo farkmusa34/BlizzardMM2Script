@@ -994,6 +994,8 @@ local FloatingKillAllButton,FloatingKillAllHolder =
 				NotifyKillAllResult(success,message)
 			end
 		end
+,
+		"red"
 	)
 
 FloatingKillAllHolder.Visible = Flags.ShowKillAllButton == true

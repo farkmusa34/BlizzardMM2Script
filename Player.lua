@@ -636,96 +636,41 @@ end
 MM2.Functions.TriggerBombJump = TriggerBombJump
 
 --============================================================
--- MOVABLE BOMB BUTTON
+-- MOVABLE BOMB QUICK BUTTON
 --============================================================
 
-local function MakeButtonMovable(button)
-	local dragging = false
-	local dragStart = nil
-	local startPosition = nil
-	local dragInput = nil
-
-	button.InputBegan:Connect(function(input)
-		if input.UserInputType == Enum.UserInputType.MouseButton1
-			or input.UserInputType == Enum.UserInputType.Touch
-		then
-			dragging = true
-			dragStart = input.Position
-			startPosition = button.Position
-			input.Changed:Connect(function()
-				if input.UserInputState == Enum.UserInputState.End then
-					dragging = false
-				end
-			end)
-		end
-	end)
-
-	button.InputChanged:Connect(function(input)
-		if input.UserInputType == Enum.UserInputType.MouseMovement
-			or input.UserInputType == Enum.UserInputType.Touch
-		then
-			dragInput = input
-		end
-	end)
-
-	UIS.InputChanged:Connect(function(input)
-		if input == dragInput and dragging and dragStart and startPosition then
-			local delta = input.Position - dragStart
-			button.Position = UDim2.new(
-				startPosition.X.Scale,
-				startPosition.X.Offset + delta.X,
-				startPosition.Y.Scale,
-				startPosition.Y.Offset + delta.Y
-			)
-		end
-	end)
-end
+local FloatingBombHolder = nil
 
 local function CreateBombJumpButton()
-	if FloatingBombButton then
-		FloatingBombButton.Visible = true
+	if FloatingBombButton and FloatingBombHolder then
+		FloatingBombHolder.Visible = true
 		return
 	end
 
-	local overlay = UI.TracerGui or UI.ScreenGui
-	if not overlay then return end
+	assert(UI.CreateMovableCardButton,"Updated UI.lua quick-button helper is required")
 
-	FloatingBombButton = Instance.new("TextButton")
-	FloatingBombButton.Name = "MM2_BombJumpButton"
-	FloatingBombButton.Size = UDim2.fromOffset(58,58)
-	FloatingBombButton.Position = UDim2.new(1,-80,0.68,0)
-	FloatingBombButton.BackgroundColor3 = Color3.fromRGB(18,18,24)
-	FloatingBombButton.BackgroundTransparency = 0.08
-	FloatingBombButton.Text = "💣"
-	FloatingBombButton.TextSize = 27
-	FloatingBombButton.Font = Enum.Font.GothamBold
-	FloatingBombButton.TextColor3 = Color3.fromRGB(255,255,255)
-	FloatingBombButton.AutoButtonColor = true
-	FloatingBombButton.ZIndex = 50
-	FloatingBombButton.Parent = overlay
+	FloatingBombButton,FloatingBombHolder =
+		UI.CreateMovableCardButton(
+			"FloatingBombJump",
+			"bomb",
+			"BOMB JUMP",
+			UDim2.new(1,-80,0.68,0),
+			function()
+				TriggerBombJump()
+			end,
+			"orange"
+		)
 
-	local corner = Instance.new("UICorner")
-	corner.CornerRadius = UDim.new(1,0)
-	corner.Parent = FloatingBombButton
-
-	local stroke = Instance.new("UIStroke")
-	stroke.Thickness = 2
-	stroke.Color = Color3.fromRGB(80,220,255)
-	stroke.Parent = FloatingBombButton
-
-	FloatingBombButton.Activated:Connect(function()
-		TriggerBombJump()
-	end)
-
-	MakeButtonMovable(FloatingBombButton)
+	MM2.UI.FloatingBombButton = FloatingBombButton
+	MM2.UI.FloatingBombHolder = FloatingBombHolder
 end
 
 local function SetBombButtonVisible(on)
 	if on then
 		CreateBombJumpButton()
-		if FloatingBombButton then FloatingBombButton.Visible = true end
+		if FloatingBombHolder then FloatingBombHolder.Visible = true end
 	else
-		if FloatingBombButton then FloatingBombButton.Visible = false end
+		if FloatingBombHolder then FloatingBombHolder.Visible = false end
 	end
 end
 

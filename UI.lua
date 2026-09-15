@@ -367,7 +367,7 @@ function UI.SetLatestUpdateTheme(color)
 	-- Keep every floating Blizzard card synced to the selected theme.
 	if UI.FloatingCardRegistry then
 		for _,entry in pairs(UI.FloatingCardRegistry) do
-			if entry and entry.Stroke then
+			if entry and entry.Stroke and not entry.FixedAccent then
 				entry.Stroke.Color = color
 			end
 		end
@@ -1600,6 +1600,55 @@ function UI.ResetQuickButtons()
 	return true
 end
 
+local QUICK_BUTTON_ACCENTS = {
+	red = Color3.fromRGB(255,82,96),
+	danger = Color3.fromRGB(255,82,96),
+	blue = Color3.fromRGB(64,174,255),
+	orange = Color3.fromRGB(255,153,51),
+}
+
+local function ResolveQuickButtonAccent(accent)
+	if typeof(accent) == "Color3" then
+		return accent,true
+	end
+
+	local key = string.lower(tostring(accent or ""))
+	if QUICK_BUTTON_ACCENTS[key] then
+		return QUICK_BUTTON_ACCENTS[key],true
+	end
+
+	return UI.CurrentThemeAccent or DEFAULT_BLIZZARD_BLUE,false
+end
+
+function UI.GetQuickButtonPositions()
+	local positions = {}
+	for name,entry in pairs(UI.FloatingCardRegistry) do
+		local holder = entry and entry.Holder
+		if holder then
+			local pos = holder.Position
+			positions[name] = {
+				XScale = pos.X.Scale, XOffset = pos.X.Offset,
+				YScale = pos.Y.Scale, YOffset = pos.Y.Offset,
+			}
+		end
+	end
+	return positions
+end
+
+function UI.ApplyQuickButtonPositions(positions)
+	if type(positions) ~= "table" then return false end
+	for name,data in pairs(positions) do
+		local entry = UI.FloatingCardRegistry[name]
+		if entry and entry.Holder and type(data) == "table" then
+			local xs,xo,ys,yo = tonumber(data.XScale),tonumber(data.XOffset),tonumber(data.YScale),tonumber(data.YOffset)
+			if xs and xo and ys and yo then
+				entry.Holder.Position = UDim2.new(xs,xo,ys,yo)
+			end
+		end
+	end
+	return true
+end
+
 local function FlashQuickButton(entry)
 	if not entry or not entry.Button or not entry.Stroke then
 		return
@@ -1616,7 +1665,7 @@ local function FlashQuickButton(entry)
 
 	if entry.Icon then
 		pcall(function()
-			entry.Icon.ImageColor3 = UI.CurrentThemeAccent or DEFAULT_BLIZZARD_BLUE
+			entry.Icon.ImageColor3 = entry.AccentColor or UI.CurrentThemeAccent or DEFAULT_BLIZZARD_BLUE
 		end)
 	end
 
@@ -1642,10 +1691,12 @@ function UI.CreateMovableCardButton(
 	icon,
 	labelText,
 	startPosition,
-	callback
+	callback,
+	accent
 )
 	local cleanName = tostring(name or "Floating")
 	local defaultPosition = startPosition or UDim2.fromScale(0.8,0.75)
+	local accentColor,fixedAccent = ResolveQuickButtonAccent(accent)
 
 	local holder = Instance.new("Frame")
 	holder.Name = cleanName .. "Holder"
@@ -1682,7 +1733,7 @@ function UI.CreateMovableCardButton(
 	local stroke = Instance.new("UIStroke")
 	stroke.Name = "ThemeStroke"
 	stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
-	stroke.Color = UI.CurrentThemeAccent or DEFAULT_BLIZZARD_BLUE
+	stroke.Color = accentColor
 	stroke.Thickness = 2.0
 	stroke.Transparency = 0.05
 	stroke.Parent = button
@@ -1750,6 +1801,8 @@ function UI.CreateMovableCardButton(
 		UIScale = uiScale,
 		DefaultPosition = defaultPosition,
 		DefaultSize = QUICK_BUTTON_BASE_SIZE,
+		AccentColor = accentColor,
+		FixedAccent = fixedAccent,
 	}
 
 	UI.FloatingCardRegistry[cleanName] = entry

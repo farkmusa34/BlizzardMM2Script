@@ -679,12 +679,17 @@ local function BuildConfig()
 		Version = "1.85.4",
 		Flags = {},
 		PlayerSettings = {},
+		QuickButtonPositions = {},
 	}
 
 	for key,value in pairs(Flags) do
 		if ConfigValueSupported(value) then
 			config.Flags[key] = value
 		end
+	end
+
+	if UI.GetQuickButtonPositions then
+		config.QuickButtonPositions = UI.GetQuickButtonPositions()
 	end
 
 	if MM2.PlayerSettings then
@@ -743,6 +748,8 @@ MM2.Functions.SaveConfig = SaveConfig
 
 local function LoadConfig()
 
+	local loadedQuickButtonPositions = nil
+
 	if not isfile
 		or not readfile
 		or not isfile(CONFIG_FILE)
@@ -764,6 +771,10 @@ local function LoadConfig()
 						Flags[key] = value
 					end
 				end
+			end
+
+			if type(data.QuickButtonPositions) == "table" then
+				loadedQuickButtonPositions = data.QuickButtonPositions
 			end
 
 			if type(data.PlayerSettings) == "table"
@@ -806,6 +817,10 @@ local function LoadConfig()
 
 		if UI.SetQuickButtonScale then
 			UI.SetQuickButtonScale(Flags.QuickButtonScale)
+		end
+
+		if UI.ApplyQuickButtonPositions and loadedQuickButtonPositions then
+			UI.ApplyQuickButtonPositions(loadedQuickButtonPositions)
 		end
 
 		SetAntiAFK(Flags.AntiAFK)
