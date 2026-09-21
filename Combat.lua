@@ -344,236 +344,6 @@ local function EnsureCombatGun()
 	return gun
 end
 
---============================================================
--- CFRAME-ORIGIN LEGIT SHOOT DIAGNOSTIC
--- Keeps the existing 60 ms prediction and tests HRP-based shot origin.
---============================================================
-
-local ExactFireDiagnostic = {
-	Enabled = true,
-	ShotNumber = 0,
-	Pending = nil,
-}
-
-local DiagnosticLogLines = {}
-
-local DiagnosticGui = Instance.new("ScreenGui")
-DiagnosticGui.Name = "BlizzardCFrameDiagnostic"
-DiagnosticGui.ResetOnSpawn = false
-DiagnosticGui.IgnoreGuiInset = false
-DiagnosticGui.DisplayOrder = 999998
-DiagnosticGui.Parent = MM2.PlayerGui
-
-local DiagnosticFrame = Instance.new("Frame")
-DiagnosticFrame.Name = "Main"
-DiagnosticFrame.Size = UDim2.fromOffset(238,132)
-DiagnosticFrame.Position = UDim2.new(0.5,-119,0.16,0)
-DiagnosticFrame.BackgroundColor3 = Color3.fromRGB(18,18,22)
-DiagnosticFrame.BackgroundTransparency = 0.08
-DiagnosticFrame.BorderSizePixel = 0
-DiagnosticFrame.Active = true
-DiagnosticFrame.Parent = DiagnosticGui
-
-local DiagnosticCorner = Instance.new("UICorner")
-DiagnosticCorner.CornerRadius = UDim.new(0,8)
-DiagnosticCorner.Parent = DiagnosticFrame
-
-local DiagnosticStroke = Instance.new("UIStroke")
-DiagnosticStroke.Thickness = 1
-DiagnosticStroke.Transparency = 0.35
-DiagnosticStroke.Color = Color3.fromRGB(130,180,255)
-DiagnosticStroke.Parent = DiagnosticFrame
-
-local DiagnosticTitle = Instance.new("TextLabel")
-DiagnosticTitle.Size = UDim2.new(1,-10,0,22)
-DiagnosticTitle.Position = UDim2.fromOffset(6,2)
-DiagnosticTitle.BackgroundTransparency = 1
-DiagnosticTitle.Font = Enum.Font.GothamBold
-DiagnosticTitle.TextSize = 11
-DiagnosticTitle.TextXAlignment = Enum.TextXAlignment.Left
-DiagnosticTitle.TextColor3 = Color3.fromRGB(245,245,250)
-DiagnosticTitle.Text = "CFRAME ORIGIN DIAGNOSTIC"
-DiagnosticTitle.Parent = DiagnosticFrame
-
-local DiagnosticStatus = Instance.new("TextLabel")
-DiagnosticStatus.Size = UDim2.new(1,-12,0,70)
-DiagnosticStatus.Position = UDim2.fromOffset(6,24)
-DiagnosticStatus.BackgroundTransparency = 1
-DiagnosticStatus.Font = Enum.Font.Code
-DiagnosticStatus.TextSize = 10
-DiagnosticStatus.TextWrapped = false
-DiagnosticStatus.TextXAlignment = Enum.TextXAlignment.Left
-DiagnosticStatus.TextYAlignment = Enum.TextYAlignment.Top
-DiagnosticStatus.TextColor3 = Color3.fromRGB(220,220,225)
-DiagnosticStatus.Text = "Ready\nMode: HRP ORIGIN\nUse normal SHOOT."
-DiagnosticStatus.Parent = DiagnosticFrame
-
-local CopyLogsButton = Instance.new("TextButton")
-CopyLogsButton.Size = UDim2.new(1,-12,0,27)
-CopyLogsButton.Position = UDim2.new(0,6,1,-33)
-CopyLogsButton.BackgroundColor3 = Color3.fromRGB(32,32,39)
-CopyLogsButton.BorderSizePixel = 0
-CopyLogsButton.AutoButtonColor = true
-CopyLogsButton.Font = Enum.Font.GothamSemibold
-CopyLogsButton.TextSize = 10
-CopyLogsButton.TextColor3 = Color3.fromRGB(245,245,250)
-CopyLogsButton.Text = "COPY LOGS"
-CopyLogsButton.Parent = DiagnosticFrame
-
-local CopyCorner = Instance.new("UICorner")
-CopyCorner.CornerRadius = UDim.new(0,6)
-CopyCorner.Parent = CopyLogsButton
-
-local function PushDiagnosticLog(line)
-	line = tostring(line)
-	table.insert(DiagnosticLogLines,line)
-	if #DiagnosticLogLines > 350 then
-		table.remove(DiagnosticLogLines,1)
-	end
-	print(line)
-end
-
-local function SetDiagnosticStatus(text)
-	DiagnosticStatus.Text = tostring(text or "")
-end
-
-CopyLogsButton.Activated:Connect(function()
-	local joined = table.concat(DiagnosticLogLines,"\n")
-	if setclipboard then
-		local ok = pcall(setclipboard,joined)
-		CopyLogsButton.Text = ok and "COPIED!" or "COPY FAILED"
-	else
-		CopyLogsButton.Text = "NO CLIPBOARD API"
-	end
-	task.delay(1.2,function()
-		if CopyLogsButton and CopyLogsButton.Parent then
-			CopyLogsButton.Text = "COPY LOGS"
-		end
-	end)
-end)
-
--- Small drag behavior for mouse and touch.
-do
-	local dragging = false
-	local dragInput
-	local dragStart
-	local startPosition
-
-	DiagnosticTitle.Active = true
-	DiagnosticTitle.InputBegan:Connect(function(input)
-		if input.UserInputType == Enum.UserInputType.MouseButton1
-			or input.UserInputType == Enum.UserInputType.Touch
-		then
-			dragging = true
-			dragStart = input.Position
-			startPosition = DiagnosticFrame.Position
-			input.Changed:Connect(function()
-				if input.UserInputState == Enum.UserInputState.End then
-					dragging = false
-				end
-			end)
-		end
-	end)
-
-	DiagnosticTitle.InputChanged:Connect(function(input)
-		if input.UserInputType == Enum.UserInputType.MouseMovement
-			or input.UserInputType == Enum.UserInputType.Touch
-		then
-			dragInput = input
-		end
-	end)
-
-	UIS.InputChanged:Connect(function(input)
-		if dragging and input == dragInput then
-			local delta = input.Position-dragStart
-			DiagnosticFrame.Position = UDim2.new(
-				startPosition.X.Scale,
-				startPosition.X.Offset+delta.X,
-				startPosition.Y.Scale,
-				startPosition.Y.Offset+delta.Y
-			)
-		end
-	end)
-end
-
-local function DiagnosticVector3(v)
-	return string.format("(%.2f, %.2f, %.2f)",v.X,v.Y,v.Z)
-end
-
-local function BeginExactFireDiagnostic(player,torso,entryClock,targetPosition)
-	if not ExactFireDiagnostic.Enabled or not player or not torso then
-		return nil
-	end
-
-	ExactFireDiagnostic.ShotNumber += 1
-
-	local humanoid = torso.Parent and torso.Parent:FindFirstChildOfClass("Humanoid")
-	local record = {
-		Id = ExactFireDiagnostic.ShotNumber,
-		Player = player,
-		Torso = torso,
-		Humanoid = humanoid,
-		EntryClock = entryClock,
-		PredictClock = os.clock(),
-		BasePosition = torso.Position,
-		BaseVelocity = torso.AssemblyLinearVelocity,
-		TargetPosition = targetPosition,
-		StartHealth = humanoid and humanoid.Health or -1,
-	}
-
-	ExactFireDiagnostic.Pending = record
-	return record
-end
-
-local function MonitorExactFireDiagnostic(record)
-	task.spawn(function()
-		local checkpoints = {0.016,0.033,0.050,0.066,0.100,0.150,0.200}
-		local previous = 0
-
-		for _,checkpoint in ipairs(checkpoints) do
-			task.wait(math.max(0,checkpoint-previous))
-			previous = checkpoint
-
-			local torso = record.Torso
-			local humanoid = record.Humanoid
-
-			if torso and torso.Parent then
-				local position = torso.Position
-				local velocity = torso.AssemblyLinearVelocity
-				local errorToSentTarget = (position-record.TargetPosition).Magnitude
-
-				PushDiagnosticLog(string.format(
-					"+%dms H=%s Pos=%s Vel=%s ErrorToSentTarget=%.3f",
-					math.floor(checkpoint*1000+0.5),
-					humanoid and string.format("%.1f",humanoid.Health) or "?",
-					DiagnosticVector3(position),
-					DiagnosticVector3(velocity),
-					errorToSentTarget
-				))
-			else
-				PushDiagnosticLog(string.format(
-					"+%dms Target part unavailable",
-					math.floor(checkpoint*1000+0.5)
-				))
-			end
-		end
-
-		local endHealth = record.Humanoid and record.Humanoid.Health or -1
-		local outcome = "UNKNOWN"
-		if record.StartHealth >= 0 and endHealth >= 0 then
-			outcome = endHealth < record.StartHealth and "HIT" or "NO HEALTH CHANGE"
-		end
-
-		PushDiagnosticLog("Outcome="..outcome)
-		PushDiagnosticLog("============================================================")
-		SetDiagnosticStatus(
-			"Shot #"..record.Id.." complete\n"
-			.."Outcome: "..outcome.."\n"
-			.."Tap COPY LOGS after several shots."
-		)
-	end)
-end
-
 local function FireCombatGun(gun,targetPosition)
 	if not gun or typeof(targetPosition) ~= "Vector3" then
 		return false
@@ -593,84 +363,12 @@ local function FireCombatGun(gun,targetPosition)
 		return false
 	end
 	local unitDirection = direction.Unit
-	local diagnostic = ExactFireDiagnostic.Pending
-
-	-- Controlled test:
-	-- Legit diagnostic shots use the shooter's HRP as the first CFrame origin.
-	-- All other gun paths keep the previous target-minus-2-studs construction.
-	local originMode = diagnostic and "HRP_ORIGIN" or "TARGET_MINUS_2"
-	local originCFrame
-	if diagnostic then
-		originCFrame = CFrame.new(hrp.Position,targetPosition)
-	else
-		originCFrame = CFrame.new(
-			targetPosition-unitDirection*2,
-			targetPosition
-		)
-	end
+	local originCFrame = CFrame.new(
+		targetPosition-unitDirection*2,
+		targetPosition
+	)
 	local destinationCFrame = CFrame.new(targetPosition)
-	if ExactFireDiagnostic.Enabled and diagnostic then
-		diagnostic.FireClock = os.clock()
-		SetDiagnosticStatus(
-			"Shot #"..diagnostic.Id.." fired\n"
-			.."Target: "..tostring(diagnostic.Player and diagnostic.Player.Name or "?").."\n"
-			.."Prediction: 60ms XZ\n"
-			.."Collecting result..."
-		)
-
-		local targetPart = diagnostic.Torso
-		local firePosition = targetPart and targetPart.Parent and targetPart.Position or nil
-		local fireVelocity = targetPart and targetPart.Parent and targetPart.AssemblyLinearVelocity or nil
-
-		PushDiagnosticLog("============================================================")
-		PushDiagnosticLog("CFRAME ORIGIN SHOT #"..diagnostic.Id)
-		PushDiagnosticLog("Target="..tostring(diagnostic.Player and diagnostic.Player.Name or "?"))
-		PushDiagnosticLog("Prediction=60ms horizontal")\n\t\tPushDiagnosticLog("OriginMode="..originMode)
-		PushDiagnosticLog("BasePosition="..DiagnosticVector3(diagnostic.BasePosition))
-		PushDiagnosticLog("BaseVelocity="..DiagnosticVector3(diagnostic.BaseVelocity))
-		PushDiagnosticLog("SentTarget="..DiagnosticVector3(targetPosition))
-
-		if firePosition and fireVelocity then
-			PushDiagnosticLog("FireMomentPosition="..DiagnosticVector3(firePosition))
-			PushDiagnosticLog("FireMomentVelocity="..DiagnosticVector3(fireVelocity))
-			PushDiagnosticLog(string.format(
-				"BaseToFireMove=%.3f SentTargetToFirePosition=%.3f",
-				(firePosition-diagnostic.BasePosition).Magnitude,
-				(targetPosition-firePosition).Magnitude
-			))
-		end
-
-		PushDiagnosticLog("ShooterHRP="..DiagnosticVector3(hrp.Position))
-		PushDiagnosticLog("OriginCFramePosition="..DiagnosticVector3(originCFrame.Position))
-		PushDiagnosticLog("DestinationCFramePosition="..DiagnosticVector3(destinationCFrame.Position))
-		PushDiagnosticLog(string.format(
-			"EntryToPrediction=%.3fms PredictionToFire=%.3fms EntryToFire=%.3fms",
-			(diagnostic.PredictClock-diagnostic.EntryClock)*1000,
-			(diagnostic.FireClock-diagnostic.PredictClock)*1000,
-			(diagnostic.FireClock-diagnostic.EntryClock)*1000
-		))
-		PushDiagnosticLog(string.format(
-			"OriginToDestination=%.3f HRPToDestination=%.3f",
-			(originCFrame.Position-destinationCFrame.Position).Magnitude,
-			(hrp.Position-destinationCFrame.Position).Magnitude
-		))
-	end
-
-	local remoteStart = os.clock()
 	shoot:FireServer(originCFrame,destinationCFrame)
-
-	if ExactFireDiagnostic.Enabled and diagnostic then
-		diagnostic.RemoteReturnClock = os.clock()
-		PushDiagnosticLog(string.format(
-			"FireServerReturn=%.3fms",
-			(diagnostic.RemoteReturnClock-remoteStart)*1000
-		))
-		PushDiagnosticLog("POST-FIRE: 16/33/50/66/100/150/200ms")
-		PushDiagnosticLog("------------------------------------------------------------")
-		ExactFireDiagnostic.Pending = nil
-		MonitorExactFireDiagnostic(diagnostic)
-	end
-
 	return true
 end
 
@@ -722,7 +420,6 @@ end
 MM2.Functions.ShootMurdererLegit = function()
 	if ShootBusy then return false,"Busy" end
 	local now = os.clock()
-	local diagnosticEntryClock = now
 	if now-LastManualShot < SHOT_COOLDOWN then return false,"Cooldown" end
 	ShootBusy = true
 	local ok,success,message = pcall(function()
@@ -738,17 +435,12 @@ MM2.Functions.ShootMurdererLegit = function()
 		if not torso then return false,"No Gun or Murderer" end
 		if not HasClearLineOfSight(torso) then return false,"Murderer Behind Wall" end
 		local targetPosition = GetManualShootTargetPosition(torso)
-		BeginExactFireDiagnostic(murderer,torso,diagnosticEntryClock,targetPosition)
-		if not FireCombatGun(gun,targetPosition) then
-			ExactFireDiagnostic.Pending = nil
-			return false,"Shot Failed"
-		end
+		if not FireCombatGun(gun,targetPosition) then return false,"Shot Failed" end
 		LastManualShot = os.clock()
 		return true,"Shot Fired"
 	end)
 	ShootBusy = false
 	if not ok then
-		ExactFireDiagnostic.Pending = nil
 		warn("[MM2 LEGIT SHOOT ERROR]",success)
 		return false,"Error"
 	end
