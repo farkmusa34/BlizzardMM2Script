@@ -345,8 +345,8 @@ local function EnsureCombatGun()
 end
 
 --============================================================
--- EXACT-FIRE LEGIT SHOOT DIAGNOSTIC
--- Observes the existing 60 ms prediction without changing it.
+-- CFRAME-ORIGIN LEGIT SHOOT DIAGNOSTIC
+-- Keeps the existing 60 ms prediction and tests HRP-based shot origin.
 --============================================================
 
 local ExactFireDiagnostic = {
@@ -358,7 +358,7 @@ local ExactFireDiagnostic = {
 local DiagnosticLogLines = {}
 
 local DiagnosticGui = Instance.new("ScreenGui")
-DiagnosticGui.Name = "BlizzardExactFireDiagnostic"
+DiagnosticGui.Name = "BlizzardCFrameDiagnostic"
 DiagnosticGui.ResetOnSpawn = false
 DiagnosticGui.IgnoreGuiInset = false
 DiagnosticGui.DisplayOrder = 999998
@@ -392,7 +392,7 @@ DiagnosticTitle.Font = Enum.Font.GothamBold
 DiagnosticTitle.TextSize = 11
 DiagnosticTitle.TextXAlignment = Enum.TextXAlignment.Left
 DiagnosticTitle.TextColor3 = Color3.fromRGB(245,245,250)
-DiagnosticTitle.Text = "EXACT FIRE DIAGNOSTIC"
+DiagnosticTitle.Text = "CFRAME ORIGIN DIAGNOSTIC"
 DiagnosticTitle.Parent = DiagnosticFrame
 
 local DiagnosticStatus = Instance.new("TextLabel")
@@ -405,7 +405,7 @@ DiagnosticStatus.TextWrapped = false
 DiagnosticStatus.TextXAlignment = Enum.TextXAlignment.Left
 DiagnosticStatus.TextYAlignment = Enum.TextYAlignment.Top
 DiagnosticStatus.TextColor3 = Color3.fromRGB(220,220,225)
-DiagnosticStatus.Text = "Ready\nUse the normal SHOOT button."
+DiagnosticStatus.Text = "Ready\nMode: HRP ORIGIN\nUse normal SHOOT."
 DiagnosticStatus.Parent = DiagnosticFrame
 
 local CopyLogsButton = Instance.new("TextButton")
@@ -593,13 +593,22 @@ local function FireCombatGun(gun,targetPosition)
 		return false
 	end
 	local unitDirection = direction.Unit
-	local originCFrame = CFrame.new(
-		targetPosition-unitDirection*2,
-		targetPosition
-	)
-	local destinationCFrame = CFrame.new(targetPosition)
-
 	local diagnostic = ExactFireDiagnostic.Pending
+
+	-- Controlled test:
+	-- Legit diagnostic shots use the shooter's HRP as the first CFrame origin.
+	-- All other gun paths keep the previous target-minus-2-studs construction.
+	local originMode = diagnostic and "HRP_ORIGIN" or "TARGET_MINUS_2"
+	local originCFrame
+	if diagnostic then
+		originCFrame = CFrame.new(hrp.Position,targetPosition)
+	else
+		originCFrame = CFrame.new(
+			targetPosition-unitDirection*2,
+			targetPosition
+		)
+	end
+	local destinationCFrame = CFrame.new(targetPosition)
 	if ExactFireDiagnostic.Enabled and diagnostic then
 		diagnostic.FireClock = os.clock()
 		SetDiagnosticStatus(
@@ -614,9 +623,9 @@ local function FireCombatGun(gun,targetPosition)
 		local fireVelocity = targetPart and targetPart.Parent and targetPart.AssemblyLinearVelocity or nil
 
 		PushDiagnosticLog("============================================================")
-		PushDiagnosticLog("EXACT FIRE SHOT #"..diagnostic.Id)
+		PushDiagnosticLog("CFRAME ORIGIN SHOT #"..diagnostic.Id)
 		PushDiagnosticLog("Target="..tostring(diagnostic.Player and diagnostic.Player.Name or "?"))
-		PushDiagnosticLog("Prediction=60ms horizontal")
+		PushDiagnosticLog("Prediction=60ms horizontal")\n\t\tPushDiagnosticLog("OriginMode="..originMode)
 		PushDiagnosticLog("BasePosition="..DiagnosticVector3(diagnostic.BasePosition))
 		PushDiagnosticLog("BaseVelocity="..DiagnosticVector3(diagnostic.BaseVelocity))
 		PushDiagnosticLog("SentTarget="..DiagnosticVector3(targetPosition))
