@@ -9,7 +9,7 @@ local Flags = MM2.Flags
 local UI = MM2.UI
 local Track = MM2.Track
 
--- Combat UI should still load even if vVisuals.lua has not created TracerGui yet.
+-- Combat UI should still load even if Visuals.lua has not created TracerGui yet.
 local CombatOverlay = UI.TracerGui or UI.ScreenGui
 assert(CombatOverlay, "Combat overlay GUI not found")
 
@@ -406,7 +406,7 @@ DiagnosticStatus.TextWrapped = false
 DiagnosticStatus.TextXAlignment = Enum.TextXAlignment.Left
 DiagnosticStatus.TextYAlignment = Enum.TextYAlignment.Top
 DiagnosticStatus.TextColor3 = Color3.fromRGB(220,220,225)
-DiagnosticStatus.Text = "Ready\nMode: HRP ORIGIN\nPrediction: 60ms XYZ"
+DiagnosticStatus.Text = "Ready\nMode: A/B CFrame Origin\nOdd=HRP | Even=Target-2\nPrediction: 60ms XYZ"
 DiagnosticStatus.Parent = DiagnosticFrame
 
 local CopyLogsButton = Instance.new("TextButton")
@@ -473,7 +473,7 @@ ClearLogsButton.Activated:Connect(function()
 	table.clear(DiagnosticLogLines)
 	ExactFireDiagnostic.ShotNumber = 0
 	ExactFireDiagnostic.Pending = nil
-	SetDiagnosticStatus("Logs cleared\nMode: HRP ORIGIN\nPrediction: 60ms XYZ")
+	SetDiagnosticStatus("Logs cleared\nMode: A/B CFrame Origin\nOdd=HRP | Even=Target-2\nPrediction: 60ms XYZ")
 	ClearLogsButton.Text = "CLEARED!"
 	task.delay(1.2,function()
 		if ClearLogsButton and ClearLogsButton.Parent then ClearLogsButton.Text = "CLEAR LOGS" end
@@ -623,18 +623,18 @@ local function FireCombatGun(gun,targetPosition)
 	local unitDirection = direction.Unit
 	local diagnostic = ExactFireDiagnostic.Pending
 
-	-- Controlled test:
-	-- Legit diagnostic shots use the shooter's HRP as the first CFrame origin.
-	-- All other gun paths keep the previous target-minus-2-studs construction.
-	local originMode = diagnostic and "HRP_ORIGIN" or "TARGET_MINUS_2"
-	local originCFrame
+	-- Controlled CFrame argument diagnostic:
+	-- Odd diagnostic shots use shooter HRP origin; even shots use target-minus-2.
+	-- Prediction and destination remain unchanged to isolate the first CFrame.
+	local originMode = "TARGET_MINUS_2"
 	if diagnostic then
+		originMode = (diagnostic.Id % 2 == 1) and "HRP_ORIGIN" or "TARGET_MINUS_2"
+	end
+	local originCFrame
+	if originMode == "HRP_ORIGIN" then
 		originCFrame = CFrame.new(hrp.Position,targetPosition)
 	else
-		originCFrame = CFrame.new(
-			targetPosition-unitDirection*2,
-			targetPosition
-		)
+		originCFrame = CFrame.new(targetPosition-unitDirection*2,targetPosition)
 	end
 	local destinationCFrame = CFrame.new(targetPosition)
 	if ExactFireDiagnostic.Enabled and diagnostic then
@@ -642,6 +642,7 @@ local function FireCombatGun(gun,targetPosition)
 		SetDiagnosticStatus(
 			"Shot #"..diagnostic.Id.." fired\n"
 			.."Target: "..tostring(diagnostic.Player and diagnostic.Player.Name or "?").."\n"
+			.."Origin: "..originMode.."\n"
 			.."Prediction: 60ms XYZ\n"
 			.."Collecting result..."
 		)
