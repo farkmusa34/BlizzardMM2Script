@@ -47,42 +47,10 @@ end
 
 --============================================================
 -- PRIVATE SERVER ACCESS BLOCK
+-- TEMPORARILY REMOVED FOR TESTING
 --============================================================
 
-local PrivateServerId =
-	tostring(
-		game.PrivateServerId
-		or ""
-	)
-
-local PrivateServerOwnerId =
-	tonumber(
-		game.PrivateServerOwnerId
-	)
-	or 0
-
-local MM2VIPServer =
-	ReplicatedStorage:GetAttribute(
-		"IsVIPServer"
-	) == true
-
-local IsPrivateServer =
-	MM2VIPServer
-	or PrivateServerId ~= ""
-	or PrivateServerOwnerId ~= 0
-
-if IsPrivateServer then
-
-	warn(
-		"[MM2 LOADER] Private server detected. Blizzard blocked."
-	)
-
-	LocalPlayer:Kick(
-		"Private servers are prohibited. Repeated offenses may result in a permanent ban."
-	)
-
-	return
-end
+-- Private/VIP servers are currently allowed.
 
 --============================================================
 -- STARTUP
