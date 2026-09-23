@@ -184,11 +184,12 @@ end
 --============================================================
 
 local MANUAL_SHOOT_PREDICTION = 0.06
+local DIAGNOSTIC_VERTICAL_PREDICTION = true
 
-local function GetManualShootTargetPosition(torso)
+local function GetManualShootTargetPosition(torso,useVerticalPrediction)
 	local velocity = torso.AssemblyLinearVelocity
-	local horizontalVelocity = Vector3.new(velocity.X,0,velocity.Z)
-	return torso.Position + horizontalVelocity * MANUAL_SHOOT_PREDICTION
+	local predictionVelocity = useVerticalPrediction and velocity or Vector3.new(velocity.X,0,velocity.Z)
+	return torso.Position + predictionVelocity * MANUAL_SHOOT_PREDICTION
 end
 
 local function IsLivePlayer(player)
@@ -366,7 +367,7 @@ DiagnosticGui.Parent = MM2.PlayerGui
 
 local DiagnosticFrame = Instance.new("Frame")
 DiagnosticFrame.Name = "Main"
-DiagnosticFrame.Size = UDim2.fromOffset(238,132)
+DiagnosticFrame.Size = UDim2.fromOffset(238,166)
 DiagnosticFrame.Position = UDim2.new(0.5,-119,0.16,0)
 DiagnosticFrame.BackgroundColor3 = Color3.fromRGB(18,18,22)
 DiagnosticFrame.BackgroundTransparency = 0.08
@@ -405,12 +406,12 @@ DiagnosticStatus.TextWrapped = false
 DiagnosticStatus.TextXAlignment = Enum.TextXAlignment.Left
 DiagnosticStatus.TextYAlignment = Enum.TextYAlignment.Top
 DiagnosticStatus.TextColor3 = Color3.fromRGB(220,220,225)
-DiagnosticStatus.Text = "Ready\nMode: HRP ORIGIN\nUse normal SHOOT."
+DiagnosticStatus.Text = "Ready\nMode: HRP ORIGIN\nPrediction: 60ms XYZ"
 DiagnosticStatus.Parent = DiagnosticFrame
 
 local CopyLogsButton = Instance.new("TextButton")
 CopyLogsButton.Size = UDim2.new(1,-12,0,27)
-CopyLogsButton.Position = UDim2.new(0,6,1,-33)
+CopyLogsButton.Position = UDim2.new(0,6,1,-67)
 CopyLogsButton.BackgroundColor3 = Color3.fromRGB(32,32,39)
 CopyLogsButton.BorderSizePixel = 0
 CopyLogsButton.AutoButtonColor = true
@@ -423,6 +424,22 @@ CopyLogsButton.Parent = DiagnosticFrame
 local CopyCorner = Instance.new("UICorner")
 CopyCorner.CornerRadius = UDim.new(0,6)
 CopyCorner.Parent = CopyLogsButton
+
+local ClearLogsButton = Instance.new("TextButton")
+ClearLogsButton.Size = UDim2.new(1,-12,0,27)
+ClearLogsButton.Position = UDim2.new(0,6,1,-33)
+ClearLogsButton.BackgroundColor3 = Color3.fromRGB(32,32,39)
+ClearLogsButton.BorderSizePixel = 0
+ClearLogsButton.AutoButtonColor = true
+ClearLogsButton.Font = Enum.Font.GothamSemibold
+ClearLogsButton.TextSize = 10
+ClearLogsButton.TextColor3 = Color3.fromRGB(245,245,250)
+ClearLogsButton.Text = "CLEAR LOGS"
+ClearLogsButton.Parent = DiagnosticFrame
+
+local ClearCorner = Instance.new("UICorner")
+ClearCorner.CornerRadius = UDim.new(0,6)
+ClearCorner.Parent = ClearLogsButton
 
 local function PushDiagnosticLog(line)
 	line = tostring(line)
@@ -449,6 +466,17 @@ CopyLogsButton.Activated:Connect(function()
 		if CopyLogsButton and CopyLogsButton.Parent then
 			CopyLogsButton.Text = "COPY LOGS"
 		end
+	end)
+end)
+
+ClearLogsButton.Activated:Connect(function()
+	table.clear(DiagnosticLogLines)
+	ExactFireDiagnostic.ShotNumber = 0
+	ExactFireDiagnostic.Pending = nil
+	SetDiagnosticStatus("Logs cleared\nMode: HRP ORIGIN\nPrediction: 60ms XYZ")
+	ClearLogsButton.Text = "CLEARED!"
+	task.delay(1.2,function()
+		if ClearLogsButton and ClearLogsButton.Parent then ClearLogsButton.Text = "CLEAR LOGS" end
 	end)
 end)
 
@@ -614,7 +642,7 @@ local function FireCombatGun(gun,targetPosition)
 		SetDiagnosticStatus(
 			"Shot #"..diagnostic.Id.." fired\n"
 			.."Target: "..tostring(diagnostic.Player and diagnostic.Player.Name or "?").."\n"
-			.."Prediction: 60ms XZ\n"
+			.."Prediction: 60ms XYZ\n"
 			.."Collecting result..."
 		)
 
@@ -625,7 +653,7 @@ local function FireCombatGun(gun,targetPosition)
 		PushDiagnosticLog("============================================================")
 		PushDiagnosticLog("CFRAME ORIGIN SHOT #"..diagnostic.Id)
 		PushDiagnosticLog("Target="..tostring(diagnostic.Player and diagnostic.Player.Name or "?"))
-		PushDiagnosticLog("Prediction=60ms horizontal")
+		PushDiagnosticLog("Prediction=60ms XYZ (vertical enabled)")
 		PushDiagnosticLog("OriginMode="..originMode)
 		PushDiagnosticLog("BasePosition="..DiagnosticVector3(diagnostic.BasePosition))
 		PushDiagnosticLog("BaseVelocity="..DiagnosticVector3(diagnostic.BaseVelocity))
@@ -738,7 +766,7 @@ MM2.Functions.ShootMurdererLegit = function()
 		torso = GetCombatTorso(murderer.Character)
 		if not torso then return false,"No Gun or Murderer" end
 		if not HasClearLineOfSight(torso) then return false,"Murderer Behind Wall" end
-		local targetPosition = GetManualShootTargetPosition(torso)
+		local targetPosition = GetManualShootTargetPosition(torso,DIAGNOSTIC_VERTICAL_PREDICTION)
 		BeginExactFireDiagnostic(murderer,torso,diagnosticEntryClock,targetPosition)
 		if not FireCombatGun(gun,targetPosition) then
 			ExactFireDiagnostic.Pending = nil
