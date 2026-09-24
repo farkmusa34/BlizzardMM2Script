@@ -406,7 +406,7 @@ DiagnosticStatus.TextWrapped = false
 DiagnosticStatus.TextXAlignment = Enum.TextXAlignment.Left
 DiagnosticStatus.TextYAlignment = Enum.TextYAlignment.Top
 DiagnosticStatus.TextColor3 = Color3.fromRGB(220,220,225)
-DiagnosticStatus.Text = "Ready\nMode: A/B CFrame Origin\nOdd=HRP | Even=Target-2\nPrediction: 60ms XYZ"
+DiagnosticStatus.Text = "Ready\nMode: FINAL CFrame Diagnostic\nOdd=HRP | Even=Target-2\nPrediction: 60ms XYZ"
 DiagnosticStatus.Parent = DiagnosticFrame
 
 local CopyLogsButton = Instance.new("TextButton")
@@ -473,7 +473,7 @@ ClearLogsButton.Activated:Connect(function()
 	table.clear(DiagnosticLogLines)
 	ExactFireDiagnostic.ShotNumber = 0
 	ExactFireDiagnostic.Pending = nil
-	SetDiagnosticStatus("Logs cleared\nMode: A/B CFrame Origin\nOdd=HRP | Even=Target-2\nPrediction: 60ms XYZ")
+	SetDiagnosticStatus("Logs cleared\nMode: FINAL CFrame Diagnostic\nOdd=HRP | Even=Target-2\nPrediction: 60ms XYZ")
 	ClearLogsButton.Text = "CLEARED!"
 	task.delay(1.2,function()
 		if ClearLogsButton and ClearLogsButton.Parent then ClearLogsButton.Text = "CLEAR LOGS" end
@@ -652,7 +652,7 @@ local function FireCombatGun(gun,targetPosition)
 		local fireVelocity = targetPart and targetPart.Parent and targetPart.AssemblyLinearVelocity or nil
 
 		PushDiagnosticLog("============================================================")
-		PushDiagnosticLog("CFRAME ORIGIN SHOT #"..diagnostic.Id)
+		PushDiagnosticLog("FINAL CFRAME DIAGNOSTIC SHOT #"..diagnostic.Id)
 		PushDiagnosticLog("Target="..tostring(diagnostic.Player and diagnostic.Player.Name or "?"))
 		PushDiagnosticLog("Prediction=60ms XYZ (vertical enabled)")
 		PushDiagnosticLog("OriginMode="..originMode)
@@ -671,8 +671,36 @@ local function FireCombatGun(gun,targetPosition)
 		end
 
 		PushDiagnosticLog("ShooterHRP="..DiagnosticVector3(hrp.Position))
+		PushDiagnosticLog("ShooterHRPLook="..DiagnosticVector3(hrp.CFrame.LookVector))
 		PushDiagnosticLog("OriginCFramePosition="..DiagnosticVector3(originCFrame.Position))
+		PushDiagnosticLog("OriginLook="..DiagnosticVector3(originCFrame.LookVector))
+		PushDiagnosticLog("OriginRight="..DiagnosticVector3(originCFrame.RightVector))
+		PushDiagnosticLog("OriginUp="..DiagnosticVector3(originCFrame.UpVector))
 		PushDiagnosticLog("DestinationCFramePosition="..DiagnosticVector3(destinationCFrame.Position))
+		PushDiagnosticLog("DestinationLook="..DiagnosticVector3(destinationCFrame.LookVector))
+		PushDiagnosticLog("DestinationRight="..DiagnosticVector3(destinationCFrame.RightVector))
+		PushDiagnosticLog("DestinationUp="..DiagnosticVector3(destinationCFrame.UpVector))
+
+		local camera = workspace.CurrentCamera
+		if camera then
+			PushDiagnosticLog("CameraPosition="..DiagnosticVector3(camera.CFrame.Position))
+			PushDiagnosticLog("CameraLook="..DiagnosticVector3(camera.CFrame.LookVector))
+		end
+
+		local handle = gun:FindFirstChild("Handle")
+		if handle and handle:IsA("BasePart") then
+			PushDiagnosticLog("GunHandlePosition="..DiagnosticVector3(handle.Position))
+			PushDiagnosticLog("GunHandleLook="..DiagnosticVector3(handle.CFrame.LookVector))
+			PushDiagnosticLog(string.format("HandleToTarget=%.3f HRPToHandle=%.3f",
+				(handle.Position-targetPosition).Magnitude,
+				(hrp.Position-handle.Position).Magnitude
+			))
+		else
+			PushDiagnosticLog("GunHandle=unavailable")
+		end
+
+		local originDot = originCFrame.LookVector:Dot((destinationCFrame.Position-originCFrame.Position).Unit)
+		PushDiagnosticLog(string.format("OriginLookDotToTarget=%.6f",originDot))
 		PushDiagnosticLog(string.format(
 			"EntryToPrediction=%.3fms PredictionToFire=%.3fms EntryToFire=%.3fms",
 			(diagnostic.PredictClock-diagnostic.EntryClock)*1000,
