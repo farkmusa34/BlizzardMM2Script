@@ -299,6 +299,114 @@ local Window =
 
 UI.Window = Window
 
+
+--============================================================
+-- PC FALLBACK WINDOW OPENER
+--
+-- WindUI's built-in floating opener can disappear after the
+-- window is minimized on desktop. This button remains available
+-- so the same WindUI window can always be reopened.
+--============================================================
+
+local Platform = UIS:GetPlatform()
+
+local IsDesktop =
+	Platform == Enum.Platform.Windows
+	or Platform == Enum.Platform.OSX
+
+if IsDesktop then
+
+	local ReopenButton = Instance.new("TextButton")
+	ReopenButton.Name = "BlizzardPCOpener"
+	ReopenButton.AnchorPoint = Vector2.new(0,0.5)
+	ReopenButton.Size = UDim2.fromOffset(52,52)
+	ReopenButton.Position = UDim2.new(0,20,0.5,0)
+	ReopenButton.BackgroundColor3 = Color3.fromRGB(14,16,22)
+	ReopenButton.BackgroundTransparency = 0.08
+	ReopenButton.BorderSizePixel = 0
+	ReopenButton.Text = "B"
+	ReopenButton.TextColor3 = Color3.fromRGB(255,255,255)
+	ReopenButton.TextSize = 20
+	ReopenButton.Font = Enum.Font.GothamBold
+	ReopenButton.AutoButtonColor = false
+	ReopenButton.Active = true
+	ReopenButton.ZIndex = 1000
+	ReopenButton.Parent = ScreenGui
+
+	local Corner = Instance.new("UICorner")
+	Corner.CornerRadius = UDim.new(0,14)
+	Corner.Parent = ReopenButton
+
+	local Stroke = Instance.new("UIStroke")
+	Stroke.Name = "ThemeStroke"
+	Stroke.Thickness = 2
+	Stroke.Transparency = 0.05
+	Stroke.Color = UI.CurrentThemeAccent or Color3.fromRGB(55,145,255)
+	Stroke.Parent = ReopenButton
+
+	-- Mouse-drag support without using deprecated GuiObject.Draggable.
+	local dragging = false
+	local moved = false
+	local dragStart
+	local startPosition
+
+	Track(ReopenButton.InputBegan:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseButton1 then
+			dragging = true
+			moved = false
+			dragStart = input.Position
+			startPosition = ReopenButton.Position
+		end
+	end))
+
+	Track(UIS.InputChanged:Connect(function(input)
+		if not dragging
+			or input.UserInputType ~= Enum.UserInputType.MouseMovement
+			or not dragStart
+			or not startPosition
+		then
+			return
+		end
+
+		local delta = input.Position - dragStart
+
+		if delta.Magnitude >= 4 then
+			moved = true
+		end
+
+		if moved then
+			ReopenButton.Position = UDim2.new(
+				startPosition.X.Scale,
+				startPosition.X.Offset + delta.X,
+				startPosition.Y.Scale,
+				startPosition.Y.Offset + delta.Y
+			)
+		end
+	end))
+
+	Track(UIS.InputEnded:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseButton1 then
+			dragging = false
+		end
+	end))
+
+	Track(ReopenButton.MouseButton1Click:Connect(function()
+		if moved then
+			moved = false
+			return
+		end
+
+		pcall(function()
+			if Window.Toggle then
+				Window:Toggle()
+			end
+		end)
+	end))
+
+	UI.PCReopenButton = ReopenButton
+	UI.PCReopenStroke = Stroke
+end
+
 --============================================================
 -- TOP STATUS TAG
 --
@@ -364,10 +472,14 @@ function UI.SetLatestUpdateTheme(color)
 
 	UI.CurrentThemeAccent = color
 
+	if UI.PCReopenStroke then
+		UI.PCReopenStroke.Color = color
+	end
+
 	-- Keep every floating Blizzard card synced to the selected theme.
 	if UI.FloatingCardRegistry then
 		for _,entry in pairs(UI.FloatingCardRegistry) do
-			if entry and entry.Stroke and not entry.FixedAccent then
+			if entry and entry.Stroke then
 				entry.Stroke.Color = color
 			end
 		end
@@ -1600,55 +1712,6 @@ function UI.ResetQuickButtons()
 	return true
 end
 
-local QUICK_BUTTON_ACCENTS = {
-	red = Color3.fromRGB(255,82,96),
-	danger = Color3.fromRGB(255,82,96),
-	blue = Color3.fromRGB(64,174,255),
-	orange = Color3.fromRGB(255,153,51),
-}
-
-local function ResolveQuickButtonAccent(accent)
-	if typeof(accent) == "Color3" then
-		return accent,true
-	end
-
-	local key = string.lower(tostring(accent or ""))
-	if QUICK_BUTTON_ACCENTS[key] then
-		return QUICK_BUTTON_ACCENTS[key],true
-	end
-
-	return UI.CurrentThemeAccent or DEFAULT_BLIZZARD_BLUE,false
-end
-
-function UI.GetQuickButtonPositions()
-	local positions = {}
-	for name,entry in pairs(UI.FloatingCardRegistry) do
-		local holder = entry and entry.Holder
-		if holder then
-			local pos = holder.Position
-			positions[name] = {
-				XScale = pos.X.Scale, XOffset = pos.X.Offset,
-				YScale = pos.Y.Scale, YOffset = pos.Y.Offset,
-			}
-		end
-	end
-	return positions
-end
-
-function UI.ApplyQuickButtonPositions(positions)
-	if type(positions) ~= "table" then return false end
-	for name,data in pairs(positions) do
-		local entry = UI.FloatingCardRegistry[name]
-		if entry and entry.Holder and type(data) == "table" then
-			local xs,xo,ys,yo = tonumber(data.XScale),tonumber(data.XOffset),tonumber(data.YScale),tonumber(data.YOffset)
-			if xs and xo and ys and yo then
-				entry.Holder.Position = UDim2.new(xs,xo,ys,yo)
-			end
-		end
-	end
-	return true
-end
-
 local function FlashQuickButton(entry)
 	if not entry or not entry.Button or not entry.Stroke then
 		return
@@ -1665,7 +1728,7 @@ local function FlashQuickButton(entry)
 
 	if entry.Icon then
 		pcall(function()
-			entry.Icon.ImageColor3 = entry.AccentColor or UI.CurrentThemeAccent or DEFAULT_BLIZZARD_BLUE
+			entry.Icon.ImageColor3 = UI.CurrentThemeAccent or DEFAULT_BLIZZARD_BLUE
 		end)
 	end
 
@@ -1691,12 +1754,10 @@ function UI.CreateMovableCardButton(
 	icon,
 	labelText,
 	startPosition,
-	callback,
-	accent
+	callback
 )
 	local cleanName = tostring(name or "Floating")
 	local defaultPosition = startPosition or UDim2.fromScale(0.8,0.75)
-	local accentColor,fixedAccent = ResolveQuickButtonAccent(accent)
 
 	local holder = Instance.new("Frame")
 	holder.Name = cleanName .. "Holder"
@@ -1733,7 +1794,7 @@ function UI.CreateMovableCardButton(
 	local stroke = Instance.new("UIStroke")
 	stroke.Name = "ThemeStroke"
 	stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
-	stroke.Color = accentColor
+	stroke.Color = UI.CurrentThemeAccent or DEFAULT_BLIZZARD_BLUE
 	stroke.Thickness = 2.0
 	stroke.Transparency = 0.05
 	stroke.Parent = button
@@ -1801,8 +1862,6 @@ function UI.CreateMovableCardButton(
 		UIScale = uiScale,
 		DefaultPosition = defaultPosition,
 		DefaultSize = QUICK_BUTTON_BASE_SIZE,
-		AccentColor = accentColor,
-		FixedAccent = fixedAccent,
 	}
 
 	UI.FloatingCardRegistry[cleanName] = entry
