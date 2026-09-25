@@ -215,7 +215,7 @@ local function BuildDiagnosticGui()
 	title.Size = UDim2.new(1, -20, 0, 34)
 	title.Position = UDim2.fromOffset(10, 5)
 	title.BackgroundTransparency = 1
-	title.Text = "AutoTrader PC Diagnostic"
+	title.Text = "AUTO TRADER DIAGNOSTIC - GUI"
 	title.TextColor3 = Color3.fromRGB(245, 245, 248)
 	title.TextSize = 16
 	title.Font = Enum.Font.GothamBold
@@ -227,13 +227,27 @@ local function BuildDiagnosticGui()
 	status.Size = UDim2.new(1, -20, 0, 22)
 	status.Position = UDim2.fromOffset(10, 39)
 	status.BackgroundTransparency = 1
-	status.Text = "Starting..."
+	status.Text = "GUI ACTIVE - waiting for AutoTrader scan..."
 	status.TextColor3 = Color3.fromRGB(165, 170, 184)
 	status.TextSize = 11
 	status.Font = Enum.Font.Gotham
 	status.TextXAlignment = Enum.TextXAlignment.Left
 	status.Parent = frame
 	DiagnosticStatus = status
+
+	local badge = Instance.new("TextLabel")
+	badge.Size = UDim2.fromOffset(92, 24)
+	badge.Position = UDim2.new(1, -102, 0, 10)
+	badge.BackgroundColor3 = Color3.fromRGB(45, 125, 210)
+	badge.BorderSizePixel = 0
+	badge.Text = "GUI MODE"
+	badge.TextColor3 = Color3.fromRGB(255, 255, 255)
+	badge.TextSize = 10
+	badge.Font = Enum.Font.GothamBold
+	badge.Parent = frame
+	local badgeCorner = Instance.new("UICorner")
+	badgeCorner.CornerRadius = UDim.new(0, 7)
+	badgeCorner.Parent = badge
 
 	local scroll = Instance.new("ScrollingFrame")
 	scroll.Size = UDim2.new(1, -20, 1, -115)
@@ -298,8 +312,10 @@ local function BuildDiagnosticGui()
 		status.Text = "Logs cleared."
 	end)
 
-	button("HIDE", 290, 100, function()
-		frame.Visible = false
+	button("REFRESH", 290, 100, function()
+		status.Text = "GUI ACTIVE | Running=" .. tostring(State.Running)
+			.. " | Busy=" .. tostring(State.Busy)
+		DiagnosticLog("Manual GUI refresh.")
 	end)
 
 	-- Draggable title.
