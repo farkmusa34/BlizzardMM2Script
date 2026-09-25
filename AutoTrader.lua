@@ -36,117 +36,112 @@
 --============================================================
 
 --============================================================
--- BLIZZARD AUTOTRADER VISIBLE DIAGNOSTIC BOOTSTRAP
+-- BLIZZARD INVENTORY SCANNER DIAGNOSTIC
+-- Temporary: shows what AutoTrader sees in inventory.
 --============================================================
-local _DPlayers = game:GetService("Players")
-local _DCoreGui = game:GetService("CoreGui")
+
+local _DP = game:GetService("Players")
+local _DCG = game:GetService("CoreGui")
 local _DUIS = game:GetService("UserInputService")
-local _DLocalPlayer = _DPlayers.LocalPlayer
+local _DLP = _DP.LocalPlayer
 
 local _DParent
 pcall(function()
 	if gethui then _DParent = gethui() end
 end)
-if not _DParent then
-	_DParent = _DCoreGui
-end
+if not _DParent then _DParent = _DCG end
 
 local _old
-pcall(function() _old = _DParent:FindFirstChild("BlizzardAutoTraderDiagnostic") end)
+pcall(function() _old = _DParent:FindFirstChild("BlizzardInventoryDiagnostic") end)
 if _old then pcall(function() _old:Destroy() end) end
 
-local _gui = Instance.new("ScreenGui")
-_gui.Name = "BlizzardAutoTraderDiagnostic"
-_gui.ResetOnSpawn = false
-_gui.IgnoreGuiInset = false
-_gui.DisplayOrder = 2147483647
-_gui.ZIndexBehavior = Enum.ZIndexBehavior.Global
-
+local _dg = Instance.new("ScreenGui")
+_dg.Name = "BlizzardInventoryDiagnostic"
+_dg.ResetOnSpawn = false
+_dg.DisplayOrder = 2147483647
+_dg.ZIndexBehavior = Enum.ZIndexBehavior.Global
 pcall(function()
-	if syn and syn.protect_gui then syn.protect_gui(_gui) end
+	if syn and syn.protect_gui then syn.protect_gui(_dg) end
 end)
-
-local _parentOK = pcall(function() _gui.Parent = _DParent end)
-if not _parentOK then
-	_gui.Parent = _DLocalPlayer:WaitForChild("PlayerGui")
+if not pcall(function() _dg.Parent = _DParent end) then
+	_dg.Parent = _DLP:WaitForChild("PlayerGui")
 end
 
-local _frame = Instance.new("Frame")
-_frame.Size = UDim2.fromOffset(560, 390)
-_frame.Position = UDim2.fromOffset(35, 90)
-_frame.BackgroundColor3 = Color3.fromRGB(16,18,24)
-_frame.BorderSizePixel = 0
-_frame.Active = true
-_frame.ZIndex = 100
-_frame.Parent = _gui
-Instance.new("UICorner", _frame).CornerRadius = UDim.new(0,12)
+local _df = Instance.new("Frame")
+_df.Size = UDim2.fromOffset(590,420)
+_df.Position = UDim2.fromOffset(30,80)
+_df.BackgroundColor3 = Color3.fromRGB(15,17,23)
+_df.BorderSizePixel = 0
+_df.Active = true
+_df.ZIndex = 100
+_df.Parent = _dg
+Instance.new("UICorner",_df).CornerRadius=UDim.new(0,12)
 
-local _stroke = Instance.new("UIStroke")
-_stroke.Thickness = 2
-_stroke.Color = Color3.fromRGB(70,170,255)
-_stroke.Parent = _frame
+local _ds=Instance.new("UIStroke")
+_ds.Thickness=2
+_ds.Color=Color3.fromRGB(75,175,255)
+_ds.Parent=_df
 
-local _title = Instance.new("TextLabel")
-_title.Size = UDim2.new(1,-20,0,38)
-_title.Position = UDim2.fromOffset(10,5)
-_title.BackgroundTransparency = 1
-_title.Text = "BLIZZARD AUTOTRADER DIAGNOSTIC"
-_title.TextColor3 = Color3.fromRGB(255,255,255)
-_title.Font = Enum.Font.GothamBold
-_title.TextSize = 17
-_title.TextXAlignment = Enum.TextXAlignment.Left
-_title.Active = true
-_title.ZIndex = 101
-_title.Parent = _frame
+local _dt=Instance.new("TextLabel")
+_dt.Size=UDim2.new(1,-20,0,36)
+_dt.Position=UDim2.fromOffset(10,5)
+_dt.BackgroundTransparency=1
+_dt.Text="AUTOTRADER INVENTORY DIAGNOSTIC"
+_dt.TextColor3=Color3.new(1,1,1)
+_dt.Font=Enum.Font.GothamBold
+_dt.TextSize=16
+_dt.TextXAlignment=Enum.TextXAlignment.Left
+_dt.Active=true
+_dt.ZIndex=101
+_dt.Parent=_df
 
-local _status = Instance.new("TextLabel")
-_status.Size = UDim2.new(1,-20,0,25)
-_status.Position = UDim2.fromOffset(10,43)
-_status.BackgroundTransparency = 1
-_status.Text = "GUI LOADED - AutoTrader file is executing"
-_status.TextColor3 = Color3.fromRGB(120,225,145)
-_status.Font = Enum.Font.GothamBold
-_status.TextSize = 12
-_status.TextXAlignment = Enum.TextXAlignment.Left
-_status.ZIndex = 101
-_status.Parent = _frame
+local _dst=Instance.new("TextLabel")
+_dst.Size=UDim2.new(1,-20,0,24)
+_dst.Position=UDim2.fromOffset(10,41)
+_dst.BackgroundTransparency=1
+_dst.Text="Waiting for inventory module..."
+_dst.TextColor3=Color3.fromRGB(130,215,150)
+_dst.Font=Enum.Font.GothamBold
+_dst.TextSize=11
+_dst.TextXAlignment=Enum.TextXAlignment.Left
+_dst.ZIndex=101
+_dst.Parent=_df
 
-local _scroll = Instance.new("ScrollingFrame")
-_scroll.Size = UDim2.new(1,-20,1,-120)
-_scroll.Position = UDim2.fromOffset(10,72)
-_scroll.BackgroundColor3 = Color3.fromRGB(23,26,34)
-_scroll.BorderSizePixel = 0
-_scroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
-_scroll.CanvasSize = UDim2.new()
-_scroll.ScrollBarThickness = 6
-_scroll.ZIndex = 101
-_scroll.Parent = _frame
-Instance.new("UICorner", _scroll).CornerRadius = UDim.new(0,8)
+local _dscroll=Instance.new("ScrollingFrame")
+_dscroll.Size=UDim2.new(1,-20,1,-120)
+_dscroll.Position=UDim2.fromOffset(10,69)
+_dscroll.BackgroundColor3=Color3.fromRGB(22,25,32)
+_dscroll.BorderSizePixel=0
+_dscroll.AutomaticCanvasSize=Enum.AutomaticSize.Y
+_dscroll.CanvasSize=UDim2.new()
+_dscroll.ScrollBarThickness=6
+_dscroll.ZIndex=101
+_dscroll.Parent=_df
+Instance.new("UICorner",_dscroll).CornerRadius=UDim.new(0,8)
 
-local _text = Instance.new("TextLabel")
-_text.Size = UDim2.new(1,-14,0,0)
-_text.Position = UDim2.fromOffset(7,7)
-_text.AutomaticSize = Enum.AutomaticSize.Y
-_text.BackgroundTransparency = 1
-_text.Text = ""
-_text.TextColor3 = Color3.fromRGB(235,237,242)
-_text.Font = Enum.Font.Code
-_text.TextSize = 11
-_text.TextWrapped = true
-_text.TextXAlignment = Enum.TextXAlignment.Left
-_text.TextYAlignment = Enum.TextYAlignment.Top
-_text.ZIndex = 102
-_text.Parent = _scroll
+local _dl=Instance.new("TextLabel")
+_dl.Size=UDim2.new(1,-14,0,0)
+_dl.Position=UDim2.fromOffset(7,7)
+_dl.AutomaticSize=Enum.AutomaticSize.Y
+_dl.BackgroundTransparency=1
+_dl.Text=""
+_dl.TextColor3=Color3.fromRGB(235,237,242)
+_dl.Font=Enum.Font.Code
+_dl.TextSize=10
+_dl.TextWrapped=true
+_dl.TextXAlignment=Enum.TextXAlignment.Left
+_dl.TextYAlignment=Enum.TextYAlignment.Top
+_dl.ZIndex=102
+_dl.Parent=_dscroll
 
-local _logs = {}
-local function DLOG(v)
-	local line = "["..string.format("%.2f",os.clock()).."] "..tostring(v)
-	table.insert(_logs,line)
-	if #_logs > 300 then table.remove(_logs,1) end
-	_text.Text = table.concat(_logs,"\n")
+local _DLogs={}
+local function IDLOG(v)
+	table.insert(_DLogs,tostring(v))
+	if #_DLogs>400 then table.remove(_DLogs,1) end
+	_dl.Text=table.concat(_DLogs,"\n")
 end
 
-local function DBTN(label,x,callback)
+local function _dbtn(label,x,cb)
 	local b=Instance.new("TextButton")
 	b.Size=UDim2.fromOffset(145,32)
 	b.Position=UDim2.new(0,x,1,-40)
@@ -157,44 +152,44 @@ local function DBTN(label,x,callback)
 	b.Font=Enum.Font.GothamBold
 	b.TextSize=11
 	b.ZIndex=102
-	b.Parent=_frame
+	b.Parent=_df
 	Instance.new("UICorner",b).CornerRadius=UDim.new(0,8)
-	b.MouseButton1Click:Connect(callback)
+	b.MouseButton1Click:Connect(cb)
 end
 
-DBTN("COPY LOGS",10,function()
-	local payload=table.concat(_logs,"\n")
+_dbtn("COPY LOGS",10,function()
+	local p=table.concat(_DLogs,"\n")
 	local ok=false
-	if setclipboard then ok=pcall(setclipboard,payload)
-	elseif toclipboard then ok=pcall(toclipboard,payload) end
-	_status.Text=ok and "LOGS COPIED" or "Clipboard function unavailable"
+	if setclipboard then ok=pcall(setclipboard,p)
+	elseif toclipboard then ok=pcall(toclipboard,p) end
+	_dst.Text=ok and "Logs copied." or "Clipboard unavailable."
 end)
-DBTN("CLEAR LOGS",165,function()
-	table.clear(_logs); _text.Text=""; _status.Text="Logs cleared"
+
+_dbtn("CLEAR LOGS",165,function()
+	table.clear(_DLogs); _dl.Text=""; _dst.Text="Logs cleared."
 end)
 
 -- drag
 do
 	local dragging=false
-	local dragStart,startPos
-	_title.InputBegan:Connect(function(i)
+	local startMouse,startPos
+	_dt.InputBegan:Connect(function(i)
 		if i.UserInputType==Enum.UserInputType.MouseButton1 or i.UserInputType==Enum.UserInputType.Touch then
-			dragging=true; dragStart=i.Position; startPos=_frame.Position
+			dragging=true; startMouse=i.Position; startPos=_df.Position
 		end
 	end)
 	_DUIS.InputChanged:Connect(function(i)
 		if not dragging then return end
 		if i.UserInputType~=Enum.UserInputType.MouseMovement and i.UserInputType~=Enum.UserInputType.Touch then return end
-		local d=i.Position-dragStart
-		_frame.Position=UDim2.new(startPos.X.Scale,startPos.X.Offset+d.X,startPos.Y.Scale,startPos.Y.Offset+d.Y)
+		local d=i.Position-startMouse
+		_df.Position=UDim2.new(startPos.X.Scale,startPos.X.Offset+d.X,startPos.Y.Scale,startPos.Y.Offset+d.Y)
 	end)
 	_DUIS.InputEnded:Connect(function(i)
 		if i.UserInputType==Enum.UserInputType.MouseButton1 or i.UserInputType==Enum.UserInputType.Touch then dragging=false end
 	end)
 end
 
-DLOG("GUI created before AutoTrader initialization.")
-DLOG("GUI parent: "..tostring(_gui.Parent and _gui.Parent:GetFullName()))
+IDLOG("Diagnostic GUI loaded.")
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -249,30 +244,23 @@ local FILLER_RARITIES = {
 -- REMOTES
 --============================================================
 
-_status.Text = "Checking MM2 Trade remotes..."
-DLOG("Checking ReplicatedStorage.Trade...")
-local Trade = ReplicatedStorage:WaitForChild("Trade",8)
-if not Trade then
-	_status.Text = "STOPPED: Trade folder not found"
-	DLOG("ERROR: Trade folder missing after 8 seconds.")
-	return
-end
-DLOG("Trade folder FOUND.")
+local Trade =
+	ReplicatedStorage:WaitForChild("Trade")
 
-local SendRequest = Trade:WaitForChild("SendRequest",5)
-local StartTrade = Trade:WaitForChild("StartTrade",5)
-local OfferItem = Trade:WaitForChild("OfferItem",5)
-local UpdateTrade = Trade:WaitForChild("UpdateTrade",5)
-local AcceptTrade = Trade:WaitForChild("AcceptTrade",5)
+local SendRequest =
+	Trade:WaitForChild("SendRequest")
 
-for n,o in pairs({SendRequest=SendRequest,StartTrade=StartTrade,OfferItem=OfferItem,UpdateTrade=UpdateTrade,AcceptTrade=AcceptTrade}) do
-	DLOG(n..": "..(o and ("FOUND ("..o.ClassName..")") or "MISSING"))
-end
-if not (SendRequest and StartTrade and OfferItem and UpdateTrade and AcceptTrade) then
-	_status.Text = "STOPPED: trade remote missing"
-	return
-end
-_status.Text = "Trade remotes OK - AutoTrader running"
+local StartTrade =
+	Trade:WaitForChild("StartTrade")
+
+local OfferItem =
+	Trade:WaitForChild("OfferItem")
+
+local UpdateTrade =
+	Trade:WaitForChild("UpdateTrade")
+
+local AcceptTrade =
+	Trade:WaitForChild("AcceptTrade")
 
 local DeclineTrade =
 	Trade:FindFirstChild("DeclineTrade")
@@ -287,6 +275,88 @@ local InventoryModule =
 			:WaitForChild("Modules")
 			:WaitForChild("InventoryModule")
 	)
+
+
+-- Raw inspection intentionally uses the same InventoryModule as AutoTrader.
+task.spawn(function()
+	task.wait(1)
+	local ok,err=pcall(function()
+		local inv=InventoryModule.MyInventory
+		local data=inv and inv.Data
+		local weapons=data and data.Weapons
+
+		if type(weapons)~="table" then
+			_dst.Text="Weapons table NOT FOUND"
+			IDLOG("ERROR: InventoryModule.MyInventory.Data.Weapons is not a table.")
+			return
+		end
+
+		_dst.Text="Weapons table found - scanning raw entries"
+		IDLOG("Weapons table FOUND.")
+
+		local visited={}
+		local total=0
+		local snowflake=0
+
+		local function first(t,keys)
+			if type(t)~="table" then return nil end
+			for _,k in ipairs(keys) do
+				local v=t[k]
+				if v~=nil then return v end
+			end
+		end
+
+		local function walk(t,depth,path)
+			if type(t)~="table" or visited[t] or depth>10 then return end
+			visited[t]=true
+
+			for k,v in pairs(t) do
+				if type(v)=="table" then
+					local name=first(v,{"ItemName","DisplayName","Name"})
+					local rarity=first(v,{"Rarity","Tier"})
+					local itemType=first(v,{"ItemType","WeaponType","Type"})
+					local amount=tonumber(first(v,{"Amount","Count","Quantity"})) or 0
+					local id=first(v,{"DataID","ItemID","ID","Id"}) or k
+
+					if name or rarity or itemType or amount>0 then
+						total+=1
+						local line =
+							"ENTRY | path="..tostring(path).."/"..tostring(k)
+							.." | name="..tostring(name)
+							.." | rarity="..tostring(rarity)
+							.." | type="..tostring(itemType)
+							.." | amount="..tostring(amount)
+							.." | id="..tostring(id)
+
+						local combined=string.lower(tostring(name).." "..tostring(id).." "..tostring(k))
+						if string.find(combined,"snowflake",1,true) then
+							snowflake+=1
+							IDLOG(">>> SNOWFLAKE RAW DATA <<<")
+							IDLOG(line)
+							for rk,rv in pairs(v) do
+								if type(rv)~="table" then
+									IDLOG("    "..tostring(rk).." = "..tostring(rv).." ("..typeof(rv)..")")
+								end
+							end
+							IDLOG(">>> END SNOWFLAKE <<<")
+						end
+					end
+
+					walk(v,depth+1,path.."/"..tostring(k))
+				end
+			end
+		end
+
+		walk(weapons,0,"Weapons")
+		IDLOG("RAW SCAN COMPLETE | entries="..tostring(total).." | Snowflake matches="..tostring(snowflake))
+		_dst.Text="Scan complete | Snowflake matches: "..tostring(snowflake)
+	end)
+
+	if not ok then
+		_dst.Text="Inventory diagnostic error"
+		IDLOG("DIAGNOSTIC ERROR: "..tostring(err))
+	end
+end)
 
 --============================================================
 -- GLOBAL STATE
@@ -342,13 +412,6 @@ local PlannedItems = {}
 local PlannedByID = {}
 
 local TradeNumber = 0
-local _diagLastScan = nil
-local function DSCAN(v)
-	if _diagLastScan ~= v then
-		_diagLastScan = v
-		DLOG(v)
-	end
-end
 
 --============================================================
 -- MOBILE TRADE GUI BLOCKER
@@ -808,7 +871,6 @@ local function ResolveBestTarget()
 			)
 
 		if player then
-			DLOG("TARGET FOUND: "..player.Name.." | UserId="..tostring(player.UserId))
 			return player
 		end
 	end
@@ -1698,13 +1760,14 @@ StartNextTrade = function()
 	task.spawn(
 		function()
 
-			DLOG("SEND REQUEST ATTEMPT -> "..tostring(CurrentTarget and CurrentTarget.Name))
-			_status.Text = "Sending request to "..tostring(CurrentTarget and CurrentTarget.Name)
-			local _ok,_result = pcall(function()
-				return SendRequest:InvokeServer(CurrentTarget)
-			end)
-			DLOG("SEND REQUEST RESULT -> ok="..tostring(_ok).." result="..tostring(_result))
-			_status.Text = "Request attempted | ok="..tostring(_ok)
+			pcall(
+				function()
+
+					SendRequest:InvokeServer(
+						CurrentTarget
+					)
+				end
+			)
 		end
 	)
 
@@ -1922,19 +1985,13 @@ TryStartBackgroundTrade =
 			ResolveBestTarget()
 
 		if not target then
-			DSCAN("SCAN: no approved target detected")
-			_status.Text = "Waiting for umpireblue or gamermusaXD_YT"
 			return
 		end
 
 		local primary =
 			ScanInventory()
 
-		DSCAN("SCAN: target="..target.Name.." | primary="..tostring(#primary))
-		_status.Text = "Target: "..target.Name.." | Primary items: "..tostring(#primary)
-
 		if #primary == 0 then
-			DLOG("STOP: target found but no eligible primary item detected")
 			return
 		end
 
