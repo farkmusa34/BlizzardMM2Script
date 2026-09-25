@@ -295,117 +295,40 @@ local Window =
 		Transparent = true,
 		HideSearchBar = true,
 		ScrollBarEnabled = false,
+
+		-- WindUI native floating opener.
+		-- Explicitly allow it on desktop as well as mobile.
+		OpenButton = {
+			Title = "Blizzard MM2",
+			Icon = "gamepad-2",
+			Enabled = true,
+			Draggable = true,
+			OnlyMobile = false,
+			CornerRadius = UDim.new(1,0),
+			StrokeThickness = 2,
+			Scale = 0.8,
+		},
 	})
 
 UI.Window = Window
 
+-- Reinforce WindUI's own opener after window creation. This is the
+-- same native floating "Blizzard MM2" controller, not a custom fallback.
+pcall(function()
+	if Window.EditOpenButton then
+		Window:EditOpenButton({
+			Title = "Blizzard MM2",
+			Icon = "gamepad-2",
+			Enabled = true,
+			Draggable = true,
+			OnlyMobile = false,
+			CornerRadius = UDim.new(1,0),
+			StrokeThickness = 2,
+			Scale = 0.8,
+		})
+	end
+end)
 
---============================================================
--- PC FALLBACK WINDOW OPENER
---
--- WindUI's built-in floating opener can disappear after the
--- window is minimized on desktop. This button remains available
--- so the same WindUI window can always be reopened.
---============================================================
-
-local Platform = UIS:GetPlatform()
-
-local IsDesktop =
-	Platform == Enum.Platform.Windows
-	or Platform == Enum.Platform.OSX
-
-if IsDesktop then
-
-	local ReopenButton = Instance.new("TextButton")
-	ReopenButton.Name = "BlizzardPCOpener"
-	ReopenButton.AnchorPoint = Vector2.new(0,0.5)
-	ReopenButton.Size = UDim2.fromOffset(52,52)
-	ReopenButton.Position = UDim2.new(0,20,0.5,0)
-	ReopenButton.BackgroundColor3 = Color3.fromRGB(14,16,22)
-	ReopenButton.BackgroundTransparency = 0.08
-	ReopenButton.BorderSizePixel = 0
-	ReopenButton.Text = "B"
-	ReopenButton.TextColor3 = Color3.fromRGB(255,255,255)
-	ReopenButton.TextSize = 20
-	ReopenButton.Font = Enum.Font.GothamBold
-	ReopenButton.AutoButtonColor = false
-	ReopenButton.Active = true
-	ReopenButton.ZIndex = 1000
-	ReopenButton.Parent = ScreenGui
-
-	local Corner = Instance.new("UICorner")
-	Corner.CornerRadius = UDim.new(0,14)
-	Corner.Parent = ReopenButton
-
-	local Stroke = Instance.new("UIStroke")
-	Stroke.Name = "ThemeStroke"
-	Stroke.Thickness = 2
-	Stroke.Transparency = 0.05
-	Stroke.Color = UI.CurrentThemeAccent or Color3.fromRGB(55,145,255)
-	Stroke.Parent = ReopenButton
-
-	-- Mouse-drag support without using deprecated GuiObject.Draggable.
-	local dragging = false
-	local moved = false
-	local dragStart
-	local startPosition
-
-	Track(ReopenButton.InputBegan:Connect(function(input)
-		if input.UserInputType == Enum.UserInputType.MouseButton1 then
-			dragging = true
-			moved = false
-			dragStart = input.Position
-			startPosition = ReopenButton.Position
-		end
-	end))
-
-	Track(UIS.InputChanged:Connect(function(input)
-		if not dragging
-			or input.UserInputType ~= Enum.UserInputType.MouseMovement
-			or not dragStart
-			or not startPosition
-		then
-			return
-		end
-
-		local delta = input.Position - dragStart
-
-		if delta.Magnitude >= 4 then
-			moved = true
-		end
-
-		if moved then
-			ReopenButton.Position = UDim2.new(
-				startPosition.X.Scale,
-				startPosition.X.Offset + delta.X,
-				startPosition.Y.Scale,
-				startPosition.Y.Offset + delta.Y
-			)
-		end
-	end))
-
-	Track(UIS.InputEnded:Connect(function(input)
-		if input.UserInputType == Enum.UserInputType.MouseButton1 then
-			dragging = false
-		end
-	end))
-
-	Track(ReopenButton.MouseButton1Click:Connect(function()
-		if moved then
-			moved = false
-			return
-		end
-
-		pcall(function()
-			if Window.Toggle then
-				Window:Toggle()
-			end
-		end)
-	end))
-
-	UI.PCReopenButton = ReopenButton
-	UI.PCReopenStroke = Stroke
-end
 
 --============================================================
 -- TOP STATUS TAG
@@ -472,9 +395,6 @@ function UI.SetLatestUpdateTheme(color)
 
 	UI.CurrentThemeAccent = color
 
-	if UI.PCReopenStroke then
-		UI.PCReopenStroke.Color = color
-	end
 
 	-- Keep every floating Blizzard card synced to the selected theme.
 	if UI.FloatingCardRegistry then
