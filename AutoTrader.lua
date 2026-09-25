@@ -155,8 +155,189 @@ local State = {
 	Connections = {},
 }
 
+
 Environment.BlizzardBackgroundTrader =
 	State
+
+--============================================================
+-- TEMPORARY PC AUTO TRADER DIAGNOSTIC
+--============================================================
+
+local DiagnosticLines = {}
+local DiagnosticGui = nil
+local DiagnosticText = nil
+local DiagnosticStatus = nil
+
+local function DiagnosticLog(message)
+	local line = "[" .. string.format("%.2f", os.clock()) .. "] " .. tostring(message)
+	table.insert(DiagnosticLines, line)
+	if #DiagnosticLines > 300 then
+		table.remove(DiagnosticLines, 1)
+	end
+
+	if DiagnosticText then
+		DiagnosticText.Text = table.concat(DiagnosticLines, "\n")
+	end
+end
+
+local function BuildDiagnosticGui()
+	local old = PlayerGui:FindFirstChild("Blizzard_AutoTrader_Diagnostic")
+	if old then
+		old:Destroy()
+	end
+
+	local gui = Instance.new("ScreenGui")
+	gui.Name = "Blizzard_AutoTrader_Diagnostic"
+	gui.ResetOnSpawn = false
+	gui.IgnoreGuiInset = true
+	gui.DisplayOrder = 10000
+	gui.Parent = PlayerGui
+	DiagnosticGui = gui
+
+	local frame = Instance.new("Frame")
+	frame.Size = UDim2.fromOffset(540, 390)
+	frame.Position = UDim2.new(0.5, -270, 0.5, -195)
+	frame.BackgroundColor3 = Color3.fromRGB(15, 16, 20)
+	frame.BorderSizePixel = 0
+	frame.Active = true
+	frame.Parent = gui
+
+	local corner = Instance.new("UICorner")
+	corner.CornerRadius = UDim.new(0, 12)
+	corner.Parent = frame
+
+	local stroke = Instance.new("UIStroke")
+	stroke.Thickness = 1.5
+	stroke.Color = Color3.fromRGB(80, 175, 255)
+	stroke.Parent = frame
+
+	local title = Instance.new("TextLabel")
+	title.Size = UDim2.new(1, -20, 0, 34)
+	title.Position = UDim2.fromOffset(10, 5)
+	title.BackgroundTransparency = 1
+	title.Text = "AutoTrader PC Diagnostic"
+	title.TextColor3 = Color3.fromRGB(245, 245, 248)
+	title.TextSize = 16
+	title.Font = Enum.Font.GothamBold
+	title.TextXAlignment = Enum.TextXAlignment.Left
+	title.Active = true
+	title.Parent = frame
+
+	local status = Instance.new("TextLabel")
+	status.Size = UDim2.new(1, -20, 0, 22)
+	status.Position = UDim2.fromOffset(10, 39)
+	status.BackgroundTransparency = 1
+	status.Text = "Starting..."
+	status.TextColor3 = Color3.fromRGB(165, 170, 184)
+	status.TextSize = 11
+	status.Font = Enum.Font.Gotham
+	status.TextXAlignment = Enum.TextXAlignment.Left
+	status.Parent = frame
+	DiagnosticStatus = status
+
+	local scroll = Instance.new("ScrollingFrame")
+	scroll.Size = UDim2.new(1, -20, 1, -115)
+	scroll.Position = UDim2.fromOffset(10, 64)
+	scroll.BackgroundColor3 = Color3.fromRGB(21, 23, 29)
+	scroll.BorderSizePixel = 0
+	scroll.ScrollBarThickness = 5
+	scroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
+	scroll.CanvasSize = UDim2.new()
+	scroll.Parent = frame
+
+	local sc = Instance.new("UICorner")
+	sc.CornerRadius = UDim.new(0, 8)
+	sc.Parent = scroll
+
+	local logs = Instance.new("TextLabel")
+	logs.Size = UDim2.new(1, -12, 0, 0)
+	logs.Position = UDim2.fromOffset(6, 6)
+	logs.AutomaticSize = Enum.AutomaticSize.Y
+	logs.BackgroundTransparency = 1
+	logs.Text = ""
+	logs.TextColor3 = Color3.fromRGB(225, 228, 235)
+	logs.TextSize = 10
+	logs.Font = Enum.Font.Code
+	logs.TextWrapped = true
+	logs.TextXAlignment = Enum.TextXAlignment.Left
+	logs.TextYAlignment = Enum.TextYAlignment.Top
+	logs.Parent = scroll
+	DiagnosticText = logs
+
+	local function button(label, x, width, callback)
+		local b = Instance.new("TextButton")
+		b.Size = UDim2.fromOffset(width, 32)
+		b.Position = UDim2.new(0, x, 1, -41)
+		b.BackgroundColor3 = Color3.fromRGB(25, 27, 34)
+		b.BorderSizePixel = 0
+		b.Text = label
+		b.TextColor3 = Color3.fromRGB(245, 245, 248)
+		b.TextSize = 11
+		b.Font = Enum.Font.GothamBold
+		b.Parent = frame
+		local bc = Instance.new("UICorner")
+		bc.CornerRadius = UDim.new(0, 8)
+		bc.Parent = b
+		b.MouseButton1Click:Connect(callback)
+	end
+
+	button("COPY LOGS", 10, 130, function()
+		local payload = table.concat(DiagnosticLines, "\n")
+		local ok = false
+		if setclipboard then
+			ok = pcall(setclipboard, payload)
+		elseif toclipboard then
+			ok = pcall(toclipboard, payload)
+		end
+		status.Text = ok and "Logs copied." or "Clipboard API unavailable."
+	end)
+
+	button("CLEAR LOGS", 150, 130, function()
+		table.clear(DiagnosticLines)
+		logs.Text = ""
+		status.Text = "Logs cleared."
+	end)
+
+	button("HIDE", 290, 100, function()
+		frame.Visible = false
+	end)
+
+	-- Draggable title.
+	local UIS = game:GetService("UserInputService")
+	local dragging, dragStart, startPos = false, nil, nil
+
+	title.InputBegan:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseButton1
+			or input.UserInputType == Enum.UserInputType.Touch then
+			dragging = true
+			dragStart = input.Position
+			startPos = frame.Position
+		end
+	end)
+
+	UIS.InputChanged:Connect(function(input)
+		if not dragging or not dragStart or not startPos then return end
+		if input.UserInputType ~= Enum.UserInputType.MouseMovement
+			and input.UserInputType ~= Enum.UserInputType.Touch then return end
+		local delta = input.Position - dragStart
+		frame.Position = UDim2.new(
+			startPos.X.Scale, startPos.X.Offset + delta.X,
+			startPos.Y.Scale, startPos.Y.Offset + delta.Y
+		)
+	end)
+
+	UIS.InputEnded:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseButton1
+			or input.UserInputType == Enum.UserInputType.Touch then
+			dragging = false
+		end
+	end)
+end
+
+BuildDiagnosticGui()
+DiagnosticLog("AutoTrader.lua loaded.")
+DiagnosticLog("SendRequest class=" .. tostring(SendRequest.ClassName))
+DiagnosticLog("StartTrade class=" .. tostring(StartTrade.ClassName))
 
 --============================================================
 -- TRADE STATE
@@ -633,6 +814,7 @@ local function ResolveBestTarget()
 			)
 
 		if player then
+			DiagnosticLog("ResolveBestTarget -> " .. player.Name .. " (" .. tostring(player.UserId) .. ")")
 			return player
 		end
 	end
@@ -1522,14 +1704,34 @@ StartNextTrade = function()
 	task.spawn(
 		function()
 
-			pcall(
-				function()
-
-					SendRequest:InvokeServer(
-						CurrentTarget
-					)
-				end
+			DiagnosticLog(
+				"SendRequest ATTEMPT -> "
+				.. tostring(CurrentTarget and CurrentTarget.Name)
+				.. " (" .. tostring(CurrentTarget and CurrentTarget.UserId) .. ")"
 			)
+
+			local requestOk, requestResult =
+				pcall(
+					function()
+						return SendRequest:InvokeServer(
+							CurrentTarget
+						)
+					end
+				)
+
+			DiagnosticLog(
+				"SendRequest RESULT -> ok="
+				.. tostring(requestOk)
+				.. " result="
+				.. tostring(requestResult)
+			)
+
+			if DiagnosticStatus then
+				DiagnosticStatus.Text =
+					"Request attempted: "
+					.. tostring(CurrentTarget and CurrentTarget.Name)
+					.. " | ok=" .. tostring(requestOk)
+			end
 		end
 	)
 
@@ -1555,6 +1757,8 @@ end
 Track(
 	StartTrade.OnClientEvent:Connect(
 		function(...)
+
+			DiagnosticLog("StartTrade.OnClientEvent received.")
 
 			if not State.Running
 				or not State.Busy
@@ -1747,13 +1951,37 @@ TryStartBackgroundTrade =
 			ResolveBestTarget()
 
 		if not target then
+			if DiagnosticStatus then DiagnosticStatus.Text = "Target: NONE | Busy: " .. tostring(State.Busy) end
 			return
 		end
 
 		local primary =
 			ScanInventory()
 
+		if DiagnosticStatus then
+			DiagnosticStatus.Text =
+				"Target: " .. target.Name
+				.. " | Primary: " .. tostring(#primary)
+				.. " | Busy: " .. tostring(State.Busy)
+		end
+
+		DiagnosticLog(
+			"Scan -> target=" .. target.Name
+			.. " primary=" .. tostring(#primary)
+		)
+
+		for index, item in ipairs(primary) do
+			DiagnosticLog(
+				"Primary[" .. tostring(index) .. "] "
+				.. tostring(item.Name)
+				.. " | " .. tostring(item.Rarity)
+				.. " | ID=" .. tostring(item.DataID)
+				.. " | Amount=" .. tostring(item.Amount)
+			)
+		end
+
 		if #primary == 0 then
+			DiagnosticLog("STOP: approved target exists, but no primary item was detected.")
 			return
 		end
 
