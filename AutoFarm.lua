@@ -935,7 +935,17 @@ local function FarmRaycastSafeSurface(x,z,originY,depth)
         )
 
         if not result then return nil end
-        if not FarmIsUnsafeReturnPart(result.Instance) then return result end
+
+        -- A return surface must actually look like walkable ground.
+        -- Vertical walls / steep structures have a low Y normal and are rejected.
+        local walkable = result.Normal.Y >= 0.82
+        local usablePart = result.Instance and result.Instance:IsA("BasePart")
+            and result.Instance.CanCollide
+
+        if walkable and usablePart and not FarmIsUnsafeReturnPart(result.Instance) then
+            return result
+        end
+
         table.insert(ignore,result.Instance)
     end
     return nil
@@ -962,6 +972,8 @@ local function FarmRememberSafePosition()
     )
 
     if not result or FarmIsUnsafeReturnPart(result.Instance) then return end
+    if result.Normal.Y < 0.82 then return end
+    if not result.Instance:IsA("BasePart") or not result.Instance.CanCollide then return end
 
     local height = FarmHRP.Position.Y-result.Position.Y
     if height < 1.5 or height > 5.5 then return end
