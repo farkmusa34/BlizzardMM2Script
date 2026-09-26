@@ -69,8 +69,11 @@ Flags.AntiAFK =
 Flags.AntiDisconnect =
 	Flags.AntiDisconnect == true
 
-Flags.AutoSaveConfig =
-	Flags.AutoSaveConfig == true
+if Flags.AutoSaveConfig == nil then
+	Flags.AutoSaveConfig = true
+else
+	Flags.AutoSaveConfig = Flags.AutoSaveConfig == true
+end
 
 -- Quick Buttons defaults.
 Flags.QuickButtonsLocked =
@@ -773,7 +776,7 @@ local function LoadConfig()
 				for key,value in pairs(data.Flags) do
 					if ConfigValueSupported(value) then
 						if key == "Theme" and value == "Summer Event" then
-							value = "Blizzard Blue"
+							value = "Blizzard Mono"
 						end
 						Flags[key] = value
 					end
@@ -798,7 +801,7 @@ local function LoadConfig()
 	if success then
 
 		if Flags.Theme == "Summer Event" then
-			Flags.Theme = "Blizzard Blue"
+			Flags.Theme = "Blizzard Mono"
 		end
 
 		Flags.QuickButtonsLocked = Flags.QuickButtonsLocked == true
@@ -808,7 +811,7 @@ local function LoadConfig()
 			140
 		)
 
-		ApplyTheme(Flags.Theme or "Blizzard Blue")
+		ApplyTheme(Flags.Theme or "Blizzard Mono")
 
 		if UI.SetToggleState then
 			for key,value in pairs(Flags) do
@@ -837,9 +840,9 @@ local function LoadConfig()
 
 			pcall(function()
 				if ThemeDropdown.Select then
-					ThemeDropdown:Select(Flags.Theme or "Blizzard Blue")
+					ThemeDropdown:Select(Flags.Theme or "Blizzard Mono")
 				elseif ThemeDropdown.Set then
-					ThemeDropdown:Set(Flags.Theme or "Blizzard Blue")
+					ThemeDropdown:Set(Flags.Theme or "Blizzard Mono")
 				end
 			end)
 
@@ -917,17 +920,17 @@ local function ResetConfig()
 
 	SetAntiAFK(false)
 
-	Flags.Theme = "Blizzard Blue"
-	ApplyTheme("Blizzard Blue")
+	Flags.Theme = "Blizzard Mono"
+	ApplyTheme("Blizzard Mono")
 
 	if ThemeDropdown then
 		ApplyingTheme = true
 
 		pcall(function()
 			if ThemeDropdown.Select then
-				ThemeDropdown:Select("Blizzard Blue")
+				ThemeDropdown:Select("Blizzard Mono")
 			elseif ThemeDropdown.Set then
-				ThemeDropdown:Set("Blizzard Blue")
+				ThemeDropdown:Set("Blizzard Mono")
 			end
 		end)
 
@@ -1108,7 +1111,7 @@ UI.CreateActionFeature(
 local loadedConfig = LoadConfig()
 
 if not loadedConfig then
-	ApplyTheme(Flags.Theme or "Blizzard Blue")
+	ApplyTheme(Flags.Theme or "Blizzard Mono")
 end
 
 if UI.SetQuickButtonsLocked then
@@ -1124,9 +1127,9 @@ if ThemeDropdown then
 
 	pcall(function()
 		if ThemeDropdown.Select then
-			ThemeDropdown:Select(Flags.Theme or "Blizzard Blue")
+			ThemeDropdown:Select(Flags.Theme or "Blizzard Mono")
 		elseif ThemeDropdown.Set then
-			ThemeDropdown:Set(Flags.Theme or "Blizzard Blue")
+			ThemeDropdown:Set(Flags.Theme or "Blizzard Mono")
 		end
 	end)
 
