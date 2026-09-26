@@ -1,6 +1,6 @@
 --============================================================
 -- MM2 V8.8.4 - AutoFarm.lua
--- Coin Farm V14.0 precise upright safe return
+-- Coin Farm V13.8 local + nearest safe return
 --============================================================
 
 local MM2 = getgenv and getgenv().MM2_V85_SPLIT or _G.MM2_V85_SPLIT
@@ -19,7 +19,7 @@ Flags.ShootMurdererAfterBagFull = Flags.ShootMurdererAfterBagFull == true
 Flags.FlingMurdererAfterBagFull = Flags.FlingMurdererAfterBagFull == true
 Flags.ResetCharacterAfterBagFull = Flags.ResetCharacterAfterBagFull == true
 
-UI.AddSection(UI.AutoFarmPage,"Auto Farm","Coin Farm V14.0 precise upright safe return")
+UI.AddSection(UI.AutoFarmPage,"Auto Farm","Coin Farm V13.9 multi-floor stuck-proof return")
 
 UI.CreateToggle(
 	UI.AutoFarmPage,
@@ -156,6 +156,9 @@ local FARM_BAG_LIFT_TIMEOUT = 2.5
 --============================================================
 
 local AutoFarmRunning = false
+-- Shutdown generation prevents stale farm tasks from re-enabling movement/noclip.
+local FarmRunGeneration = 0
+local FarmLoopGeneration = nil
 local FarmPaused = false
 local FarmPauseReason = nil
 
@@ -887,33 +890,29 @@ end
 
 --============================================================
 -- Safe Position
--- V14.0: full-body clearance + controlled upright settle
+-- V13.9: multi-floor + clearance validation + stuck recovery
 --============================================================
 
-local FARM_RETURN_STAND_OFFSET = 2.95
+local FARM_RETURN_STAND_OFFSET = 2.90
 local FARM_RETURN_CAST_ABOVE = 220
 local FARM_RETURN_CAST_DEPTH = 520
 local FARM_RETURN_FALLBACK_RADIUS = 420
-local FARM_RETURN_FALLBACK_STEP = 10
+local FARM_RETURN_FALLBACK_STEP = 14
 local FARM_RETURN_FALLBACK_SAMPLES = 32
 
--- Stricter standing-space checks. The old version mostly used vertical rays,
--- which could miss furniture/walls clipping the sides of the character.
-local FARM_RETURN_BOX_SIZE = Vector3.new(4.2,5.8,4.2)
-local FARM_RETURN_BOX_Y_OFFSET = 2.95
-local FARM_RETURN_EDGE_SAMPLE_RADIUS = 1.65
-local FARM_RETURN_MIN_FLOOR_NORMAL = 0.90
-local FARM_RETURN_MAX_FLOOR_VARIANCE = 0.55
+-- A candidate floor is not accepted unless there is enough room for the rig.
+local FARM_RETURN_CLEARANCE_HEIGHT = 7.0
+local FARM_RETURN_CLEARANCE_RADIUS = 1.65
+local FARM_RETURN_EDGE_SAMPLE_RADIUS = 1.35
+local FARM_RETURN_MIN_FLOOR_NORMAL = 0.82
 
--- Controlled landing/settle values.
-local FARM_RETURN_HOVER_HEIGHT = 1.35
-local FARM_RETURN_HOLD_FRAMES = 10
-local FARM_RETURN_STABLE_FRAMES = 10
-local FARM_RETURN_VERIFY_TIMEOUT = 1.35
-local FARM_RETURN_MAX_ATTEMPTS = 5
-local FARM_RETURN_RECOVERY_RADIUS = 36
-local FARM_RETURN_RECOVERY_STEP = 5
-local FARM_RETURN_RECOVERY_SAMPLES = 24
+-- If Roblox leaves the humanoid in a broken recovery state, relocate once
+-- to another validated point instead of repeatedly forcing GettingUp in place.
+local FARM_RETURN_RECOVERY_TIMEOUT = 1.20
+local FARM_RETURN_VERIFY_TIMEOUT = 2.25
+local FARM_RETURN_RECOVERY_RADIUS = 24
+local FARM_RETURN_RECOVERY_STEP = 4
+local FARM_RETURN_RECOVERY_SAMPLES = 16
 
 local FarmLastSafeReturnCFrame = nil
 local FarmLastSafeReturnAt = 0
@@ -923,9 +922,9 @@ local function FarmIsUnsafeReturnPart(part)
     local node = part
     while node and node ~= workspace do
         local name = string.lower(node.Name)
-        if string.find(name,"glitchproof",1,true)
-            or string.find(name,"glitch proof",1,true)
-            or string.find(name,"coincontainer",1,true)
+        if string.find(name, "glitchproof", 1, true)
+            or string.find(name, "glitch proof", 1, true)
+            or string.find(name, "coincontainer", 1, true)
             or name == "coin_server" then
             return true
         end
@@ -950,31 +949,30 @@ local function FarmMakeRayParams(extraIgnore)
     return params
 end
 
-local function FarmMakeOverlapParams()
-    local params = OverlapParams.new()
-    params.FilterType = Enum.RaycastFilterType.Exclude
-    params.FilterDescendantsInstances = {FarmCharacter}
-    params.RespectCanCollide = true
-    params.MaxParts = 80
-    return params
-end
-
 local function FarmHasReturnClearance(surfacePosition)
     if not FarmCharacter then return false end
 
-    -- Test the actual volume the standing rig will occupy. Start the box just
-    -- above the floor so the floor itself is not falsely counted as an obstacle.
-    local center = surfacePosition + Vector3.new(0,FARM_RETURN_BOX_Y_OFFSET + 0.15,0)
-    local parts = workspace:GetPartBoundsInBox(
-        CFrame.new(center),
-        FARM_RETURN_BOX_SIZE,
-        FarmMakeOverlapParams()
-    )
+    -- Check a small cylinder-ish footprint around the character. This rejects
+    -- walls, pillars, furniture, undersides of stairs, and cramped floor edges.
+    local offsets = {
+        Vector3.new(0,0,0),
+        Vector3.new(FARM_RETURN_CLEARANCE_RADIUS,0,0),
+        Vector3.new(-FARM_RETURN_CLEARANCE_RADIUS,0,0),
+        Vector3.new(0,0,FARM_RETURN_CLEARANCE_RADIUS),
+        Vector3.new(0,0,-FARM_RETURN_CLEARANCE_RADIUS),
+    }
 
-    for _,part in ipairs(parts) do
-        if part:IsA("BasePart") and part.CanCollide then
-            -- Any collidable geometry in the standing volume means this point
-            -- is too close to a wall, prop, stair, ceiling, or other obstruction.
+    local params = FarmMakeRayParams()
+
+    for _,offset in ipairs(offsets) do
+        local origin = surfacePosition + offset + Vector3.new(0,0.20,0)
+        local hit = workspace:Raycast(
+            origin,
+            Vector3.new(0,FARM_RETURN_CLEARANCE_HEIGHT,0),
+            params
+        )
+
+        if hit and hit.Instance and hit.Instance.CanCollide then
             return false
         end
     end
@@ -983,21 +981,22 @@ local function FarmHasReturnClearance(surfacePosition)
 end
 
 local function FarmHasFloorSupport(x,z,surfaceY)
-    -- Nine support samples, including diagonals, reject ledges and uneven props.
-    local r = FARM_RETURN_EDGE_SAMPLE_RADIUS
+    -- Make sure the center and four nearby points belong to approximately the
+    -- same walkable level. This avoids returning on a tiny ledge or beside a wall.
     local offsets = {
         Vector2.new(0,0),
-        Vector2.new(r,0), Vector2.new(-r,0),
-        Vector2.new(0,r), Vector2.new(0,-r),
-        Vector2.new(r,r), Vector2.new(r,-r),
-        Vector2.new(-r,r), Vector2.new(-r,-r),
+        Vector2.new(FARM_RETURN_EDGE_SAMPLE_RADIUS,0),
+        Vector2.new(-FARM_RETURN_EDGE_SAMPLE_RADIUS,0),
+        Vector2.new(0,FARM_RETURN_EDGE_SAMPLE_RADIUS),
+        Vector2.new(0,-FARM_RETURN_EDGE_SAMPLE_RADIUS),
     }
 
     for _,offset in ipairs(offsets) do
+        local params = FarmMakeRayParams()
         local result = workspace:Raycast(
-            Vector3.new(x+offset.X,surfaceY+2.5,z+offset.Y),
-            Vector3.new(0,-5.0,0),
-            FarmMakeRayParams()
+            Vector3.new(x + offset.X, surfaceY + 3.0, z + offset.Y),
+            Vector3.new(0,-6.0,0),
+            params
         )
 
         if not result
@@ -1006,7 +1005,7 @@ local function FarmHasFloorSupport(x,z,surfaceY)
             or not result.Instance.CanCollide
             or FarmIsUnsafeReturnPart(result.Instance)
             or result.Normal.Y < FARM_RETURN_MIN_FLOOR_NORMAL
-            or math.abs(result.Position.Y-surfaceY) > FARM_RETURN_MAX_FLOOR_VARIANCE then
+            or math.abs(result.Position.Y - surfaceY) > 1.35 then
             return false
         end
     end
@@ -1023,6 +1022,7 @@ local function FarmValidateReturnResult(result)
     local p = result.Position
     if not FarmHasFloorSupport(p.X,p.Z,p.Y) then return false end
     if not FarmHasReturnClearance(p) then return false end
+
     return true
 end
 
@@ -1030,13 +1030,22 @@ local function FarmRaycastSafeSurface(x,z,originY,depth)
     local ignore = {FarmCharacter}
 
     for _ = 1,32 do
+        local params = FarmMakeRayParams(ignore)
         local result = workspace:Raycast(
             Vector3.new(x,originY,z),
             Vector3.new(0,-depth,0),
-            FarmMakeRayParams(ignore)
+            params
         )
+
         if not result then return nil end
-        if FarmValidateReturnResult(result) then return result end
+
+        if FarmValidateReturnResult(result) then
+            return result
+        end
+
+        -- Continue downward. This is important on Hotel and other multi-floor
+        -- maps: if one floor/roof is unsuitable, a valid lower floor can still
+        -- be selected rather than abandoning the whole X/Z column.
         table.insert(ignore,result.Instance)
     end
 
@@ -1044,13 +1053,17 @@ local function FarmRaycastSafeSurface(x,z,originY,depth)
 end
 
 local function FarmRememberSafePosition()
-    if not FarmUpdateCharacter() or not FarmHumanoid or FarmHumanoid.Health <= 0 then return end
+    if not FarmUpdateCharacter() or not FarmHumanoid or FarmHumanoid.Health <= 0 then
+        return
+    end
 
+    local params = FarmMakeRayParams()
     local result = workspace:Raycast(
-        FarmHRP.Position+Vector3.new(0,2,0),
+        FarmHRP.Position + Vector3.new(0,2,0),
         Vector3.new(0,-10,0),
-        FarmMakeRayParams()
+        params
     )
+
     if not FarmValidateReturnResult(result) then return end
 
     local height = FarmHRP.Position.Y-result.Position.Y
@@ -1063,224 +1076,199 @@ local function FarmRememberSafePosition()
     FarmLastSafeReturnAt = os.clock()
 end
 
-local function FarmFindNearestReturnSurface(current,maxRadius,step,samples,rejectPositions)
+local function FarmFindNearestReturnSurface(current, maxRadius, step, samples, rejectPosition)
     maxRadius = maxRadius or FARM_RETURN_FALLBACK_RADIUS
     step = step or FARM_RETURN_FALLBACK_STEP
     samples = samples or FARM_RETURN_FALLBACK_SAMPLES
-    rejectPositions = rejectPositions or {}
 
-    local castY = current.Y+FARM_RETURN_CAST_ABOVE
+    local castY = current.Y + FARM_RETURN_CAST_ABOVE
 
-    local function rejected(p)
-        for _,bad in ipairs(rejectPositions) do
-            local flat = Vector3.new(p.X-bad.X,0,p.Z-bad.Z)
-            if flat.Magnitude < 5.0 and math.abs(p.Y-bad.Y) < 4.0 then
-                return true
-            end
-        end
-        return false
+    local direct = FarmRaycastSafeSurface(
+        current.X,current.Z,castY,FARM_RETURN_CAST_DEPTH
+    )
+    if direct and (not rejectPosition or (direct.Position-rejectPosition).Magnitude >= 3.0) then
+        return direct
     end
-
-    local direct = FarmRaycastSafeSurface(current.X,current.Z,castY,FARM_RETURN_CAST_DEPTH)
-    if direct and not rejected(direct.Position) then return direct end
 
     for radius = step,maxRadius,step do
         local ringBest,ringBestScore = nil,math.huge
+
         for i = 0,samples-1 do
             local angle = (math.pi*2*i)/samples
-            local x = current.X+math.cos(angle)*radius
-            local z = current.Z+math.sin(angle)*radius
+            local x = current.X + math.cos(angle)*radius
+            local z = current.Z + math.sin(angle)*radius
             local result = FarmRaycastSafeSurface(x,z,castY,FARM_RETURN_CAST_DEPTH)
-            if result and not rejected(result.Position) then
-                local dx,dz = result.Position.X-current.X,result.Position.Z-current.Z
-                local score = math.sqrt(dx*dx+dz*dz)
-                if score < ringBestScore then
-                    ringBest,ringBestScore = result,score
+
+            if result then
+                local p = result.Position
+                if not rejectPosition or (p-rejectPosition).Magnitude >= 3.0 then
+                    local dx,dz = p.X-current.X,p.Z-current.Z
+                    local score = math.sqrt(dx*dx+dz*dz)
+                    if score < ringBestScore then
+                        ringBest,ringBestScore = result,score
+                    end
                 end
             end
         end
+
         if ringBest then return ringBest end
     end
+
     return nil
 end
 
-local function FarmCFrameFromSurface(result,yaw,heightExtra)
+local function FarmCFrameFromSurface(result,yaw)
     local p = result.Position
-    return CFrame.new(p.X,p.Y+FARM_RETURN_STAND_OFFSET+(heightExtra or 0),p.Z)
+    return CFrame.new(p.X,p.Y+FARM_RETURN_STAND_OFFSET,p.Z)
         * CFrame.Angles(0,yaw,0)
-end
-
-local function FarmReturnStateIsBad(state)
-    return state == Enum.HumanoidStateType.FallingDown
-        or state == Enum.HumanoidStateType.Ragdoll
-        or state == Enum.HumanoidStateType.PlatformStanding
-        or state == Enum.HumanoidStateType.Seated
 end
 
 local function FarmReturnToSafePosition()
     if not FarmUpdateCharacter() then return false end
 
     local _,currentYaw,_ = FarmHRP.CFrame:ToOrientation()
-    local searchOrigin = FarmHRP.Position
-    local rejected = {}
-    local preferred = nil
+    local target = nil
 
-    -- A remembered pre-farm position gets first priority only after it passes
-    -- every current floor + full-body clearance test again.
+    -- Revalidate the remembered point before using it. A saved point is useful,
+    -- but it must not bypass the new wall/ceiling/floor checks.
     if FarmLastSafeReturnCFrame then
         local saved = FarmLastSafeReturnCFrame.Position
-        local result = FarmRaycastSafeSurface(saved.X,saved.Z,saved.Y+8,16)
-        if result and math.abs((result.Position.Y+FARM_RETURN_STAND_OFFSET)-saved.Y) <= 1.25 then
-            preferred = result
+        local result = FarmRaycastSafeSurface(
+            saved.X,
+            saved.Z,
+            saved.Y + 8,
+            16
+        )
+
+        if result and math.abs((result.Position.Y + FARM_RETURN_STAND_OFFSET) - saved.Y) <= 2.0 then
+            target = FarmCFrameFromSurface(result,currentYaw)
         end
     end
 
-    local function hardResetAt(result)
-        if not result or not FarmUpdateCharacter() then return false end
+    if not target then
+        local result = FarmFindNearestReturnSurface(FarmHRP.Position)
+        if not result then return false end
+        target = FarmCFrameFromSurface(result,currentYaw)
+    end
 
-        local hover = FarmCFrameFromSurface(result,currentYaw,FARM_RETURN_HOVER_HEIGHT)
-        local stand = FarmCFrameFromSurface(result,currentYaw,0)
+    local function placeAt(cf)
+        if not FarmUpdateCharacter() then return false end
 
         pcall(function()
             FarmHumanoid.Sit = false
             FarmHumanoid.PlatformStand = false
             FarmHumanoid.AutoRotate = false
-            FarmHumanoid:ChangeState(Enum.HumanoidStateType.Physics)
-        end)
-
-        -- Keep the rig above the floor for a few frames. Noclip is still active
-        -- here, so old farm momentum/geometry cannot knock the rig sideways.
-        for _ = 1,FARM_RETURN_HOLD_FRAMES do
-            if not FarmUpdateCharacter() then return false end
-            FarmHRP.CFrame = hover
             FarmHRP.AssemblyLinearVelocity = Vector3.zero
             FarmHRP.AssemblyAngularVelocity = Vector3.zero
-            RunService.Heartbeat:Wait()
-        end
-
-        -- Put it at normal standing height while still controlled.
-        for _ = 1,4 do
-            if not FarmUpdateCharacter() then return false end
-            FarmHRP.CFrame = stand
+            FarmHRP.CFrame = cf
             FarmHRP.AssemblyLinearVelocity = Vector3.zero
             FarmHRP.AssemblyAngularVelocity = Vector3.zero
-            RunService.Heartbeat:Wait()
-        end
-
-        pcall(function()
-            FarmHumanoid.Sit = false
-            FarmHumanoid.PlatformStand = false
-            FarmHumanoid:ChangeState(Enum.HumanoidStateType.GettingUp)
-        end)
-        RunService.Heartbeat:Wait()
-        pcall(function()
-            FarmHumanoid:ChangeState(Enum.HumanoidStateType.Running)
         end)
 
-        return true,stand
+        return true
     end
 
-    for attempt = 1,FARM_RETURN_MAX_ATTEMPTS do
-        local result = preferred
-        preferred = nil
+    -- Short controlled placement.
+    for _ = 1,6 do
+        if not placeAt(target) then return false end
+        RunService.Heartbeat:Wait()
+    end
 
-        if not result then
-            result = FarmFindNearestReturnSurface(
-                searchOrigin,
-                attempt == 1 and FARM_RETURN_FALLBACK_RADIUS or FARM_RETURN_RECOVERY_RADIUS,
-                attempt == 1 and FARM_RETURN_FALLBACK_STEP or FARM_RETURN_RECOVERY_STEP,
-                attempt == 1 and FARM_RETURN_FALLBACK_SAMPLES or FARM_RETURN_RECOVERY_SAMPLES,
-                rejected
-            )
-        end
-        if not result then break end
+    pcall(function()
+        FarmHumanoid.Sit = false
+        FarmHumanoid.PlatformStand = false
+        FarmHumanoid:ChangeState(Enum.HumanoidStateType.Running)
+    end)
 
-        local ok,target = hardResetAt(result)
-        if not ok then return false end
+    local verifyStarted = os.clock()
+    local badStarted = nil
+    local stableFrames = 0
+    local recoveredOnce = false
 
-        -- Turn collisions back on BEFORE verification. This is the important
-        -- part: we test whether this exact spot can really support the rig.
-        FarmStopNoclip()
+    while os.clock()-verifyStarted < FARM_RETURN_VERIFY_TIMEOUT do
+        RunService.Heartbeat:Wait()
+        if not FarmUpdateCharacter() then return false end
 
-        local started = os.clock()
-        local stableFrames = 0
-        local failed = false
+        local state = FarmHumanoid:GetState()
+        local upDot = FarmHRP.CFrame.UpVector:Dot(Vector3.yAxis)
+        local displacement = (FarmHRP.Position-target.Position).Magnitude
 
-        while os.clock()-started < FARM_RETURN_VERIFY_TIMEOUT do
-            RunService.Heartbeat:Wait()
-            if not FarmUpdateCharacter() then return false end
+        local recoveryState =
+            state == Enum.HumanoidStateType.FallingDown
+            or state == Enum.HumanoidStateType.GettingUp
+            or state == Enum.HumanoidStateType.Ragdoll
+            or state == Enum.HumanoidStateType.PlatformStanding
 
-            local state = FarmHumanoid:GetState()
-            local upDot = FarmHRP.CFrame.UpVector:Dot(Vector3.yAxis)
-            local flatDelta = Vector3.new(
-                FarmHRP.Position.X-target.Position.X,
-                0,
-                FarmHRP.Position.Z-target.Position.Z
-            ).Magnitude
-            local yDelta = math.abs(FarmHRP.Position.Y-target.Position.Y)
-            local speed = FarmHRP.AssemblyLinearVelocity.Magnitude
+        local physicallyBad = upDot < 0.80 or displacement > 5.5
 
-            if FarmReturnStateIsBad(state)
-                or upDot < 0.94
-                or flatDelta > 2.25
-                or yDelta > 2.0 then
-                failed = true
-                break
-            end
+        if recoveryState or physicallyBad then
+            stableFrames = 0
+            badStarted = badStarted or os.clock()
 
-            if speed < 2.0 and upDot >= 0.985 and flatDelta < 1.0 and yDelta < 1.0 then
-                stableFrames += 1
-                if stableFrames >= FARM_RETURN_STABLE_FRAMES then
+            -- Do NOT spam GettingUp. The old version could remain trapped there
+            -- for many seconds. After the timeout, choose another validated floor.
+            if os.clock()-badStarted >= FARM_RETURN_RECOVERY_TIMEOUT then
+                if recoveredOnce then
+                    -- Last controlled attempt at the already validated target.
+                    placeAt(target)
+                    pcall(function()
+                        FarmHumanoid:ChangeState(Enum.HumanoidStateType.Running)
+                    end)
+                    badStarted = os.clock()
+                else
+                    recoveredOnce = true
+
+                    local badSurface = Vector3.new(
+                        target.Position.X,
+                        target.Position.Y-FARM_RETURN_STAND_OFFSET,
+                        target.Position.Z
+                    )
+
+                    local alternate = FarmFindNearestReturnSurface(
+                        FarmHRP.Position,
+                        FARM_RETURN_RECOVERY_RADIUS,
+                        FARM_RETURN_RECOVERY_STEP,
+                        FARM_RETURN_RECOVERY_SAMPLES,
+                        badSurface
+                    )
+
+                    if alternate then
+                        target = FarmCFrameFromSurface(alternate,currentYaw)
+                    end
+
+                    for _ = 1,6 do
+                        placeAt(target)
+                        RunService.Heartbeat:Wait()
+                    end
+
                     pcall(function()
                         FarmHumanoid.Sit = false
                         FarmHumanoid.PlatformStand = false
-                        FarmHumanoid.AutoRotate = true
-                        FarmHRP.AssemblyLinearVelocity = Vector3.zero
-                        FarmHRP.AssemblyAngularVelocity = Vector3.zero
                         FarmHumanoid:ChangeState(Enum.HumanoidStateType.Running)
                     end)
-                    return true
+
+                    badStarted = nil
                 end
-            else
-                stableFrames = 0
+            end
+        else
+            badStarted = nil
+            stableFrames += 1
+            if stableFrames >= 7 then
+                break
             end
         end
-
-        -- This candidate looked valid geometrically but failed with real
-        -- collisions, so never reuse it during this return attempt.
-        table.insert(rejected,result.Position)
-
-        if attempt < FARM_RETURN_MAX_ATTEMPTS then
-            -- Re-enable temporary noclip only while relocating to the next
-            -- candidate. It will be disabled again before verification.
-            FarmStartNoclip()
-            pcall(function()
-                FarmHumanoid.Sit = false
-                FarmHumanoid.PlatformStand = false
-                FarmHumanoid.AutoRotate = false
-                FarmHRP.AssemblyLinearVelocity = Vector3.zero
-                FarmHRP.AssemblyAngularVelocity = Vector3.zero
-            end)
-        end
     end
 
-    -- Fail-safe: never intentionally leave the character ragdolled.
-    FarmStopNoclip()
-    if FarmUpdateCharacter() then
-        pcall(function()
-            FarmHumanoid.Sit = false
-            FarmHumanoid.PlatformStand = false
-            FarmHumanoid.AutoRotate = true
-            FarmHRP.AssemblyLinearVelocity = Vector3.zero
-            FarmHRP.AssemblyAngularVelocity = Vector3.zero
-            FarmHumanoid:ChangeState(Enum.HumanoidStateType.GettingUp)
-        end)
-        RunService.Heartbeat:Wait()
-        pcall(function()
-            FarmHumanoid:ChangeState(Enum.HumanoidStateType.Running)
-        end)
-    end
-    return false
+    pcall(function()
+        FarmHumanoid.Sit = false
+        FarmHumanoid.PlatformStand = false
+        FarmHumanoid.AutoRotate = true
+        FarmHRP.AssemblyLinearVelocity = Vector3.zero
+        FarmHRP.AssemblyAngularVelocity = Vector3.zero
+        FarmHumanoid:ChangeState(Enum.HumanoidStateType.Running)
+    end)
+
+    return true
 end
 
 --============================================================
@@ -1526,6 +1514,7 @@ end
 --============================================================
 
 local function FarmBeginBagFullLift()
+	local bagGeneration = FarmRunGeneration
 	if FarmBagLiftInProgress or FarmBagLiftDone then
 		return
 	end
@@ -1560,6 +1549,7 @@ local function FarmBeginBagFullLift()
 		local started = os.clock()
 
 		while AutoFarmRunning
+			and bagGeneration == FarmRunGeneration
 			and MM2.Running
 			and FarmBagFull do
 
@@ -1579,12 +1569,14 @@ local function FarmBeginBagFullLift()
 			task.wait(0.03)
 		end
 
-		FarmStopNoclip()
-		FarmDestroyMovement()
-		FarmRestoreHRPSize()
+		if bagGeneration == FarmRunGeneration then
+			FarmStopNoclip()
+			FarmDestroyMovement()
+			FarmRestoreHRPSize()
 
-		FarmBagLiftInProgress = false
-		FarmBagLiftDone = true
+			FarmBagLiftInProgress = false
+			FarmBagLiftDone = true
+		end
 	end)
 end
 
@@ -1592,8 +1584,9 @@ end
 -- Main Farm Loop
 --============================================================
 
-local function FarmLoop()
-	while AutoFarmRunning and MM2.Running do
+local function FarmLoop(runGeneration)
+	FarmLoopGeneration = runGeneration
+	while AutoFarmRunning and MM2.Running and runGeneration == FarmRunGeneration do
 		if not Flags.AutoFarm then
 			break
 		end
@@ -1709,15 +1702,23 @@ local function FarmLoop()
 		task.wait(FARM_LOOP_DELAY)
 	end
 
-	AutoFarmRunning = false
-	FarmPaused = false
-	FarmPauseReason = nil
-	FarmBagLiftInProgress = false
+	-- Only the current generation may perform global cleanup. An old loop can
+	-- finish after OFF or after a new run has started; it must not touch either.
+	if runGeneration == FarmRunGeneration then
+		AutoFarmRunning = false
+		FarmPaused = false
+		FarmPauseReason = nil
+		FarmBagLiftInProgress = false
 
-	FarmReleaseTarget()
-	FarmStopNoclip()
-	FarmDestroyMovement()
-	FarmRestoreHRPSize()
+		FarmReleaseTarget()
+		FarmStopNoclip()
+		FarmDestroyMovement()
+		FarmRestoreHRPSize()
+	end
+
+	if FarmLoopGeneration == runGeneration then
+		FarmLoopGeneration = nil
+	end
 end
 
 --============================================================
@@ -1729,6 +1730,8 @@ function MM2.Functions.StartAutoFarm()
 		return
 	end
 
+	FarmRunGeneration += 1
+	local runGeneration = FarmRunGeneration
 	AutoFarmRunning = true
 	FarmPaused = false
 	FarmPauseReason = nil
@@ -1746,10 +1749,15 @@ function MM2.Functions.StartAutoFarm()
 	FarmRememberSafePosition()
 	FarmApplyHRPSize()
 
-	task.spawn(FarmLoop)
+	task.spawn(function()
+		FarmLoop(runGeneration)
+	end)
 end
 
 function MM2.Functions.StopAutoFarm()
+	-- Invalidate every task belonging to the current run before touching the
+	-- character. This is the key race-condition fix.
+	FarmRunGeneration += 1
 	AutoFarmRunning = false
 	FarmPaused = false
 	FarmPauseReason = nil
@@ -1761,12 +1769,18 @@ function MM2.Functions.StopAutoFarm()
 	-- Stop every force/target FIRST so nothing can keep dragging the
 	-- character while the return is being calculated.
 	FarmReleaseTarget()
+	FarmStopNoclip()
 	FarmDestroyMovement()
 	FarmRestoreHRPSize()
 
-	-- Keep noclip active only for the actual relocation. This prevents the
-	-- character from getting trapped in geometry while moving back to the
-	-- local surface. Then restore normal collisions immediately afterward.
+	-- Give any already-resumed stale iteration one scheduler turn to observe
+	-- the invalid generation. Then clean once more before relocating.
+	task.wait()
+	FarmStopNoclip()
+	FarmDestroyMovement()
+	FarmRestoreHRPSize()
+
+	-- Relocate only after all farm forces and noclip writers are dead.
 	FarmReturnToSafePosition()
 	FarmStopNoclip()
 
