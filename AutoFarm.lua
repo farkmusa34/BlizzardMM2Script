@@ -1,6 +1,6 @@
 --============================================================
 -- MM2 V8.8.4 - AutoFarm.lua
--- Coin Farm V13.7 safe local surface return
+-- Coin Farm V13.8 local + nearest safe return
 --============================================================
 
 local MM2 = getgenv and getgenv().MM2_V85_SPLIT or _G.MM2_V85_SPLIT
@@ -19,7 +19,7 @@ Flags.ShootMurdererAfterBagFull = Flags.ShootMurdererAfterBagFull == true
 Flags.FlingMurdererAfterBagFull = Flags.FlingMurdererAfterBagFull == true
 Flags.ResetCharacterAfterBagFull = Flags.ResetCharacterAfterBagFull == true
 
-UI.AddSection(UI.AutoFarmPage,"Auto Farm","Coin Farm V13.7 safe local surface return")
+UI.AddSection(UI.AutoFarmPage,"Auto Farm","Coin Farm V13.8 local + nearest safe return")
 
 UI.CreateToggle(
 	UI.AutoFarmPage,
@@ -889,9 +889,17 @@ end
 -- Safe Position
 --============================================================
 
-local FARM_RETURN_SEARCH_ABOVE = 14
-local FARM_RETURN_SEARCH_BELOW = 90
+local FARM_RETURN_SEARCH_ABOVE = 18
+local FARM_RETURN_DIRECT_DEPTH = 18
 local FARM_RETURN_STAND_OFFSET = 3.05
+
+-- If there is no usable surface directly above the underground farm
+-- position, search outward for the nearest safe map surface instead.
+local FARM_RETURN_FALLBACK_RADIUS = 120
+local FARM_RETURN_FALLBACK_STEP = 12
+local FARM_RETURN_FALLBACK_SAMPLES = 16
+local FARM_RETURN_FALLBACK_CAST_HEIGHT = 80
+local FARM_RETURN_FALLBACK_CAST_DEPTH = 180
 
 local function FarmIsUnsafeReturnPart(part)
 	if not part then
@@ -911,54 +919,114 @@ local function FarmIsUnsafeReturnPart(part)
 	return false
 end
 
-local function FarmReturnToSafePosition()
-	if not FarmUpdateCharacter() then
-		return false
-	end
-
-	-- V13.7: only search a short distance ABOVE the current farm position.
-	-- This preserves the current X/Z and returns above the structure/ground
-	-- the coin was actually near, without catching a GlitchProof layer tens
-	-- of studs overhead (the V13.6 +120 ray was able to do that).
-	local current = FarmHRP.Position
+local function FarmRaycastSafeSurface(x, z, originY, depth)
 	local ignore = {FarmCharacter}
-	local originY = current.Y + FARM_RETURN_SEARCH_ABOVE
-	local remaining = FARM_RETURN_SEARCH_ABOVE + FARM_RETURN_SEARCH_BELOW
-	local result = nil
 
-	for _ = 1, 12 do
+	for _ = 1, 16 do
 		local params = RaycastParams.new()
 		params.FilterType = Enum.RaycastFilterType.Exclude
 		params.FilterDescendantsInstances = ignore
 		params.IgnoreWater = true
 		params.RespectCanCollide = true
 
-		result = workspace:Raycast(
-			Vector3.new(current.X, originY, current.Z),
-			Vector3.new(0, -remaining, 0),
+		local result = workspace:Raycast(
+			Vector3.new(x, originY, z),
+			Vector3.new(0, -depth, 0),
 			params
 		)
 
 		if not result then
-			return false
+			return nil
 		end
 
 		if not FarmIsUnsafeReturnPart(result.Instance) then
-			break
+			return result
 		end
 
 		table.insert(ignore, result.Instance)
-		result = nil
 	end
+
+	return nil
+end
+
+local function FarmFindReturnSurface(current)
+	-- First choice: a surface directly ABOVE the current underground X/Z.
+	-- The short ray prevents unrelated high anti-glitch layers from winning.
+	local direct = FarmRaycastSafeSurface(
+		current.X,
+		current.Z,
+		current.Y + FARM_RETURN_SEARCH_ABOVE,
+		FARM_RETURN_DIRECT_DEPTH
+	)
+
+	if direct and direct.Position.Y >= current.Y - 0.25 then
+		return direct
+	end
+
+	-- Fallback: nothing useful is directly above us. Search expanding rings
+	-- around the current X/Z and choose the physically nearest safe surface.
+	local best = nil
+	local bestDistance = math.huge
+
+	for radius = FARM_RETURN_FALLBACK_STEP,
+		FARM_RETURN_FALLBACK_RADIUS,
+		FARM_RETURN_FALLBACK_STEP do
+
+		local foundOnRing = false
+
+		for i = 0, FARM_RETURN_FALLBACK_SAMPLES - 1 do
+			local angle = (math.pi * 2 * i) / FARM_RETURN_FALLBACK_SAMPLES
+			local x = current.X + math.cos(angle) * radius
+			local z = current.Z + math.sin(angle) * radius
+
+			local result = FarmRaycastSafeSurface(
+				x,
+				z,
+				current.Y + FARM_RETURN_FALLBACK_CAST_HEIGHT,
+				FARM_RETURN_FALLBACK_CAST_DEPTH
+			)
+
+			if result then
+				local surface = result.Position
+				local dx = surface.X - current.X
+				local dz = surface.Z - current.Z
+				local horizontalDistance = math.sqrt(dx * dx + dz * dz)
+
+				if horizontalDistance < bestDistance then
+					best = result
+					bestDistance = horizontalDistance
+					foundOnRing = true
+				end
+			end
+		end
+
+		-- Because rings expand outward, the first ring containing a safe
+		-- surface is already the nearest useful fallback area.
+		if foundOnRing and best then
+			break
+		end
+	end
+
+	return best
+end
+
+local function FarmReturnToSafePosition()
+	if not FarmUpdateCharacter() then
+		return false
+	end
+
+	local current = FarmHRP.Position
+	local result = FarmFindReturnSurface(current)
 
 	if not result then
 		return false
 	end
 
-	local targetY = result.Position.Y + FARM_RETURN_STAND_OFFSET
+	local surface = result.Position
+	local targetY = surface.Y + FARM_RETURN_STAND_OFFSET
 	local _,yaw,_ = FarmHRP.CFrame:ToOrientation()
 	local target =
-		CFrame.new(current.X, targetY, current.Z)
+		CFrame.new(surface.X, targetY, surface.Z)
 		* CFrame.Angles(0, yaw, 0)
 
 	pcall(function()
