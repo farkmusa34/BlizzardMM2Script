@@ -293,6 +293,9 @@ pcall(function()
 			Placeholder = "#9B9B9B",
 			Background = "#0B0B0C",
 			Button = "#252527",
+			-- Mono-only toggle treatment: dark when OFF, green when ON.
+			Toggle = "#43A047",
+			ToggleBar = "#FFFFFF",
 			Icon = "#FFFFFF",
 		})
 	end
@@ -587,8 +590,8 @@ task.spawn(function()
 	local profile = Instance.new("Frame")
 	profile.Name = "BlizzardPlayerProfile"
 	profile.AnchorPoint = Vector2.new(0,1)
-	profile.Position = UDim2.new(0,12,1,-12)
-	profile.Size = UDim2.new(1,-24,0,58)
+	profile.Position = UDim2.new(0,12,1,-5)
+	profile.Size = UDim2.new(1,-24,0,50)
 	profile.BackgroundTransparency = 1
 	profile.BorderSizePixel = 0
 	profile.ZIndex = 50
@@ -596,8 +599,8 @@ task.spawn(function()
 
 	local avatar = Instance.new("ImageLabel")
 	avatar.Name = "Avatar"
-	avatar.Size = UDim2.fromOffset(44,44)
-	avatar.Position = UDim2.new(0,0,0.5,-22)
+	avatar.Size = UDim2.fromOffset(40,40)
+	avatar.Position = UDim2.new(0,0,0.5,-20)
 	avatar.BackgroundColor3 = Color3.fromRGB(38,38,40)
 	avatar.BorderSizePixel = 0
 	avatar.ScaleType = Enum.ScaleType.Crop
@@ -611,8 +614,8 @@ task.spawn(function()
 	local displayName = Instance.new("TextLabel")
 	displayName.Name = "DisplayName"
 	displayName.BackgroundTransparency = 1
-	displayName.Position = UDim2.fromOffset(55,6)
-	displayName.Size = UDim2.new(1,-58,0,23)
+	displayName.Position = UDim2.fromOffset(50,4)
+	displayName.Size = UDim2.new(1,-53,0,22)
 	displayName.Font = Enum.Font.GothamSemibold
 	displayName.Text = LocalPlayer.DisplayName
 	displayName.TextColor3 = Color3.fromRGB(245,245,245)
@@ -625,8 +628,8 @@ task.spawn(function()
 	local username = Instance.new("TextLabel")
 	username.Name = "Username"
 	username.BackgroundTransparency = 1
-	username.Position = UDim2.fromOffset(55,29)
-	username.Size = UDim2.new(1,-58,0,19)
+	username.Position = UDim2.fromOffset(50,26)
+	username.Size = UDim2.new(1,-53,0,18)
 	username.Font = Enum.Font.Gotham
 	username.Text = "@" .. LocalPlayer.Name
 	username.TextColor3 = Color3.fromRGB(155,155,160)
