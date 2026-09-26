@@ -460,6 +460,12 @@ CreateLatestUpdateTag(
 
 UI.WindTabs = {}
 
+UI.WindTabs.Player =
+	Window:Tab({
+		Title = "Player",
+		Icon = "shield-check"
+	})
+
 UI.WindTabs.Visuals =
 	Window:Tab({
 		Title = "Visuals",
@@ -470,12 +476,6 @@ UI.WindTabs.Combat =
 	Window:Tab({
 		Title = "Combat",
 		Icon = "crosshair"
-	})
-
-UI.WindTabs.Player =
-	Window:Tab({
-		Title = "Player",
-		Icon = "shield-check"
 	})
 
 UI.WindTabs.Teleport =
@@ -1172,7 +1172,8 @@ function UI.CreateActionFeature(
 	page,
 	titleText,
 	description,
-	callback
+	callback,
+	icon
 )
 
 	local parent =
@@ -1203,6 +1204,8 @@ function UI.CreateActionFeature(
 					tostring(
 						description or ""
 					),
+
+				Icon = icon,
 
 				Callback =
 					function()
