@@ -1009,32 +1009,83 @@ end
 local function FarmReturnToSafePosition()
     if not FarmUpdateCharacter() then return false end
 
-    -- Best option: the last floor we KNOW the character was standing on.
     local target = FarmLastSafeReturnCFrame
-
-    -- Backup for cases where farming was enabled before we managed to record one.
     if not target then
         local result = FarmFindNearestReturnSurface(FarmHRP.Position)
         if not result then return false end
         local surface = result.Position
         local _,yaw,_ = FarmHRP.CFrame:ToOrientation()
-        target =
-            CFrame.new(surface.X,surface.Y+FARM_RETURN_STAND_OFFSET,surface.Z)
-            * CFrame.Angles(0,yaw,0)
+        target = CFrame.new(surface.X,surface.Y+FARM_RETURN_STAND_OFFSET,surface.Z) * CFrame.Angles(0,yaw,0)
     end
 
-    local ok = pcall(function()
+    -- Always make the saved return rotation upright: preserve yaw only.
+    local _,yaw,_ = target:ToOrientation()
+    target = CFrame.new(target.Position) * CFrame.Angles(0,yaw,0)
+
+    local function resetAtTarget()
+        if not FarmUpdateCharacter() then return false end
+        pcall(function()
+            FarmHumanoid.Sit = false
+            FarmHumanoid.PlatformStand = false
+            FarmHumanoid.AutoRotate = false
+            FarmHRP.AssemblyLinearVelocity = Vector3.zero
+            FarmHRP.AssemblyAngularVelocity = Vector3.zero
+            FarmHRP.CFrame = target
+            FarmHRP.AssemblyLinearVelocity = Vector3.zero
+            FarmHRP.AssemblyAngularVelocity = Vector3.zero
+        end)
+        return true
+    end
+
+    -- Hold the rig upright briefly so leftover farm momentum/physics cannot
+    -- immediately throw it sideways or through the floor.
+    for _ = 1,8 do
+        if not resetAtTarget() then return false end
+        RunService.Heartbeat:Wait()
+    end
+
+    pcall(function()
         FarmHumanoid.Sit = false
         FarmHumanoid.PlatformStand = false
-        FarmHRP.AssemblyLinearVelocity = Vector3.zero
-        FarmHRP.AssemblyAngularVelocity = Vector3.zero
-        FarmHRP.CFrame = target
-        FarmHRP.AssemblyLinearVelocity = Vector3.zero
-        FarmHRP.AssemblyAngularVelocity = Vector3.zero
         FarmHumanoid:ChangeState(Enum.HumanoidStateType.GettingUp)
     end)
 
-    return ok
+    -- Verify that the character actually stays upright and near the return
+    -- point. Retry automatically if physics knocks it over or drops it away.
+    local stable = 0
+    for _ = 1,24 do
+        RunService.Heartbeat:Wait()
+        if not FarmUpdateCharacter() then return false end
+
+        local state = FarmHumanoid:GetState()
+        local upDot = FarmHRP.CFrame.UpVector:Dot(Vector3.yAxis)
+        local displacement = (FarmHRP.Position-target.Position).Magnitude
+        local badState = state == Enum.HumanoidStateType.FallingDown
+            or state == Enum.HumanoidStateType.Ragdoll
+            or state == Enum.HumanoidStateType.PlatformStanding
+
+        if upDot < 0.82 or displacement > 5 or badState then
+            stable = 0
+            resetAtTarget()
+            pcall(function()
+                FarmHumanoid:ChangeState(Enum.HumanoidStateType.GettingUp)
+            end)
+        else
+            stable += 1
+            if stable >= 5 then break end
+        end
+    end
+
+    pcall(function()
+        FarmHumanoid.Sit = false
+        FarmHumanoid.PlatformStand = false
+        FarmHumanoid.AutoRotate = true
+        FarmHRP.AssemblyLinearVelocity = Vector3.zero
+        FarmHRP.AssemblyAngularVelocity = Vector3.zero
+        FarmHumanoid:ChangeState(Enum.HumanoidStateType.Running)
+    end)
+
+    return true
 end
 
 --============================================================
