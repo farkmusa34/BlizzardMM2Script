@@ -1,6 +1,6 @@
 --============================================================
 -- MM2 V8.8.4 - AutoFarm.lua
--- Coin Farm V13.5 contact retry
+-- Coin Farm V13.6 surface return
 --============================================================
 
 local MM2 = getgenv and getgenv().MM2_V85_SPLIT or _G.MM2_V85_SPLIT
@@ -18,9 +18,8 @@ Flags.KillAllAfterBagFull = Flags.KillAllAfterBagFull == true
 Flags.ShootMurdererAfterBagFull = Flags.ShootMurdererAfterBagFull == true
 Flags.FlingMurdererAfterBagFull = Flags.FlingMurdererAfterBagFull == true
 Flags.ResetCharacterAfterBagFull = Flags.ResetCharacterAfterBagFull == true
-Flags.StayUndergroundAfterBagFull = Flags.StayUndergroundAfterBagFull == true
 
-UI.AddSection(UI.AutoFarmPage,"Auto Farm","Coin Farm V13.5 contact retry")
+UI.AddSection(UI.AutoFarmPage,"Auto Farm","Coin Farm V13.6 surface return")
 
 UI.CreateToggle(
 	UI.AutoFarmPage,
@@ -151,8 +150,6 @@ local FARM_REARM_SKIP_TIME = 1.50
 local FARM_BAG_LIFT_HEIGHT = 6
 local FARM_BAG_LIFT_REACHED_DISTANCE = 0.75
 local FARM_BAG_LIFT_TIMEOUT = 2.5
-local FARM_UNDERGROUND_OFFSET = 6
-local FARM_UNDERGROUND_TIMEOUT = 2.5
 
 --============================================================
 -- State
@@ -189,7 +186,6 @@ local FarmCurrentTouch = nil
 local FarmNoclipConnection = nil
 local FarmOriginalCollision = {}
 
-local FarmSafeReturnCFrame = nil
 local FarmOriginalHRPSize = nil
 local FarmSizedHRP = nil
 
@@ -466,11 +462,7 @@ local function FarmStartNoclip()
 
 	FarmNoclipConnection = RunService.Stepped:Connect(function()
 		if not AutoFarmRunning
-			or (
-				FarmPaused
-				and not FarmBagLiftInProgress
-				and not Flags.StayUndergroundAfterBagFull
-			) then
+			or (FarmPaused and not FarmBagLiftInProgress) then
 			return
 		end
 
@@ -898,14 +890,36 @@ end
 --============================================================
 
 local function FarmReturnToSafePosition()
-	if not FarmSafeReturnCFrame or not FarmUpdateCharacter() then
+	if not FarmUpdateCharacter() then
 		return
 	end
+
+	-- V13.6: return to the surface at the CURRENT farm X/Z instead of
+	-- teleporting back to the position where Auto Farm was enabled.
+	local params = RaycastParams.new()
+	params.FilterType = Enum.RaycastFilterType.Exclude
+	params.FilterDescendantsInstances = {FarmCharacter}
+	params.IgnoreWater = true
+	params.RespectCanCollide = true
+
+	local current = FarmHRP.Position
+	local origin = Vector3.new(current.X, current.Y + 120, current.Z)
+	local result = workspace:Raycast(origin, Vector3.new(0,-320,0), params)
+
+	if not result then
+		return
+	end
+
+	-- Normal HRP standing height is ~3 studs above a floor. A tiny extra
+	-- margin keeps the character from spawning partially inside the surface.
+	local targetY = result.Position.Y + 3.05
+	local _,yaw,_ = FarmHRP.CFrame:ToOrientation()
+	local target = CFrame.new(current.X,targetY,current.Z) * CFrame.Angles(0,yaw,0)
 
 	pcall(function()
 		FarmHRP.AssemblyLinearVelocity = Vector3.zero
 		FarmHRP.AssemblyAngularVelocity = Vector3.zero
-		FarmHRP.CFrame = FarmSafeReturnCFrame
+		FarmHRP.CFrame = target
 		FarmHRP.AssemblyLinearVelocity = Vector3.zero
 		FarmHRP.AssemblyAngularVelocity = Vector3.zero
 	end)
@@ -943,9 +957,6 @@ local function FarmWake()
 		return false
 	end
 
-	if not FarmSafeReturnCFrame then
-		FarmSafeReturnCFrame = FarmHRP.CFrame
-	end
 
 	FarmApplyHRPSize()
 
@@ -1055,56 +1066,6 @@ local function FarmFindGroundY()
 	return nil
 end
 
-local function FarmMoveUnderground()
-	if not FarmUpdateCharacter() or not FarmEnsureMovement() then
-		return false
-	end
-
-	if not FarmNoclipConnection then
-		FarmStartNoclip()
-	end
-
-	local floorY = FarmFindGroundY()
-	if not floorY then
-		return false
-	end
-
-	local target =
-		Vector3.new(
-			FarmHRP.Position.X,
-			floorY-FARM_UNDERGROUND_OFFSET,
-			FarmHRP.Position.Z
-		)
-
-	FarmPositionAlign.Position = target
-	local started = os.clock()
-
-	while AutoFarmRunning
-		and MM2.Running
-		and FarmBagFull
-		and Flags.StayUndergroundAfterBagFull do
-
-		if not FarmUpdateCharacter() or not FarmPositionAlign then
-			break
-		end
-
-		FarmPositionAlign.Position = target
-
-		if (FarmHRP.Position-target).Magnitude
-			<= FARM_BAG_LIFT_REACHED_DISTANCE then
-			return true
-		end
-
-		if os.clock()-started >= FARM_UNDERGROUND_TIMEOUT then
-			break
-		end
-
-		task.wait(0.03)
-	end
-
-	return false
-end
-
 --============================================================
 -- After Bag Full Actions
 --============================================================
@@ -1184,7 +1145,6 @@ local function FarmRunAfterBagFullActions()
 		end
 
 		if Flags.ResetCharacterAfterBagFull
-			and not Flags.StayUndergroundAfterBagFull
 			and not killAllRan then
 
 			task.wait(0.15)
@@ -1219,40 +1179,6 @@ local function FarmBeginBagFullLift()
 	FarmReleaseTarget()
 	FarmRunAfterBagFullActions()
 
-	if Flags.StayUndergroundAfterBagFull then
-		task.spawn(function()
-			FarmMoveUnderground()
-
-			FarmBagLiftInProgress = false
-			FarmBagLiftDone = true
-
-			while AutoFarmRunning
-				and MM2.Running
-				and FarmBagFull
-				and Flags.StayUndergroundAfterBagFull do
-
-				if FarmUpdateCharacter() and FarmPositionAlign then
-					local floorY = FarmFindGroundY()
-					if floorY then
-						FarmPositionAlign.Position =
-							Vector3.new(
-								FarmHRP.Position.X,
-								floorY-FARM_UNDERGROUND_OFFSET,
-								FarmHRP.Position.Z
-							)
-					end
-				end
-
-				task.wait(0.20)
-			end
-
-			FarmStopNoclip()
-			FarmDestroyMovement()
-			FarmRestoreHRPSize()
-		end)
-
-		return
-	end
 
 	task.spawn(function()
 		if not FarmUpdateCharacter() or not FarmEnsureMovement() then
@@ -1452,7 +1378,6 @@ function MM2.Functions.StartAutoFarm()
 	FarmBagLiftDone = false
 	FarmAfterBagFullHandled = false
 	FarmAfterBagActionBusy = false
-	FarmSafeReturnCFrame = nil
 	FarmCurrentCoin = nil
 	FarmCurrentTouch = nil
 
@@ -1481,7 +1406,6 @@ function MM2.Functions.StopAutoFarm()
 	FarmRestoreHRPSize()
 
 	table.clear(FarmCoinSkipUntil)
-	FarmSafeReturnCFrame = nil
 end
 
 function MM2.Functions.UpdateAutoFarm()
@@ -1529,47 +1453,8 @@ UI.CreateToggle(
 	UI.AutoFarmPage,
 	"Reset Character After Bag Full",
 	"Resets your character after bag full",
-	"ResetCharacterAfterBagFull",
-	function(on)
-		if on and UI.SetToggleState then
-			UI.SetToggleState(
-				"StayUndergroundAfterBagFull",
-				false,
-				false
-			)
-		end
-	end
+	"ResetCharacterAfterBagFull"
 )
-
-UI.CreateToggle(
-	UI.AutoFarmPage,
-	"Stay Underground After Bag Full",
-	"Moves 6 studs below the map floor after bag full",
-	"StayUndergroundAfterBagFull",
-	function(on)
-		if on and UI.SetToggleState then
-			UI.SetToggleState(
-				"ResetCharacterAfterBagFull",
-				false,
-				false
-			)
-		end
-	end
-)
-
-if Flags.ResetCharacterAfterBagFull
-	and Flags.StayUndergroundAfterBagFull then
-
-	Flags.StayUndergroundAfterBagFull = false
-
-	if UI.SetToggleState then
-		UI.SetToggleState(
-			"StayUndergroundAfterBagFull",
-			false,
-			false
-		)
-	end
-end
 
 --============================================================
 -- Stats
@@ -1713,7 +1598,6 @@ local function FarmResetBag()
 	FarmBagLiftDone = false
 	FarmAfterBagFullHandled = false
 	FarmAfterBagActionBusy = false
-	FarmSafeReturnCFrame = nil
 
 	table.clear(FarmCoinSkipUntil)
 	FarmReleaseTarget()

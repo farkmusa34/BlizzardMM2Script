@@ -1094,9 +1094,9 @@ function UI.CreateToggle(
 									or "Disabled!",
 
 								Icon =
-									value
-									and "check"
-									or "x",
+									flagName == "AutoFarm"
+									and "bot"
+									or (value and "check" or "x"),
 
 								Duration = 2.5,
 							})
