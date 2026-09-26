@@ -2207,7 +2207,7 @@ task.spawn(function()
     status.BackgroundTransparency = 1
     status.TextWrapped = true
     status.TextScaled = true
-    status.Text = "CLEAR, then use ON/OFF multiple times. COPY when finished."
+    status.Text = "PASSIVE WATCHER: use the REAL AutoFarm toggle. CLEAR/COPY only."
     status.Parent = frame
 
     local function button(text, x, y, w)
@@ -2220,32 +2220,8 @@ task.spawn(function()
         return b
     end
 
-    local onButton = button("AUTO FARM ON", 10, 82, 150)
-    local offButton = button("AUTO FARM OFF", 170, 82, 150)
-    local clearButton = button("CLEAR LOGS", 10, 126, 150)
-    local copyButton = button("COPY LOGS", 170, 126, 150)
-    local snapButton = button("SNAPSHOT STATE", 10, 170, 310)
-
-    onButton.MouseButton1Click:Connect(function()
-        FarmDiag("================================================")
-        FarmDiag("MANUAL AUTO FARM ON pressed")
-        FarmDiagState("BEFORE MANUAL ON")
-        Flags.AutoFarm = true
-        MM2.Functions.UpdateAutoFarm()
-        FarmDiagState("AFTER MANUAL ON")
-        status.Text = "Auto Farm ON marked. Let it run, then press OFF."
-    end)
-
-    offButton.MouseButton1Click:Connect(function()
-        FarmDiag("================================================")
-        FarmDiag("MANUAL AUTO FARM OFF pressed")
-        FarmDiagState("BEFORE MANUAL OFF")
-        Flags.AutoFarm = false
-        MM2.Functions.UpdateAutoFarm()
-        FarmDiagMarkTime = os.clock()
-        FarmDiagState("AFTER MANUAL OFF")
-        status.Text = "Auto Farm OFF marked. Wait a few seconds or turn it ON again."
-    end)
+    local clearButton = button("CLEAR LOGS", 10, 82, 150)
+    local copyButton = button("COPY LOGS", 170, 82, 150)
 
     clearButton.MouseButton1Click:Connect(function()
         table.clear(FarmDiagLogs)
@@ -2254,11 +2230,11 @@ task.spawn(function()
         FarmDiagLastUpdateRunning = AutoFarmRunning
         FarmDiag("LOGS CLEARED - NEW TEST STARTED")
         FarmDiagState("CLEAR BASELINE")
-        status.Text = "Logs cleared. Start testing with ON/OFF."
+        status.Text = "Logs cleared. Use the REAL AutoFarm toggle; this diagnostic only watches."
     end)
 
     copyButton.MouseButton1Click:Connect(function()
-        FarmDiagState("COPY SNAPSHOT")
+        FarmDiagState("COPY CURRENT STATE")
         local text = table.concat(FarmDiagLogs, "\n")
         if setclipboard then
             local ok = pcall(setclipboard, text)
@@ -2271,10 +2247,6 @@ task.spawn(function()
         end
     end)
 
-    snapButton.MouseButton1Click:Connect(function()
-        FarmDiagState("MANUAL SNAPSHOT")
-        status.Text = "Snapshot added. Keep testing or COPY LOGS."
-    end)
 
     FarmDiag("EMBEDDED AUTOFARM DIAGNOSTIC GUI LOADED")
     FarmDiagState("INITIAL STATE")
