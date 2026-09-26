@@ -1,6 +1,6 @@
 --============================================================
 -- Blizzard MM2 v1.85.4 - UI.lua
--- SIMPLE WINDUI BRIDGE
+-- MONO / BLACK-GRAY WINDUI BRIDGE
 --
 -- WindUI owns the visible menu and toolbar.
 -- WindUI sections keep their original appearance,
@@ -70,8 +70,8 @@ local COLORS = {
 	Stroke = Color3.fromRGB(54,57,68),
 	Text = Color3.fromRGB(240,242,248),
 	Muted = Color3.fromRGB(157,163,178),
-	Accent = Color3.fromRGB(64,174,255),
-	Accent2 = Color3.fromRGB(75,230,255),
+	Accent = Color3.fromRGB(245,245,245),
+	Accent2 = Color3.fromRGB(190,190,195),
 	Success = Color3.fromRGB(80,215,135),
 	Danger = Color3.fromRGB(255,92,105),
 }
@@ -276,6 +276,28 @@ assert(
 
 UI.WindUI = WindUI
 
+--============================================================
+-- BLIZZARD MONO THEME
+-- Black / charcoal surfaces with white controls and icons.
+-- Existing WindUI toggle geometry is preserved, so toggles stay pill-shaped.
+--============================================================
+
+pcall(function()
+	if WindUI.AddTheme then
+		WindUI:AddTheme({
+			Name = "Blizzard Mono",
+			Accent = "#FFFFFF",
+			Dialog = "#151515",
+			Outline = "#343434",
+			Text = "#F5F5F5",
+			Placeholder = "#9B9B9B",
+			Background = "#0B0B0C",
+			Button = "#252527",
+			Icon = "#FFFFFF",
+		})
+	end
+end)
+
 local Window =
 	WindUI:CreateWindow({
 		Title = "Blizzard MM2",
@@ -283,8 +305,8 @@ local Window =
 		Folder = "BlizzardMM2",
 		Icon = "gamepad-2",
 
-		-- Blizzard Blue factory/default appearance.
-		Theme = "Sky",
+		-- Black / gray / white factory appearance.
+		Theme = "Blizzard Mono",
 
 		Size =
 			UDim2.fromOffset(
@@ -336,14 +358,14 @@ end)
 -- Misc.lua controls this color whenever the selected
 -- appearance/theme changes.
 --
--- Blizzard Blue is used before Misc.lua has loaded.
+-- White/mono accent is used before Misc.lua has loaded.
 --============================================================
 
 local DEFAULT_BLIZZARD_BLUE =
 	Color3.fromRGB(
-		55,
-		145,
-		255
+		245,
+		245,
+		245
 	)
 
 UI.CurrentThemeAccent =
@@ -1938,7 +1960,7 @@ UI.ShowPage(
 )
 
 print(
-	"[Blizzard MM2 UI] Simple WindUI bridge v1.85.4 loaded"
+	"[Blizzard MM2 UI] Blizzard Mono WindUI bridge v1.85.4 loaded"
 )
 
 return MM2

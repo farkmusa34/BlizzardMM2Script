@@ -10,9 +10,9 @@
 --   UI
 --
 -- Theme system:
---   * Blizzard Blue is the factory/default theme.
+--   * Blizzard Mono is the factory/default theme.
 --   * Crimson and all existing themes remain available.
---   * Old "Summer Event" configs migrate to Blizzard Blue.
+--   * Old "Summer Event" configs migrate to Blizzard Mono.
 --   * Latest Update tag can follow the selected theme.
 --============================================================
 
@@ -54,14 +54,14 @@ local VirtualUser =
 --============================================================
 
 -- Migrate the old factory theme.
-if Flags.Theme == "Summer Event" then
-	Flags.Theme = "Blizzard Blue"
+if Flags.Theme == "Summer Event" or Flags.Theme == "Blizzard Blue" then
+	Flags.Theme = "Blizzard Mono"
 end
 
 Flags.Theme =
 	typeof(Flags.Theme) == "string"
 	and Flags.Theme
-	or "Blizzard Blue"
+	or "Blizzard Mono"
 
 Flags.AntiAFK =
 	Flags.AntiAFK == true
@@ -139,6 +139,7 @@ local DefaultPlayerSettings =
 --============================================================
 
 local ThemeOrder = {
+	"Blizzard Mono",
 	"Blizzard Blue",
 	"Crimson",
 	"Dark",
@@ -152,6 +153,9 @@ local ThemeOrder = {
 }
 
 local WindThemeMap = {
+
+	["Blizzard Mono"] =
+		"Blizzard Mono",
 
 	["Blizzard Blue"] =
 		"Sky",
@@ -189,6 +193,9 @@ local WindThemeMap = {
 --============================================================
 
 local ThemeAccentColors = {
+
+	["Blizzard Mono"] =
+		Color3.fromRGB(245,245,245),
 
 	["Blizzard Blue"] =
 		Color3.fromRGB(55,145,255),
@@ -260,7 +267,7 @@ local function UpdateLatestUpdateAccent(themeName)
 
 	local color =
 		ThemeAccentColors[themeName]
-		or ThemeAccentColors["Blizzard Blue"]
+		or ThemeAccentColors["Blizzard Mono"]
 
 	if UI.SetLatestUpdateTheme then
 		pcall(function()
@@ -274,20 +281,20 @@ end
 local function ApplyTheme(themeName)
 
 	if themeName == "Summer Event" then
-		themeName = "Blizzard Blue"
+		themeName = "Blizzard Mono"
 	end
 
 	if typeof(themeName) ~= "string"
 		or not WindThemeMap[themeName]
 	then
-		themeName = "Blizzard Blue"
+		themeName = "Blizzard Mono"
 	end
 
 	Flags.Theme = themeName
 
 	local windTheme =
 		WindThemeMap[themeName]
-		or "Sky"
+		or "Blizzard Mono"
 
 	if UI.WindUI
 		and UI.WindUI.SetTheme
