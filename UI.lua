@@ -324,7 +324,7 @@ pcall(function()
 			OnlyMobile = false,
 			CornerRadius = UDim.new(1,0),
 			StrokeThickness = 2,
-			Scale = 0.8,
+			Scale = 1,
 		})
 	end
 end)
