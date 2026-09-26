@@ -768,7 +768,7 @@ UI.CreateActionFeature(
 	"Perform one timed Fake Bomb jump",
 	function() TriggerBombJump() end,
 	"bomb",
-	{ Color = Color3.fromRGB(235,145,45) }
+	"orange"
 )
 
 UI.CreateToggle(

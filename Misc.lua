@@ -403,7 +403,8 @@ UI.CreateActionFeature(
 		if UI.ResetQuickButtonPositions then
 			UI.ResetQuickButtonPositions()
 		end
-	end
+	end,
+	"undo-2"
 )
 
 -- Apply saved/current values immediately to buttons that already exist.
@@ -974,7 +975,7 @@ UI.CreateActionFeature(
 	function()
 		ResetConfig()
 	end,
-	"undo-2"
+	"rotate-ccw"
 )
 
 --============================================================
@@ -1108,7 +1109,7 @@ UI.CreateActionFeature(
 		UnloadMenu()
 	end,
 	"power",
-	{ Color = Color3.fromRGB(205,65,70) }
+	"danger"
 )
 
 --============================================================

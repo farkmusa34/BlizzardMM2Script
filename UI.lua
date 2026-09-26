@@ -1056,6 +1056,40 @@ function UI.CreateInfo(
 
 		control = result
 
+		-- Optional semantic action styling. WindUI does not expose a
+		-- per-button fill option consistently, so style its actual element.
+		local ACTION_COLORS = {
+			danger = Color3.fromRGB(150,45,52),
+			blue = Color3.fromRGB(45,88,155),
+			purple = Color3.fromRGB(105,65,155),
+			orange = Color3.fromRGB(170,92,38),
+		}
+
+		local fill = ACTION_COLORS[style]
+		if fill and control then
+			local function applyActionFill()
+				local root = control.ElementFrame or control.Frame or control.Root
+				if typeof(root) ~= "Instance" then return end
+				-- Prefer the root card itself; fall back to the largest visible frame.
+				local target = root:IsA("Frame") and root or nil
+				if not target then
+					local bestArea = -1
+					for _,obj in ipairs(root:GetDescendants()) do
+						if obj:IsA("Frame") and obj.BackgroundTransparency < 1 then
+							local area = obj.AbsoluteSize.X * obj.AbsoluteSize.Y
+							if area > bestArea then target,bestArea = obj,area end
+						end
+					end
+				end
+				if target then
+					target.BackgroundColor3 = fill
+					target.BackgroundTransparency = math.min(target.BackgroundTransparency,0.08)
+				end
+			end
+			task.defer(applyActionFill)
+			task.delay(0.15,applyActionFill)
+		end
+
 	else
 
 		warn(
@@ -1249,6 +1283,36 @@ function UI.CreateToggle(
 
 		control = result
 
+		local ACTION_COLORS = {
+			danger = Color3.fromRGB(150,45,52),
+			blue = Color3.fromRGB(45,88,155),
+			purple = Color3.fromRGB(105,65,155),
+			orange = Color3.fromRGB(170,92,38),
+		}
+		local fill = ACTION_COLORS[style]
+		if fill and control then
+			local function applyActionFill()
+				local root = control.ElementFrame or control.Frame or control.Root
+				if typeof(root) ~= "Instance" then return end
+				local target = root:IsA("Frame") and root or nil
+				if not target then
+					local bestArea = -1
+					for _,obj in ipairs(root:GetDescendants()) do
+						if obj:IsA("Frame") and obj.BackgroundTransparency < 1 then
+							local area = obj.AbsoluteSize.X * obj.AbsoluteSize.Y
+							if area > bestArea then target,bestArea = obj,area end
+						end
+					end
+				end
+				if target then
+					target.BackgroundColor3 = fill
+					target.BackgroundTransparency = math.min(target.BackgroundTransparency,0.08)
+				end
+			end
+			task.defer(applyActionFill)
+			task.delay(0.15,applyActionFill)
+		end
+
 	else
 
 		warn(
@@ -1348,9 +1412,6 @@ function UI.CreateActionFeature(
 
 				Icon = icon,
 
-				-- Optional per-action accent/fill. WindUI ignores unsupported fields safely.
-				Color = style and style.Color or nil,
-
 				Callback =
 					function()
 
@@ -1377,6 +1438,37 @@ function UI.CreateActionFeature(
 	if ok then
 
 		control = result
+
+		-- Semantic action fills for special one-tap actions.
+		local ACTION_COLORS = {
+			danger = Color3.fromRGB(150,45,52),
+			blue = Color3.fromRGB(45,88,155),
+			purple = Color3.fromRGB(105,65,155),
+			orange = Color3.fromRGB(170,92,38),
+		}
+		local fill = ACTION_COLORS[style]
+		if fill and control then
+			local function applyActionFill()
+				local root = control.ElementFrame or control.Frame or control.Root
+				if typeof(root) ~= "Instance" then return end
+				local target = root:IsA("Frame") and root or nil
+				if not target then
+					local bestArea = -1
+					for _,obj in ipairs(root:GetDescendants()) do
+						if obj:IsA("Frame") and obj.BackgroundTransparency < 1 then
+							local area = obj.AbsoluteSize.X * obj.AbsoluteSize.Y
+							if area > bestArea then target,bestArea = obj,area end
+						end
+					end
+				end
+				if target then
+					target.BackgroundColor3 = fill
+					target.BackgroundTransparency = math.min(target.BackgroundTransparency,0.08)
+				end
+			end
+			task.defer(applyActionFill)
+			task.delay(0.15,applyActionFill)
+		end
 
 	else
 
