@@ -1385,118 +1385,55 @@ function UI.CreateActionFeature(
 		GetControlParent(page)
 
 	if not parent then
-
 		warn(
 			"[Blizzard UI] Action has no parent:",
 			titleText
 		)
-
 		return nil
 	end
 
+	-- WindUI Button supports Color directly.  Pass the fill when the
+	-- button is CREATED instead of trying to recolor its internal GUI later.
+	local ACTION_COLORS = {
+		danger = Color3.fromRGB(150,45,52),
+		blue = Color3.fromRGB(45,88,155),
+		purple = Color3.fromRGB(105,65,155),
+		orange = Color3.fromRGB(170,92,38),
+	}
+
+	local fill = ACTION_COLORS[style]
 	local control
 
 	local ok,result =
 		pcall(function()
-
-			return parent:Button({
-				Title =
-					tostring(
-						titleText or ""
-					),
-
-				Desc =
-					tostring(
-						description or ""
-					),
-
+			local config = {
+				Title = tostring(titleText or ""),
+				Desc = tostring(description or ""),
 				Icon = icon,
-
-				Callback =
-					function()
-
-						if callback then
-
-							local cbOk,cbErr =
-								pcall(
-									callback
-								)
-
-							if not cbOk then
-
-								warn(
-									"[Blizzard UI Action]",
-									titleText,
-									cbErr
-								)
-							end
+				Callback = function()
+					if callback then
+						local cbOk,cbErr = pcall(callback)
+						if not cbOk then
+							warn(
+								"[Blizzard UI Action]",
+								titleText,
+								cbErr
+							)
 						end
-					end,
-			})
+					end
+				end,
+			}
+
+			if fill then
+				config.Color = fill
+			end
+
+			return parent:Button(config)
 		end)
 
 	if ok then
-
 		control = result
-
-		-- Semantic full-card fills for special one-tap actions.
-		-- WindUI's Button control does not expose a reliable public fill field,
-		-- and the returned controller is not guaranteed to expose ElementFrame.
-		-- Resolve the rendered card from its title label instead.
-		local ACTION_COLORS = {
-			danger = Color3.fromRGB(150,45,52),
-			blue = Color3.fromRGB(45,88,155),
-			purple = Color3.fromRGB(105,65,155),
-			orange = Color3.fromRGB(170,92,38),
-		}
-		local fill = ACTION_COLORS[style]
-		if fill then
-			local wantedTitle = tostring(titleText or "")
-
-			local function findRenderedCard()
-				local roots = { CoreGui, PlayerGui }
-				for _,root in ipairs(roots) do
-					for _,obj in ipairs(root:GetDescendants()) do
-						if (obj:IsA("TextLabel") or obj:IsA("TextButton"))
-							and obj.Text == wantedTitle then
-							local node = obj.Parent
-							local best = nil
-							for _ = 1,8 do
-								if not node then break end
-								if node:IsA("GuiObject")
-									and node.BackgroundTransparency < 1
-									and node.AbsoluteSize.X > 180
-									and node.AbsoluteSize.Y >= 40
-									and node.AbsoluteSize.Y <= 90 then
-									best = node
-								end
-								node = node.Parent
-							end
-							if best then return best end
-						end
-					end
-				end
-			end
-
-			local function applyActionFill()
-				local card = findRenderedCard()
-				if not card then return false end
-				card.BackgroundColor3 = fill
-				card.BackgroundTransparency = 0
-				return true
-			end
-
-			-- WindUI renders asynchronously. Retry briefly until the real card exists.
-			task.spawn(function()
-				for _ = 1,20 do
-					if applyActionFill() then break end
-					task.wait(0.05)
-				end
-			end)
-		end
-
 	else
-
 		warn(
 			"[Blizzard UI] Action create failed:",
 			titleText,
