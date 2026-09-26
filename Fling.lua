@@ -77,12 +77,12 @@ local function ExecuteYeet(targetPlayer,successLabel)
 	successLabel = tostring(successLabel or targetPlayer.Name)
 	local character,humanoid,hrp = MM2.GetLocalCharacter()
 	if not character then
-		MM2.Notify("Local character unavailable.",2,"x","Fling Failed")
+		MM2.Notify("Local character unavailable.",2,"circle-x","Fling Failed")
 		return false
 	end
 	local targetCharacter,targetHumanoid,targetHRP = GetTargetFlingCharacter(targetPlayer)
 	if not targetCharacter then
-		MM2.Notify("Target character unavailable.",2,"x","Fling Failed")
+		MM2.Notify("Target character unavailable.",2,"circle-x","Fling Failed")
 		return false
 	end
 	MM2.Notify(targetPlayer.Name,2,"wind","Flinging")
@@ -160,7 +160,7 @@ local function ExecuteYeet(targetPlayer,successLabel)
 		MM2.Notify(successLabel.." successfully flinged!",2.5,"check","Fling Worked")
 		return true
 	else
-		MM2.Notify("Server blocked CFrame movement.",2.5,"x","Fling Failed")
+		MM2.Notify("Server blocked CFrame movement.",2.5,"circle-x","Fling Failed")
 		return false
 	end
 end
@@ -174,7 +174,7 @@ local function FlingRole(role,label)
 			return
 		end
 	end
-	MM2.Notify("No "..string.lower(label).." target found.",2,"x","Fling Failed")
+	MM2.Notify("No "..string.lower(label).." target found.",2,"circle-x","Fling Failed")
 end
 
 local function FlingSheriffOrHero()
@@ -190,7 +190,7 @@ local function FlingSheriffOrHero()
 			return
 		end
 	end
-	MM2.Notify("No sheriff/hero target found.",2,"x","Fling Failed")
+	MM2.Notify("No sheriff/hero target found.",2,"circle-x","Fling Failed")
 end
 
 UI.CreateActionFeature(UI.FlingPage,"Fling Murderer","Flings the current murderer",function()
@@ -435,7 +435,7 @@ UI.CreateActionFeature(
 		local target = MM2.State.SelectedFlingTarget
 		if not target or not target.Parent then
 			MM2.State.SelectedFlingTarget = nil
-			MM2.Notify("Select a target first.",2,"x","Fling Failed")
+			MM2.Notify("Select a target first.",2,"circle-x","Fling Failed")
 			return
 		end
 		ExecuteYeet(target,target.Name)
