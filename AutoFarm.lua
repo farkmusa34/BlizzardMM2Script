@@ -889,93 +889,152 @@ end
 -- Safe Position
 --============================================================
 
--- Diagnostic: normal standing HRP height is about 2.85 studs above the floor.
+-- Return fix: never search upward from the farm position. The farm normally
+-- travels below/inside the map, so "above me" can select roofs, upper floors,
+-- props, or nothing at all. Instead, remember the last normal standing floor
+-- while farming and prefer that exact safe location when Auto Farm is disabled.
 local FARM_RETURN_STAND_OFFSET = 2.90
-local FARM_RETURN_DIRECT_ABOVE = 32
-local FARM_RETURN_DIRECT_DEPTH = 40
+local FARM_RETURN_CAST_ABOVE = 220
+local FARM_RETURN_CAST_DEPTH = 520
 local FARM_RETURN_FALLBACK_RADIUS = 420
 local FARM_RETURN_FALLBACK_STEP = 14
 local FARM_RETURN_FALLBACK_SAMPLES = 32
-local FARM_RETURN_CAST_ABOVE = 220
-local FARM_RETURN_CAST_DEPTH = 520
+
+local FarmLastSafeReturnCFrame = nil
+local FarmLastSafeReturnAt = 0
 
 local function FarmIsUnsafeReturnPart(part)
-	if not part then return true end
-	local node = part
-	while node and node ~= workspace do
-		local name = string.lower(node.Name)
-		if string.find(name, "glitchproof", 1, true)
-			or string.find(name, "glitch proof", 1, true)
-			or string.find(name, "coincontainer", 1, true)
-			or name == "coin_server" then
-			return true
-		end
-		node = node.Parent
-	end
-	return false
+    if not part then return true end
+    local node = part
+    while node and node ~= workspace do
+        local name = string.lower(node.Name)
+        if string.find(name, "glitchproof", 1, true)
+            or string.find(name, "glitch proof", 1, true)
+            or string.find(name, "coincontainer", 1, true)
+            or name == "coin_server" then
+            return true
+        end
+        node = node.Parent
+    end
+    return false
 end
 
-local function FarmRaycastSafeSurface(x, z, originY, depth)
-	local ignore = {FarmCharacter}
-	for _ = 1, 24 do
-		local params = RaycastParams.new()
-		params.FilterType = Enum.RaycastFilterType.Exclude
-		params.FilterDescendantsInstances = ignore
-		params.IgnoreWater = true
-		params.RespectCanCollide = true
-		local result = workspace:Raycast(Vector3.new(x, originY, z), Vector3.new(0, -depth, 0), params)
-		if not result then return nil end
-		if not FarmIsUnsafeReturnPart(result.Instance) then return result end
-		table.insert(ignore, result.Instance)
-	end
-	return nil
+local function FarmRaycastSafeSurface(x,z,originY,depth)
+    local ignore = {FarmCharacter}
+    for _ = 1,24 do
+        local params = RaycastParams.new()
+        params.FilterType = Enum.RaycastFilterType.Exclude
+        params.FilterDescendantsInstances = ignore
+        params.IgnoreWater = true
+        params.RespectCanCollide = true
+
+        local result = workspace:Raycast(
+            Vector3.new(x,originY,z),
+            Vector3.new(0,-depth,0),
+            params
+        )
+
+        if not result then return nil end
+        if not FarmIsUnsafeReturnPart(result.Instance) then return result end
+        table.insert(ignore,result.Instance)
+    end
+    return nil
 end
 
-local function FarmFindReturnSurface(current)
-	-- First preserve X/Z when there really is a usable structure above the farm position.
-	local direct = FarmRaycastSafeSurface(current.X, current.Z, current.Y + FARM_RETURN_DIRECT_ABOVE, FARM_RETURN_DIRECT_DEPTH)
-	if direct and direct.Position.Y >= current.Y - 1 then return direct end
+-- Capture a real floor only when the character is in a normal collidable state.
+-- This runs before noclip is applied, so it gives us a reliable emergency return
+-- even on open maps such as Military Base.
+local function FarmRememberSafePosition()
+    if not FarmUpdateCharacter() or not FarmHumanoid or FarmHumanoid.Health <= 0 then
+        return
+    end
 
-	-- Open-map fallback: expanding 360-degree search for the nearest real map surface.
-	local castY = current.Y + FARM_RETURN_CAST_ABOVE
-	for radius = FARM_RETURN_FALLBACK_STEP, FARM_RETURN_FALLBACK_RADIUS, FARM_RETURN_FALLBACK_STEP do
-		local ringBest, ringBestScore = nil, math.huge
-		for i = 0, FARM_RETURN_FALLBACK_SAMPLES - 1 do
-			local angle = (math.pi * 2 * i) / FARM_RETURN_FALLBACK_SAMPLES
-			local x = current.X + math.cos(angle) * radius
-			local z = current.Z + math.sin(angle) * radius
-			local result = FarmRaycastSafeSurface(x, z, castY, FARM_RETURN_CAST_DEPTH)
-			if result then
-				local p = result.Position
-				local dx, dz = p.X-current.X, p.Z-current.Z
-				local score = math.sqrt(dx*dx + dz*dz) + math.abs(p.Y-current.Y)*0.05
-				if score < ringBestScore then ringBest, ringBestScore = result, score end
-			end
-		end
-		if ringBest then return ringBest end
-	end
+    local params = RaycastParams.new()
+    params.FilterType = Enum.RaycastFilterType.Exclude
+    params.FilterDescendantsInstances = {FarmCharacter}
+    params.IgnoreWater = true
+    params.RespectCanCollide = true
 
-	-- Last resort: a full center-column cast from high above.
-	return FarmRaycastSafeSurface(current.X, current.Z, castY, FARM_RETURN_CAST_DEPTH)
+    local result = workspace:Raycast(
+        FarmHRP.Position + Vector3.new(0,2,0),
+        Vector3.new(0,-10,0),
+        params
+    )
+
+    if not result or FarmIsUnsafeReturnPart(result.Instance) then return end
+
+    local height = FarmHRP.Position.Y-result.Position.Y
+    if height < 1.5 or height > 5.5 then return end
+
+    local _,yaw,_ = FarmHRP.CFrame:ToOrientation()
+    FarmLastSafeReturnCFrame =
+        CFrame.new(result.Position.X,result.Position.Y+FARM_RETURN_STAND_OFFSET,result.Position.Z)
+        * CFrame.Angles(0,yaw,0)
+    FarmLastSafeReturnAt = os.clock()
+end
+
+local function FarmFindNearestReturnSurface(current)
+    local castY = current.Y + FARM_RETURN_CAST_ABOVE
+
+    -- Current X/Z is allowed only as a DOWNWARD floor search. We no longer
+    -- search for structures above the player.
+    local direct = FarmRaycastSafeSurface(
+        current.X,current.Z,castY,FARM_RETURN_CAST_DEPTH
+    )
+    if direct then return direct end
+
+    -- If there is no floor in this column, find the nearest real map floor.
+    for radius = FARM_RETURN_FALLBACK_STEP,FARM_RETURN_FALLBACK_RADIUS,FARM_RETURN_FALLBACK_STEP do
+        local ringBest,ringBestScore = nil,math.huge
+        for i = 0,FARM_RETURN_FALLBACK_SAMPLES-1 do
+            local angle = (math.pi*2*i)/FARM_RETURN_FALLBACK_SAMPLES
+            local x = current.X + math.cos(angle)*radius
+            local z = current.Z + math.sin(angle)*radius
+            local result = FarmRaycastSafeSurface(x,z,castY,FARM_RETURN_CAST_DEPTH)
+            if result then
+                local p = result.Position
+                local dx,dz = p.X-current.X,p.Z-current.Z
+                local score = math.sqrt(dx*dx+dz*dz)
+                if score < ringBestScore then
+                    ringBest,ringBestScore = result,score
+                end
+            end
+        end
+        if ringBest then return ringBest end
+    end
+
+    return nil
 end
 
 local function FarmReturnToSafePosition()
-	if not FarmUpdateCharacter() then return false end
-	local result = FarmFindReturnSurface(FarmHRP.Position)
-	if not result then return false end
-	local surface = result.Position
-	local _,yaw,_ = FarmHRP.CFrame:ToOrientation()
-	local target = CFrame.new(surface.X, surface.Y + FARM_RETURN_STAND_OFFSET, surface.Z) * CFrame.Angles(0,yaw,0)
-	local ok = pcall(function()
-		FarmHumanoid.Sit = false
-		FarmHumanoid.PlatformStand = false
-		FarmHRP.AssemblyLinearVelocity = Vector3.zero
-		FarmHRP.AssemblyAngularVelocity = Vector3.zero
-		FarmHRP.CFrame = target
-		FarmHRP.AssemblyLinearVelocity = Vector3.zero
-		FarmHRP.AssemblyAngularVelocity = Vector3.zero
-	end)
-	return ok
+    if not FarmUpdateCharacter() then return false end
+
+    -- Best option: the last floor we KNOW the character was standing on.
+    local target = FarmLastSafeReturnCFrame
+
+    -- Backup for cases where farming was enabled before we managed to record one.
+    if not target then
+        local result = FarmFindNearestReturnSurface(FarmHRP.Position)
+        if not result then return false end
+        local surface = result.Position
+        local _,yaw,_ = FarmHRP.CFrame:ToOrientation()
+        target =
+            CFrame.new(surface.X,surface.Y+FARM_RETURN_STAND_OFFSET,surface.Z)
+            * CFrame.Angles(0,yaw,0)
+    end
+
+    local ok = pcall(function()
+        FarmHumanoid.Sit = false
+        FarmHumanoid.PlatformStand = false
+        FarmHRP.AssemblyLinearVelocity = Vector3.zero
+        FarmHRP.AssemblyAngularVelocity = Vector3.zero
+        FarmHRP.CFrame = target
+        FarmHRP.AssemblyLinearVelocity = Vector3.zero
+        FarmHRP.AssemblyAngularVelocity = Vector3.zero
+        FarmHumanoid:ChangeState(Enum.HumanoidStateType.GettingUp)
+    end)
+
+    return ok
 end
 
 --============================================================
@@ -1438,6 +1497,7 @@ function MM2.Functions.StartAutoFarm()
 	FarmResetPredictiveStage()
 	table.clear(FarmCoinSkipUntil)
 	FarmUpdateCharacter()
+	FarmRememberSafePosition()
 	FarmApplyHRPSize()
 
 	task.spawn(FarmLoop)
