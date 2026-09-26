@@ -889,147 +889,84 @@ end
 -- Safe Position
 --============================================================
 
-local FARM_RETURN_SEARCH_ABOVE = 18
-local FARM_RETURN_DIRECT_DEPTH = 18
-local FARM_RETURN_STAND_OFFSET = 3.05
-
--- If there is no usable surface directly above the underground farm
--- position, search outward for the nearest safe map surface instead.
-local FARM_RETURN_FALLBACK_RADIUS = 120
-local FARM_RETURN_FALLBACK_STEP = 12
-local FARM_RETURN_FALLBACK_SAMPLES = 16
-local FARM_RETURN_FALLBACK_CAST_HEIGHT = 80
-local FARM_RETURN_FALLBACK_CAST_DEPTH = 180
+-- Diagnostic: normal standing HRP height is about 2.85 studs above the floor.
+local FARM_RETURN_STAND_OFFSET = 2.90
+local FARM_RETURN_DIRECT_ABOVE = 32
+local FARM_RETURN_DIRECT_DEPTH = 40
+local FARM_RETURN_FALLBACK_RADIUS = 420
+local FARM_RETURN_FALLBACK_STEP = 14
+local FARM_RETURN_FALLBACK_SAMPLES = 32
+local FARM_RETURN_CAST_ABOVE = 220
+local FARM_RETURN_CAST_DEPTH = 520
 
 local function FarmIsUnsafeReturnPart(part)
-	if not part then
-		return true
-	end
-
-	-- MM2 uses GlitchProof parts above/below some maps. Returning onto one
-	-- can kill the character immediately, so never use one as a floor.
+	if not part then return true end
 	local node = part
 	while node and node ~= workspace do
-		if string.find(string.lower(node.Name), "glitchproof", 1, true) then
+		local name = string.lower(node.Name)
+		if string.find(name, "glitchproof", 1, true)
+			or string.find(name, "glitch proof", 1, true)
+			or string.find(name, "coincontainer", 1, true)
+			or name == "coin_server" then
 			return true
 		end
 		node = node.Parent
 	end
-
 	return false
 end
 
 local function FarmRaycastSafeSurface(x, z, originY, depth)
 	local ignore = {FarmCharacter}
-
-	for _ = 1, 16 do
+	for _ = 1, 24 do
 		local params = RaycastParams.new()
 		params.FilterType = Enum.RaycastFilterType.Exclude
 		params.FilterDescendantsInstances = ignore
 		params.IgnoreWater = true
 		params.RespectCanCollide = true
-
-		local result = workspace:Raycast(
-			Vector3.new(x, originY, z),
-			Vector3.new(0, -depth, 0),
-			params
-		)
-
-		if not result then
-			return nil
-		end
-
-		if not FarmIsUnsafeReturnPart(result.Instance) then
-			return result
-		end
-
+		local result = workspace:Raycast(Vector3.new(x, originY, z), Vector3.new(0, -depth, 0), params)
+		if not result then return nil end
+		if not FarmIsUnsafeReturnPart(result.Instance) then return result end
 		table.insert(ignore, result.Instance)
 	end
-
 	return nil
 end
 
 local function FarmFindReturnSurface(current)
-	-- First choice: a surface directly ABOVE the current underground X/Z.
-	-- The short ray prevents unrelated high anti-glitch layers from winning.
-	local direct = FarmRaycastSafeSurface(
-		current.X,
-		current.Z,
-		current.Y + FARM_RETURN_SEARCH_ABOVE,
-		FARM_RETURN_DIRECT_DEPTH
-	)
+	-- First preserve X/Z when there really is a usable structure above the farm position.
+	local direct = FarmRaycastSafeSurface(current.X, current.Z, current.Y + FARM_RETURN_DIRECT_ABOVE, FARM_RETURN_DIRECT_DEPTH)
+	if direct and direct.Position.Y >= current.Y - 1 then return direct end
 
-	if direct and direct.Position.Y >= current.Y - 0.25 then
-		return direct
-	end
-
-	-- Fallback: nothing useful is directly above us. Search expanding rings
-	-- around the current X/Z and choose the physically nearest safe surface.
-	local best = nil
-	local bestDistance = math.huge
-
-	for radius = FARM_RETURN_FALLBACK_STEP,
-		FARM_RETURN_FALLBACK_RADIUS,
-		FARM_RETURN_FALLBACK_STEP do
-
-		local foundOnRing = false
-
+	-- Open-map fallback: expanding 360-degree search for the nearest real map surface.
+	local castY = current.Y + FARM_RETURN_CAST_ABOVE
+	for radius = FARM_RETURN_FALLBACK_STEP, FARM_RETURN_FALLBACK_RADIUS, FARM_RETURN_FALLBACK_STEP do
+		local ringBest, ringBestScore = nil, math.huge
 		for i = 0, FARM_RETURN_FALLBACK_SAMPLES - 1 do
 			local angle = (math.pi * 2 * i) / FARM_RETURN_FALLBACK_SAMPLES
 			local x = current.X + math.cos(angle) * radius
 			local z = current.Z + math.sin(angle) * radius
-
-			local result = FarmRaycastSafeSurface(
-				x,
-				z,
-				current.Y + FARM_RETURN_FALLBACK_CAST_HEIGHT,
-				FARM_RETURN_FALLBACK_CAST_DEPTH
-			)
-
+			local result = FarmRaycastSafeSurface(x, z, castY, FARM_RETURN_CAST_DEPTH)
 			if result then
-				local surface = result.Position
-				local dx = surface.X - current.X
-				local dz = surface.Z - current.Z
-				local horizontalDistance = math.sqrt(dx * dx + dz * dz)
-
-				if horizontalDistance < bestDistance then
-					best = result
-					bestDistance = horizontalDistance
-					foundOnRing = true
-				end
+				local p = result.Position
+				local dx, dz = p.X-current.X, p.Z-current.Z
+				local score = math.sqrt(dx*dx + dz*dz) + math.abs(p.Y-current.Y)*0.05
+				if score < ringBestScore then ringBest, ringBestScore = result, score end
 			end
 		end
-
-		-- Because rings expand outward, the first ring containing a safe
-		-- surface is already the nearest useful fallback area.
-		if foundOnRing and best then
-			break
-		end
+		if ringBest then return ringBest end
 	end
 
-	return best
+	-- Last resort: a full center-column cast from high above.
+	return FarmRaycastSafeSurface(current.X, current.Z, castY, FARM_RETURN_CAST_DEPTH)
 end
 
 local function FarmReturnToSafePosition()
-	if not FarmUpdateCharacter() then
-		return false
-	end
-
-	local current = FarmHRP.Position
-	local result = FarmFindReturnSurface(current)
-
-	if not result then
-		return false
-	end
-
+	if not FarmUpdateCharacter() then return false end
+	local result = FarmFindReturnSurface(FarmHRP.Position)
+	if not result then return false end
 	local surface = result.Position
-	local targetY = surface.Y + FARM_RETURN_STAND_OFFSET
 	local _,yaw,_ = FarmHRP.CFrame:ToOrientation()
-	local target =
-		CFrame.new(surface.X, targetY, surface.Z)
-		* CFrame.Angles(0, yaw, 0)
-
-	pcall(function()
+	local target = CFrame.new(surface.X, surface.Y + FARM_RETURN_STAND_OFFSET, surface.Z) * CFrame.Angles(0,yaw,0)
+	local ok = pcall(function()
 		FarmHumanoid.Sit = false
 		FarmHumanoid.PlatformStand = false
 		FarmHRP.AssemblyLinearVelocity = Vector3.zero
@@ -1038,8 +975,7 @@ local function FarmReturnToSafePosition()
 		FarmHRP.AssemblyLinearVelocity = Vector3.zero
 		FarmHRP.AssemblyAngularVelocity = Vector3.zero
 	end)
-
-	return true
+	return ok
 end
 
 --============================================================
