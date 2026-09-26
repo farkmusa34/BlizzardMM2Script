@@ -535,6 +535,121 @@ UI.WindTabs.Misc =
 		Icon = "settings"
 	})
 
+
+--============================================================
+-- SIDEBAR PLAYER PROFILE
+-- Uses the otherwise-empty space below Misc.
+-- Display name is shown above @username with the local player's
+-- Roblox headshot. This is visual-only and does not create a tab.
+--============================================================
+
+task.spawn(function()
+	local Players = S.Players or game:GetService("Players")
+	local LocalPlayer = Players.LocalPlayer
+	if not LocalPlayer then return end
+
+	-- Wait for WindUI to finish constructing its sidebar.
+	task.wait(0.75)
+
+	local function findMiscLabel(root)
+		for _,obj in ipairs(root:GetDescendants()) do
+			if (obj:IsA("TextLabel") or obj:IsA("TextButton"))
+				and obj.Text == "Misc" then
+				return obj
+			end
+		end
+	end
+
+	local miscLabel = findMiscLabel(CoreGui) or findMiscLabel(PlayerGui)
+	if not miscLabel then return end
+
+	-- The tab row is normally a few ancestors above its text label.
+	-- Walk upward until we find a GuiObject wide enough to represent
+	-- the sidebar/tab column, then attach the footer to that container.
+	local node = miscLabel.Parent
+	local sidebar
+	for _ = 1,8 do
+		if not node then break end
+		if node:IsA("GuiObject") then
+			local w = node.AbsoluteSize.X
+			local h = node.AbsoluteSize.Y
+			if w >= 120 and w <= 300 and h >= 250 then
+				sidebar = node
+			end
+		end
+		node = node.Parent
+	end
+	if not sidebar then return end
+
+	local old = sidebar:FindFirstChild("BlizzardPlayerProfile")
+	if old then old:Destroy() end
+
+	local profile = Instance.new("Frame")
+	profile.Name = "BlizzardPlayerProfile"
+	profile.AnchorPoint = Vector2.new(0,1)
+	profile.Position = UDim2.new(0,12,1,-12)
+	profile.Size = UDim2.new(1,-24,0,58)
+	profile.BackgroundTransparency = 1
+	profile.BorderSizePixel = 0
+	profile.ZIndex = 50
+	profile.Parent = sidebar
+
+	local avatar = Instance.new("ImageLabel")
+	avatar.Name = "Avatar"
+	avatar.Size = UDim2.fromOffset(44,44)
+	avatar.Position = UDim2.new(0,0,0.5,-22)
+	avatar.BackgroundColor3 = Color3.fromRGB(38,38,40)
+	avatar.BorderSizePixel = 0
+	avatar.ScaleType = Enum.ScaleType.Crop
+	avatar.ZIndex = 51
+	avatar.Parent = profile
+
+	local avatarCorner = Instance.new("UICorner")
+	avatarCorner.CornerRadius = UDim.new(1,0)
+	avatarCorner.Parent = avatar
+
+	local displayName = Instance.new("TextLabel")
+	displayName.Name = "DisplayName"
+	displayName.BackgroundTransparency = 1
+	displayName.Position = UDim2.fromOffset(55,6)
+	displayName.Size = UDim2.new(1,-58,0,23)
+	displayName.Font = Enum.Font.GothamSemibold
+	displayName.Text = LocalPlayer.DisplayName
+	displayName.TextColor3 = Color3.fromRGB(245,245,245)
+	displayName.TextSize = 15
+	displayName.TextXAlignment = Enum.TextXAlignment.Left
+	displayName.TextTruncate = Enum.TextTruncate.AtEnd
+	displayName.ZIndex = 51
+	displayName.Parent = profile
+
+	local username = Instance.new("TextLabel")
+	username.Name = "Username"
+	username.BackgroundTransparency = 1
+	username.Position = UDim2.fromOffset(55,29)
+	username.Size = UDim2.new(1,-58,0,19)
+	username.Font = Enum.Font.Gotham
+	username.Text = "@" .. LocalPlayer.Name
+	username.TextColor3 = Color3.fromRGB(155,155,160)
+	username.TextSize = 12
+	username.TextXAlignment = Enum.TextXAlignment.Left
+	username.TextTruncate = Enum.TextTruncate.AtEnd
+	username.ZIndex = 51
+	username.Parent = profile
+
+	local ok,image = pcall(function()
+		return Players:GetUserThumbnailAsync(
+			LocalPlayer.UserId,
+			Enum.ThumbnailType.HeadShot,
+			Enum.ThumbnailSize.Size150x150
+		)
+	end)
+	if ok and image then
+		avatar.Image = image
+	end
+
+	UI.PlayerProfile = profile
+end)
+
 --============================================================
 -- HIDDEN LEGACY PAGES
 --============================================================
