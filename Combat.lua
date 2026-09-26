@@ -46,7 +46,7 @@ local function NotifyShootResult(success,message)
 	if success then
 		CombatNotify("Shoot Murderer",message or "Shot Fired","check",1.8)
 	elseif message and message ~= "Cooldown" and message ~= "Busy" then
-		CombatNotify("Shoot Murderer",message,"x",2.5)
+		CombatNotify("Shoot Murderer",message,"circle-x",2.5)
 	end
 end
 
@@ -62,30 +62,30 @@ local function NotifyKillAllResult(success,message)
 	if success then
 		CombatNotify("Kill All",message or "Activated","check",1.8)
 	elseif message and message ~= "Cooldown" and message ~= "Busy" then
-		CombatNotify("Kill All",message,"x",2.5)
+		CombatNotify("Kill All",message,"circle-x",2.5)
 	end
 end
 
 UI.AddSection(UI.CombatPage, "Aim", "Crosshair and aiming features")
-UI.CreateToggle(UI.CombatPage, "TriggerBot", "Fire when the crosshair is on the murderer", "TriggerBot")
-UI.CreateToggle(UI.CombatPage, "Aim Lock", "Torso aim lock in first-person / lock-center", "AimLock")
+UI.CreateToggle(UI.CombatPage, "TriggerBot", "Automatically fires when your crosshair is directly on the murderer", "TriggerBot")
+UI.CreateToggle(UI.CombatPage, "Aim Lock", "While Shift Lock is on, tracks the murderer’s torso", "AimLock")
 
 UI.AddSection(UI.CombatPage, "Sheriff", "Legit and rage gun features")
-UI.CreateToggle(UI.CombatPage, "Shoot Murderer (Legit)", "Requires clear line of sight; does not shoot through walls", "ShowLegitShootButton", function(on)
+UI.CreateToggle(UI.CombatPage, "Shoot Murderer (Legit)", "Shows a shoot button that only fires when the murderer is visible", "ShowLegitShootButton", function(on)
 	if MM2.UI.FloatingLegitShootHolder then
 		MM2.UI.FloatingLegitShootHolder.Visible = on
 	elseif MM2.UI.FloatingLegitShootButton then
 		MM2.UI.FloatingLegitShootButton.Visible = on
 	end
 end)
-UI.CreateToggle(UI.CombatPage, "Shoot Murderer (Rage)", "Keeps the current behavior and can attempt shots through walls", "ShowShootButton", function(on)
+UI.CreateToggle(UI.CombatPage, "Shoot Murderer (Rage)", "Shows a rage shoot button that can target the murderer through walls", "ShowShootButton", function(on)
 	if MM2.UI.FloatingShootHolder then
 		MM2.UI.FloatingShootHolder.Visible = on
 	elseif MM2.UI.FloatingShootButton then
 		MM2.UI.FloatingShootButton.Visible = on
 	end
 end)
-UI.CreateToggle(UI.CombatPage, "Auto Grab Gun", "Automatically grabs the gun without moving your body", "AutoGrab")
+UI.CreateToggle(UI.CombatPage, "Auto Grab Gun", "Automatically picks up the dropped gun without moving your character", "AutoGrab")
 
 UI.AddSection(UI.CombatPage, "Murderer", "Legit and rage knife features")
 
@@ -105,14 +105,14 @@ local function SetThrowToggle(flagName,value)
 end
 
 do
-	local _,_,render = UI.CreateToggle(UI.CombatPage, "Auto Throw Knife (Legit)", "Automatically throws only when the target has clear line of sight", "LegitThrow", function(on)
+	local _,_,render = UI.CreateToggle(UI.CombatPage, "Auto Throw Knife (Legit)", "Automatically throws your knife at the closest visible player", "LegitThrow", function(on)
 		if on then SetThrowToggle("RageThrow",false) end
 	end)
 	RenderLegitThrow = render
 end
 
 do
-	local _,_,render = UI.CreateToggle(UI.CombatPage, "Auto Throw Knife (Rage)", "Keeps the existing auto-throw behavior and can target through walls", "RageThrow", function(on)
+	local _,_,render = UI.CreateToggle(UI.CombatPage, "Auto Throw Knife (Rage)", "Automatically throws your knife at the closest player, even through walls", "RageThrow", function(on)
 		if on then SetThrowToggle("LegitThrow",false) end
 	end)
 	RenderRageThrow = render
@@ -124,33 +124,34 @@ end
 
 local KNIFE_RANGE_MIN = 5
 local KNIFE_RANGE_MAX = 1000
-Flags.KnifeRange = math.clamp(tonumber(Flags.KnifeRange) or 25,KNIFE_RANGE_MIN,KNIFE_RANGE_MAX)
+local KILL_ALL_RANGE = 10000
+Flags.KnifeRange = math.clamp(tonumber(Flags.KnifeRange) or 10,KNIFE_RANGE_MIN,KNIFE_RANGE_MAX)
 
 UI.CreateSlider(
 	UI.CombatPage,
-	"Knife Range",
-	"Extends one knife activation to every live player inside the selected range",
+	"Knife Aura Studs",
+	"Stabs nearby players within the selected stud range when you use your knife",
 	function() return Flags.KnifeRange end,
 	function(value)
-		Flags.KnifeRange = math.clamp(tonumber(value) or 25,KNIFE_RANGE_MIN,KNIFE_RANGE_MAX)
+		Flags.KnifeRange = math.clamp(tonumber(value) or 10,KNIFE_RANGE_MIN,KNIFE_RANGE_MAX)
 	end,
 	KNIFE_RANGE_MIN,KNIFE_RANGE_MAX,5
 )
 
-UI.CreateActionFeature(UI.CombatPage, "Kill All", "Uses one knife activation at maximum Knife Range", function()
+UI.CreateActionFeature(UI.CombatPage, "Kill All", "Stabs every player as murderer", function()
 	if MM2.Functions.KillAllOnce then
 		local ok,success,message = pcall(MM2.Functions.KillAllOnce)
 		if not ok then
 			warn("[MM2 KILL ALL ACTION]",success)
-			CombatNotify("Kill All","Kill All error","x",2)
+			CombatNotify("Kill All","Kill All error","circle-x",2)
 		else
 			NotifyKillAllResult(success,message)
 		end
 	end
-end)
+end, "skull")
 
 Flags.ShowKillAllButton = Flags.ShowKillAllButton == true
-UI.CreateToggle(UI.CombatPage, "Show Kill All Button", "stab all button", "ShowKillAllButton", function(on)
+UI.CreateToggle(UI.CombatPage, "Show Kill All Button", "Shows the floating Kill All button", "ShowKillAllButton", function(on)
 	if MM2.UI.FloatingKillAllHolder then MM2.UI.FloatingKillAllHolder.Visible = on end
 end)
 
@@ -1174,7 +1175,7 @@ MM2.Functions.KillAllOnce = function()
 			message = "No Handle"
 			return
 		end
-		local targets = GetKnifeTargetsInRange(KNIFE_RANGE_MAX)
+		local targets = GetKnifeTargetsInRange(KILL_ALL_RANGE)
 		if #targets <= 0 then
 			message = "No Targets"
 			return
@@ -1289,7 +1290,7 @@ RunService:BindToRenderStep(
 -- controls match the WindUI / Lucide visual language:
 --   SHOOT      -> crosshair
 --   RAGE SHOOT -> zap
---   KILL ALL   -> swords
+--   KILL ALL   -> skull
 --============================================================
 
 assert(
@@ -1312,7 +1313,7 @@ local FloatingLegitShootButton,FloatingLegitShootHolder =
 
 				if not ok then
 					warn("[MM2 LEGIT SHOOT BUTTON]",success)
-					CombatNotify("Shoot Murderer","Error","x",2)
+					CombatNotify("Shoot Murderer","Error","circle-x",2)
 					return
 				end
 
@@ -1340,7 +1341,7 @@ local FloatingShootButton,FloatingShootHolder =
 
 				if not ok then
 					warn("[MM2 V8.6.2 SHOOT] BUTTON CALL ERROR:",success)
-					CombatNotify("Shoot Murderer","Error","x",2)
+					CombatNotify("Shoot Murderer","Error","circle-x",2)
 					return
 				end
 
@@ -1353,11 +1354,11 @@ FloatingShootHolder.Visible = Flags.ShowShootButton == true
 MM2.UI.FloatingShootButton = FloatingShootButton
 MM2.UI.FloatingShootHolder = FloatingShootHolder
 
--- Kill All: crossed-swords Lucide icon.
+-- Kill All: skull Lucide icon.
 local FloatingKillAllButton,FloatingKillAllHolder =
 	UI.CreateMovableCardButton(
 		"FloatingKillAll",
-		"swords",
+		"skull",
 		"KILL ALL",
 		UDim2.new(0.67,-52,0.78,-42),
 		function()
@@ -1367,7 +1368,7 @@ local FloatingKillAllButton,FloatingKillAllHolder =
 
 			if not ok then
 				warn("[MM2 KILL ALL BUTTON]",success)
-				CombatNotify("Kill All","Kill All error","x",2)
+				CombatNotify("Kill All","Kill All error","circle-x",2)
 			else
 				NotifyKillAllResult(success,message)
 			end
