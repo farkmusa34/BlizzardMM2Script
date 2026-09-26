@@ -1,6 +1,6 @@
 --============================================================
 -- MM2 V8.8.4 - AutoFarm.lua
--- Coin Farm V13.6 surface return
+-- Coin Farm V13.7 safe local surface return
 --============================================================
 
 local MM2 = getgenv and getgenv().MM2_V85_SPLIT or _G.MM2_V85_SPLIT
@@ -19,7 +19,7 @@ Flags.ShootMurdererAfterBagFull = Flags.ShootMurdererAfterBagFull == true
 Flags.FlingMurdererAfterBagFull = Flags.FlingMurdererAfterBagFull == true
 Flags.ResetCharacterAfterBagFull = Flags.ResetCharacterAfterBagFull == true
 
-UI.AddSection(UI.AutoFarmPage,"Auto Farm","Coin Farm V13.6 surface return")
+UI.AddSection(UI.AutoFarmPage,"Auto Farm","Coin Farm V13.7 safe local surface return")
 
 UI.CreateToggle(
 	UI.AutoFarmPage,
@@ -889,40 +889,89 @@ end
 -- Safe Position
 --============================================================
 
+local FARM_RETURN_SEARCH_ABOVE = 14
+local FARM_RETURN_SEARCH_BELOW = 90
+local FARM_RETURN_STAND_OFFSET = 3.05
+
+local function FarmIsUnsafeReturnPart(part)
+	if not part then
+		return true
+	end
+
+	-- MM2 uses GlitchProof parts above/below some maps. Returning onto one
+	-- can kill the character immediately, so never use one as a floor.
+	local node = part
+	while node and node ~= workspace do
+		if string.find(string.lower(node.Name), "glitchproof", 1, true) then
+			return true
+		end
+		node = node.Parent
+	end
+
+	return false
+end
+
 local function FarmReturnToSafePosition()
 	if not FarmUpdateCharacter() then
-		return
+		return false
 	end
 
-	-- V13.6: return to the surface at the CURRENT farm X/Z instead of
-	-- teleporting back to the position where Auto Farm was enabled.
-	local params = RaycastParams.new()
-	params.FilterType = Enum.RaycastFilterType.Exclude
-	params.FilterDescendantsInstances = {FarmCharacter}
-	params.IgnoreWater = true
-	params.RespectCanCollide = true
-
+	-- V13.7: only search a short distance ABOVE the current farm position.
+	-- This preserves the current X/Z and returns above the structure/ground
+	-- the coin was actually near, without catching a GlitchProof layer tens
+	-- of studs overhead (the V13.6 +120 ray was able to do that).
 	local current = FarmHRP.Position
-	local origin = Vector3.new(current.X, current.Y + 120, current.Z)
-	local result = workspace:Raycast(origin, Vector3.new(0,-320,0), params)
+	local ignore = {FarmCharacter}
+	local originY = current.Y + FARM_RETURN_SEARCH_ABOVE
+	local remaining = FARM_RETURN_SEARCH_ABOVE + FARM_RETURN_SEARCH_BELOW
+	local result = nil
+
+	for _ = 1, 12 do
+		local params = RaycastParams.new()
+		params.FilterType = Enum.RaycastFilterType.Exclude
+		params.FilterDescendantsInstances = ignore
+		params.IgnoreWater = true
+		params.RespectCanCollide = true
+
+		result = workspace:Raycast(
+			Vector3.new(current.X, originY, current.Z),
+			Vector3.new(0, -remaining, 0),
+			params
+		)
+
+		if not result then
+			return false
+		end
+
+		if not FarmIsUnsafeReturnPart(result.Instance) then
+			break
+		end
+
+		table.insert(ignore, result.Instance)
+		result = nil
+	end
 
 	if not result then
-		return
+		return false
 	end
 
-	-- Normal HRP standing height is ~3 studs above a floor. A tiny extra
-	-- margin keeps the character from spawning partially inside the surface.
-	local targetY = result.Position.Y + 3.05
+	local targetY = result.Position.Y + FARM_RETURN_STAND_OFFSET
 	local _,yaw,_ = FarmHRP.CFrame:ToOrientation()
-	local target = CFrame.new(current.X,targetY,current.Z) * CFrame.Angles(0,yaw,0)
+	local target =
+		CFrame.new(current.X, targetY, current.Z)
+		* CFrame.Angles(0, yaw, 0)
 
 	pcall(function()
+		FarmHumanoid.Sit = false
+		FarmHumanoid.PlatformStand = false
 		FarmHRP.AssemblyLinearVelocity = Vector3.zero
 		FarmHRP.AssemblyAngularVelocity = Vector3.zero
 		FarmHRP.CFrame = target
 		FarmHRP.AssemblyLinearVelocity = Vector3.zero
 		FarmHRP.AssemblyAngularVelocity = Vector3.zero
 	end)
+
+	return true
 end
 
 --============================================================
@@ -1399,11 +1448,26 @@ function MM2.Functions.StopAutoFarm()
 	FarmAfterBagFullHandled = false
 	FarmAfterBagActionBusy = false
 
-	FarmReturnToSafePosition()
+	-- Stop every force/target FIRST so nothing can keep dragging the
+	-- character while the return is being calculated.
 	FarmReleaseTarget()
-	FarmStopNoclip()
 	FarmDestroyMovement()
 	FarmRestoreHRPSize()
+
+	-- Keep noclip active only for the actual relocation. This prevents the
+	-- character from getting trapped in geometry while moving back to the
+	-- local surface. Then restore normal collisions immediately afterward.
+	FarmReturnToSafePosition()
+	FarmStopNoclip()
+
+	if FarmUpdateCharacter() then
+		pcall(function()
+			FarmHumanoid.Sit = false
+			FarmHumanoid.PlatformStand = false
+			FarmHRP.AssemblyLinearVelocity = Vector3.zero
+			FarmHRP.AssemblyAngularVelocity = Vector3.zero
+		end)
+	end
 
 	table.clear(FarmCoinSkipUntil)
 end
