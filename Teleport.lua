@@ -659,28 +659,34 @@ UI.CreateActionFeature(
 	UI.TeleportPage,
 	"Teleport Behind Murderer",
 	"Teleport a few studs behind the current Murderer",
-	TeleportBehindMurderer
+	TeleportBehindMurderer,
+	"skull",
+	"Red"
 )
 
 UI.CreateActionFeature(
 	UI.TeleportPage,
 	"Teleport Behind Sheriff",
 	"Teleport a few studs behind the current Sheriff",
-	TeleportBehindSheriff
+	TeleportBehindSheriff,
+	"shield",
+	"Blue"
 )
 
 UI.CreateActionFeature(
 	UI.TeleportPage,
 	"Teleport to Map",
 	"Teleport near an alive player in the active round",
-	TeleportToMap
+	TeleportToMap,
+	"map"
 )
 
 UI.CreateActionFeature(
 	UI.TeleportPage,
 	"Teleport to Lobby / Intermission",
 	"Teleport to the exact saved lobby position",
-	TeleportToLobby
+	TeleportToLobby,
+	"house"
 )
 
 --============================================================
@@ -732,7 +738,8 @@ UI.CreateActionFeature(
 		TeleportToSelectedPlayer(
 			false
 		)
-	end
+	end,
+	"user-round"
 )
 
 UI.CreateActionFeature(
@@ -744,7 +751,8 @@ UI.CreateActionFeature(
 		TeleportToSelectedPlayer(
 			true
 		)
-	end
+	end,
+	"navigation"
 )
 
 --============================================================
