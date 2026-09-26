@@ -204,6 +204,8 @@ local FarmDiagLastNC = nil
 local FarmDiagLastMoverCount = nil
 local FarmDiagLastGeneration = FarmRunGeneration
 local FarmDiagLastRunning = AutoFarmRunning
+local FarmDiagLastUpdateFlag = nil
+local FarmDiagLastUpdateRunning = nil
 
 local function FarmDiag(message)
     local line = string.format("[%.3f] %s", os.clock(), tostring(message))
@@ -1939,7 +1941,13 @@ function MM2.Functions.StopAutoFarm()
 end
 
 function MM2.Functions.UpdateAutoFarm()
-	FarmDiag("UpdateAutoFarm() flag=" .. tostring(Flags.AutoFarm) .. " running=" .. tostring(AutoFarmRunning))
+	-- Diagnostic: only record UpdateAutoFarm when its state actually changes.
+	-- This avoids the old 0.1-second log spam while preserving meaningful transitions.
+	if FarmDiagLastUpdateFlag ~= Flags.AutoFarm or FarmDiagLastUpdateRunning ~= AutoFarmRunning then
+		FarmDiag("UpdateAutoFarm STATE flag=" .. tostring(Flags.AutoFarm) .. " running=" .. tostring(AutoFarmRunning))
+		FarmDiagLastUpdateFlag = Flags.AutoFarm
+		FarmDiagLastUpdateRunning = AutoFarmRunning
+	end
 	if Flags.AutoFarm then
 		if not AutoFarmRunning then
 			MM2.Functions.StartAutoFarm()
@@ -2162,21 +2170,24 @@ end
 
 --============================================================
 -- Embedded Diagnostic GUI
+-- One-run tester: ON / OFF / CLEAR / COPY
 --============================================================
 
 task.spawn(function()
     local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
-    local old = PlayerGui:FindFirstChild("AutoFarmV13_11Diagnostic")
+    local old = PlayerGui:FindFirstChild("AutoFarmV13_12Diagnostic")
     if old then old:Destroy() end
+    local oldPrevious = PlayerGui:FindFirstChild("AutoFarmV13_11Diagnostic")
+    if oldPrevious then oldPrevious:Destroy() end
 
     local gui = Instance.new("ScreenGui")
-    gui.Name = "AutoFarmV13_11Diagnostic"
+    gui.Name = "AutoFarmV13_12Diagnostic"
     gui.ResetOnSpawn = false
     gui.DisplayOrder = 999999
     gui.Parent = PlayerGui
 
     local frame = Instance.new("Frame")
-    frame.Size = UDim2.new(0, 330, 0, 205)
+    frame.Size = UDim2.new(0, 330, 0, 225)
     frame.Position = UDim2.new(0.5, -165, 0.12, 0)
     frame.Active = true
     frame.Draggable = true
@@ -2186,58 +2197,83 @@ task.spawn(function()
     title.Size = UDim2.new(1, -12, 0, 30)
     title.Position = UDim2.new(0, 6, 0, 4)
     title.BackgroundTransparency = 1
-    title.Text = "AutoFarm V13.11 LIVE DIAGNOSTIC"
+    title.Text = "AutoFarm LIVE DIAGNOSTIC"
     title.TextScaled = true
     title.Parent = frame
 
     local status = Instance.new("TextLabel")
-    status.Size = UDim2.new(1, -12, 0, 48)
-    status.Position = UDim2.new(0, 6, 0, 36)
+    status.Size = UDim2.new(1, -12, 0, 42)
+    status.Position = UDim2.new(0, 6, 0, 35)
     status.BackgroundTransparency = 1
     status.TextWrapped = true
     status.TextScaled = true
-    status.Text = "Run Auto Farm normally, turn it OFF, then press MARK OFF."
+    status.Text = "CLEAR, then use ON/OFF multiple times. COPY when finished."
     status.Parent = frame
 
-    local function button(text, y)
+    local function button(text, x, y, w)
         local b = Instance.new("TextButton")
-        b.Size = UDim2.new(1, -20, 0, 32)
-        b.Position = UDim2.new(0, 10, 0, y)
+        b.Size = UDim2.new(0, w, 0, 36)
+        b.Position = UDim2.new(0, x, 0, y)
         b.Text = text
         b.TextScaled = true
         b.Parent = frame
         return b
     end
 
-    local mark = button("MARK AUTO FARM OFF", 88)
-    local snapshot = button("SNAPSHOT STATE", 124)
-    local copy = button("COPY LOGS", 160)
+    local onButton = button("AUTO FARM ON", 10, 82, 150)
+    local offButton = button("AUTO FARM OFF", 170, 82, 150)
+    local clearButton = button("CLEAR LOGS", 10, 126, 150)
+    local copyButton = button("COPY LOGS", 170, 126, 150)
+    local snapButton = button("SNAPSHOT STATE", 10, 170, 310)
 
-    mark.MouseButton1Click:Connect(function()
-        FarmDiagMarkTime = os.clock()
+    onButton.MouseButton1Click:Connect(function()
         FarmDiag("================================================")
-        FarmDiag("MANUAL OFF MARK pressed")
-        FarmDiagState("OFF MARK")
-        status.Text = "Marked. Do not move for 5 seconds, then COPY LOGS."
+        FarmDiag("MANUAL AUTO FARM ON pressed")
+        FarmDiagState("BEFORE MANUAL ON")
+        Flags.AutoFarm = true
+        MM2.Functions.UpdateAutoFarm()
+        FarmDiagState("AFTER MANUAL ON")
+        status.Text = "Auto Farm ON marked. Let it run, then press OFF."
     end)
 
-    snapshot.MouseButton1Click:Connect(function()
-        FarmDiagState("MANUAL SNAPSHOT")
-        status.Text = "Snapshot added to logs."
+    offButton.MouseButton1Click:Connect(function()
+        FarmDiag("================================================")
+        FarmDiag("MANUAL AUTO FARM OFF pressed")
+        FarmDiagState("BEFORE MANUAL OFF")
+        Flags.AutoFarm = false
+        MM2.Functions.UpdateAutoFarm()
+        FarmDiagMarkTime = os.clock()
+        FarmDiagState("AFTER MANUAL OFF")
+        status.Text = "Auto Farm OFF marked. Wait a few seconds or turn it ON again."
     end)
 
-    copy.MouseButton1Click:Connect(function()
+    clearButton.MouseButton1Click:Connect(function()
+        table.clear(FarmDiagLogs)
+        FarmDiagMarkTime = nil
+        FarmDiagLastUpdateFlag = Flags.AutoFarm
+        FarmDiagLastUpdateRunning = AutoFarmRunning
+        FarmDiag("LOGS CLEARED - NEW TEST STARTED")
+        FarmDiagState("CLEAR BASELINE")
+        status.Text = "Logs cleared. Start testing with ON/OFF."
+    end)
+
+    copyButton.MouseButton1Click:Connect(function()
         FarmDiagState("COPY SNAPSHOT")
         local text = table.concat(FarmDiagLogs, "\n")
         if setclipboard then
-            pcall(setclipboard, text)
-            status.Text = "Logs copied. Send them to me."
+            local ok = pcall(setclipboard, text)
+            status.Text = ok and "Logs copied. Send them to me." or "Clipboard call failed; logs remain in console."
         elseif toclipboard then
-            pcall(toclipboard, text)
-            status.Text = "Logs copied. Send them to me."
+            local ok = pcall(toclipboard, text)
+            status.Text = ok and "Logs copied. Send them to me." or "Clipboard call failed; logs remain in console."
         else
             status.Text = "Clipboard unsupported; logs are in console."
         end
+    end)
+
+    snapButton.MouseButton1Click:Connect(function()
+        FarmDiagState("MANUAL SNAPSHOT")
+        status.Text = "Snapshot added. Keep testing or COPY LOGS."
     end)
 
     FarmDiag("EMBEDDED AUTOFARM DIAGNOSTIC GUI LOADED")
