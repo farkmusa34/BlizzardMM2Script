@@ -661,7 +661,7 @@ UI.CreateActionFeature(
 	"Teleport a few studs behind the current Murderer",
 	TeleportBehindMurderer,
 	"skull",
-	"red"
+	"danger"
 )
 
 UI.CreateActionFeature(
