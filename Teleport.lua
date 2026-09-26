@@ -661,7 +661,7 @@ UI.CreateActionFeature(
 	"Teleport a few studs behind the current Murderer",
 	TeleportBehindMurderer,
 	"skull",
-	"Red"
+	"red"
 )
 
 UI.CreateActionFeature(
@@ -670,7 +670,7 @@ UI.CreateActionFeature(
 	"Teleport a few studs behind the current Sheriff",
 	TeleportBehindSheriff,
 	"shield",
-	"Blue"
+	"blue"
 )
 
 UI.CreateActionFeature(
@@ -702,7 +702,7 @@ UI.AddSection(
 local playerNames =
 	GetPlayerNames()
 
-UI.CreateDropdown(
+local PlayerDropdown = UI.CreateDropdown(
 	UI.TeleportPage,
 	"Player",
 	"Choose a player",
@@ -753,6 +753,22 @@ UI.CreateActionFeature(
 		)
 	end,
 	"navigation"
+)
+
+UI.CreateActionFeature(
+	UI.TeleportPage,
+	"Refresh Player List",
+	"Refreshes the selectable player list",
+	function()
+		local names = GetPlayerNames()
+		if PlayerDropdown then
+			pcall(function()
+				PlayerDropdown:Refresh(names)
+			end)
+		end
+		MM2.Notify("Player list refreshed.", 1.5, "refresh-cw", "Player List")
+	end,
+	"refresh-cw"
 )
 
 --============================================================
