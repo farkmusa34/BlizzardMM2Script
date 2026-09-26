@@ -444,7 +444,7 @@ UI.CreateActionFeature(
 	"purple"
 )
 
-UI.CreateActionFeature(UI.FlingPage,"Stop Fling","Stops the current fling",StopFling,"square")
+UI.CreateActionFeature(UI.FlingPage,"Stop Fling","Stops the current fling",StopFling,"circle-x")
 
 UI.CreateActionFeature(
 	UI.FlingPage,
