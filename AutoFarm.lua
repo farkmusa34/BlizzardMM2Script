@@ -1,6 +1,6 @@
 --============================================================
 -- MM2 V8.8.4 - AutoFarm.lua
--- Coin Farm V13.8 local + nearest safe return
+-- Coin Farm V13.10 lifecycle-safe shutdown + nearest safe return
 --============================================================
 
 local MM2 = getgenv and getgenv().MM2_V85_SPLIT or _G.MM2_V85_SPLIT
@@ -19,7 +19,7 @@ Flags.ShootMurdererAfterBagFull = Flags.ShootMurdererAfterBagFull == true
 Flags.FlingMurdererAfterBagFull = Flags.FlingMurdererAfterBagFull == true
 Flags.ResetCharacterAfterBagFull = Flags.ResetCharacterAfterBagFull == true
 
-UI.AddSection(UI.AutoFarmPage,"Auto Farm","Coin Farm V13.9 multi-floor stuck-proof return")
+UI.AddSection(UI.AutoFarmPage,"Auto Farm","Coin Farm V13.10 lifecycle-safe return")
 
 UI.CreateToggle(
 	UI.AutoFarmPage,
@@ -373,7 +373,14 @@ local function FarmDestroyMovement()
 	FarmAttachment = nil
 end
 
-local function FarmEnsureMovement()
+local function FarmEnsureMovement(expectedGeneration)
+	-- Never allow a stale callback to recreate farm movers after OFF.
+	if not AutoFarmRunning then
+		return false
+	end
+	if expectedGeneration ~= nil and expectedGeneration ~= FarmRunGeneration then
+		return false
+	end
 	if not FarmUpdateCharacter() then
 		return false
 	end
@@ -429,9 +436,15 @@ end
 -- Noclip
 --============================================================
 
-local function FarmApplyNoclip()
+local function FarmApplyNoclip(expectedGeneration)
+	if not AutoFarmRunning then
+		return false
+	end
+	if expectedGeneration ~= nil and expectedGeneration ~= FarmRunGeneration then
+		return false
+	end
 	if not FarmCharacter or not FarmHumanoid then
-		return
+		return false
 	end
 
 	FarmApplyHRPSize()
@@ -452,27 +465,41 @@ local function FarmApplyNoclip()
 		or state == Enum.HumanoidStateType.Seated then
 		FarmHumanoid:ChangeState(Enum.HumanoidStateType.Freefall)
 	end
+
+	return true
 end
 
-local function FarmStartNoclip()
-	if FarmNoclipConnection then
-		FarmNoclipConnection:Disconnect()
+local function FarmStartNoclip(expectedGeneration)
+	expectedGeneration = expectedGeneration or FarmRunGeneration
+
+	if not AutoFarmRunning or expectedGeneration ~= FarmRunGeneration then
+		return false
 	end
 
-	FarmNoclipConnection = nil
+	if FarmNoclipConnection then
+		FarmNoclipConnection:Disconnect()
+		FarmNoclipConnection = nil
+	end
+
 	table.clear(FarmOriginalCollision)
-	FarmApplyNoclip()
+
+	if not FarmApplyNoclip(expectedGeneration) then
+		return false
+	end
 
 	FarmNoclipConnection = RunService.Stepped:Connect(function()
 		if not AutoFarmRunning
+			or expectedGeneration ~= FarmRunGeneration
 			or (FarmPaused and not FarmBagLiftInProgress) then
 			return
 		end
 
 		if FarmUpdateCharacter() then
-			FarmApplyNoclip()
+			FarmApplyNoclip(expectedGeneration)
 		end
 	end)
+
+	return true
 end
 
 local function FarmStopNoclip()
@@ -1295,7 +1322,13 @@ local function FarmPause(reason)
 	FarmRestoreHRPSize()
 end
 
-local function FarmWake()
+local function FarmWake(expectedGeneration)
+	expectedGeneration = expectedGeneration or FarmRunGeneration
+
+	if not AutoFarmRunning or expectedGeneration ~= FarmRunGeneration then
+		return false
+	end
+
 	FarmPaused = false
 	FarmPauseReason = nil
 
@@ -1303,18 +1336,19 @@ local function FarmWake()
 		return false
 	end
 
-
 	FarmApplyHRPSize()
 
-	if not FarmEnsureMovement() then
+	if not FarmEnsureMovement(expectedGeneration) then
 		return false
 	end
 
 	if not FarmNoclipConnection then
-		FarmStartNoclip()
+		if not FarmStartNoclip(expectedGeneration) then
+			return false
+		end
 	end
 
-	return true
+	return AutoFarmRunning and expectedGeneration == FarmRunGeneration
 end
 
 --============================================================
@@ -1428,8 +1462,21 @@ local function FarmRunAfterBagFullActions()
 	end
 
 	FarmAfterBagActionBusy = true
+	local actionGeneration = FarmRunGeneration
 
 	task.spawn(function()
+		local function actionStillValid()
+			return AutoFarmRunning
+				and actionGeneration == FarmRunGeneration
+				and Flags.AutoFarm
+				and FarmBagFull
+		end
+
+		if not actionStillValid() then
+			FarmAfterBagActionBusy = false
+			return
+		end
+
 		local killAllRan = false
 
 		if Flags.KillAllAfterBagFull
@@ -1477,7 +1524,8 @@ local function FarmRunAfterBagFullActions()
 			end
 		end
 
-		if Flags.FlingMurdererAfterBagFull
+		if actionStillValid()
+			and Flags.FlingMurdererAfterBagFull
 			and MM2.Functions.ExecuteYeet then
 
 			local murderer = FarmFindMurderer()
@@ -1490,10 +1538,15 @@ local function FarmRunAfterBagFullActions()
 			end
 		end
 
-		if Flags.ResetCharacterAfterBagFull
+		if actionStillValid()
+			and Flags.ResetCharacterAfterBagFull
 			and not killAllRan then
 
 			task.wait(0.15)
+			if not actionStillValid() then
+				FarmAfterBagActionBusy = false
+				return
+			end
 
 			local character = LocalPlayer.Character
 			local humanoid =
@@ -1515,7 +1568,12 @@ end
 
 local function FarmBeginBagFullLift()
 	local bagGeneration = FarmRunGeneration
-	if FarmBagLiftInProgress or FarmBagLiftDone then
+
+	if not AutoFarmRunning
+		or not Flags.AutoFarm
+		or not FarmBagFull
+		or FarmBagLiftInProgress
+		or FarmBagLiftDone then
 		return
 	end
 
@@ -1528,7 +1586,7 @@ local function FarmBeginBagFullLift()
 
 
 	task.spawn(function()
-		if not FarmUpdateCharacter() or not FarmEnsureMovement() then
+		if not AutoFarmRunning or bagGeneration ~= FarmRunGeneration or not FarmUpdateCharacter() or not FarmEnsureMovement(bagGeneration) then
 			FarmStopNoclip()
 			FarmDestroyMovement()
 			FarmRestoreHRPSize()
@@ -1539,7 +1597,7 @@ local function FarmBeginBagFullLift()
 		end
 
 		if not FarmNoclipConnection then
-			FarmStartNoclip()
+			FarmStartNoclip(bagGeneration)
 		end
 
 		local liftTarget =
@@ -1637,7 +1695,7 @@ local function FarmLoop(runGeneration)
 				continue
 			end
 
-			if not FarmWake() then
+			if not FarmWake(runGeneration) then
 				task.wait(0.05)
 				continue
 			end
@@ -1781,8 +1839,30 @@ function MM2.Functions.StopAutoFarm()
 	FarmRestoreHRPSize()
 
 	-- Relocate only after all farm forces and noclip writers are dead.
+	-- A shutdown fence runs alongside return verification so any stale callback
+	-- that somehow resumes during these scheduler turns is immediately neutralized.
+	local stopGeneration = FarmRunGeneration
+	local shutdownFenceAlive = true
+
+	task.spawn(function()
+		local deadline = os.clock() + 3.0
+		while shutdownFenceAlive
+			and not AutoFarmRunning
+			and FarmRunGeneration == stopGeneration
+			and os.clock() < deadline do
+
+			FarmStopNoclip()
+			FarmDestroyMovement()
+			FarmRestoreHRPSize()
+			RunService.Heartbeat:Wait()
+		end
+	end)
+
 	FarmReturnToSafePosition()
+	shutdownFenceAlive = false
 	FarmStopNoclip()
+	FarmDestroyMovement()
+	FarmRestoreHRPSize()
 
 	if FarmUpdateCharacter() then
 		pcall(function()
@@ -1965,7 +2045,7 @@ if FarmCoinCollected and FarmCoinCollected:IsA("RemoteEvent") then
 
 			FarmBagFull = FarmBagCount >= FarmBagMax
 
-			if Flags.AutoFarm and FarmBagFull then
+			if AutoFarmRunning and Flags.AutoFarm and FarmBagFull then
 				FarmBeginBagFullLift()
 			end
 		end)
@@ -2010,7 +2090,7 @@ end
 if FarmVictoryScreen and FarmVictoryScreen:IsA("RemoteEvent") then
 	Track(
 		FarmVictoryScreen.OnClientEvent:Connect(function()
-			if Flags.AutoFarm then
+			if AutoFarmRunning and Flags.AutoFarm then
 				FarmPause("INTERMISSION")
 			end
 		end)
