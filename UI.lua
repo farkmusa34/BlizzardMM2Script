@@ -1439,7 +1439,10 @@ function UI.CreateActionFeature(
 
 		control = result
 
-		-- Semantic action fills for special one-tap actions.
+		-- Semantic full-card fills for special one-tap actions.
+		-- WindUI's Button control does not expose a reliable public fill field,
+		-- and the returned controller is not guaranteed to expose ElementFrame.
+		-- Resolve the rendered card from its title label instead.
 		local ACTION_COLORS = {
 			danger = Color3.fromRGB(150,45,52),
 			blue = Color3.fromRGB(45,88,155),
@@ -1447,27 +1450,49 @@ function UI.CreateActionFeature(
 			orange = Color3.fromRGB(170,92,38),
 		}
 		local fill = ACTION_COLORS[style]
-		if fill and control then
-			local function applyActionFill()
-				local root = control.ElementFrame or control.Frame or control.Root
-				if typeof(root) ~= "Instance" then return end
-				local target = root:IsA("Frame") and root or nil
-				if not target then
-					local bestArea = -1
+		if fill then
+			local wantedTitle = tostring(titleText or "")
+
+			local function findRenderedCard()
+				local roots = { CoreGui, PlayerGui }
+				for _,root in ipairs(roots) do
 					for _,obj in ipairs(root:GetDescendants()) do
-						if obj:IsA("Frame") and obj.BackgroundTransparency < 1 then
-							local area = obj.AbsoluteSize.X * obj.AbsoluteSize.Y
-							if area > bestArea then target,bestArea = obj,area end
+						if (obj:IsA("TextLabel") or obj:IsA("TextButton"))
+							and obj.Text == wantedTitle then
+							local node = obj.Parent
+							local best = nil
+							for _ = 1,8 do
+								if not node then break end
+								if node:IsA("GuiObject")
+									and node.BackgroundTransparency < 1
+									and node.AbsoluteSize.X > 180
+									and node.AbsoluteSize.Y >= 40
+									and node.AbsoluteSize.Y <= 90 then
+									best = node
+								end
+								node = node.Parent
+							end
+							if best then return best end
 						end
 					end
 				end
-				if target then
-					target.BackgroundColor3 = fill
-					target.BackgroundTransparency = math.min(target.BackgroundTransparency,0.08)
-				end
 			end
-			task.defer(applyActionFill)
-			task.delay(0.15,applyActionFill)
+
+			local function applyActionFill()
+				local card = findRenderedCard()
+				if not card then return false end
+				card.BackgroundColor3 = fill
+				card.BackgroundTransparency = 0
+				return true
+			end
+
+			-- WindUI renders asynchronously. Retry briefly until the real card exists.
+			task.spawn(function()
+				for _ = 1,20 do
+					if applyActionFill() then break end
+					task.wait(0.05)
+				end
+			end)
 		end
 
 	else
