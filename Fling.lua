@@ -193,15 +193,18 @@ local function FlingSheriffOrHero()
 	MM2.Notify("No sheriff/hero target found.",2,"x","Fling Failed")
 end
 
-UI.CreateActionFeature(UI.FlingPage,"Fling Murderer","Flings the current murderer",function()
-	FlingRole("Murderer","Murderer")
-end)
-UI.CreateActionFeature(UI.FlingPage,"Fling Sheriff","Flings the current sheriff",function()
-	FlingRole("Sheriff","Sheriff")
-end)
-UI.CreateActionFeature(UI.FlingPage,"Fling Hero","Flings the current hero",function()
-	FlingRole("Hero","Hero")
-end)
+UI.CreateActionFeature(
+	UI.FlingPage,"Fling Murderer","Flings the current murderer",
+	function() FlingRole("Murderer","Murderer") end,
+	"skull",
+	{ Color = Color3.fromRGB(205,65,70) }
+)
+UI.CreateActionFeature(
+	UI.FlingPage,"Fling Sheriff / Hero","Flings the current sheriff, or hero if no sheriff is active",
+	FlingSheriffOrHero,
+	"shield",
+	{ Color = Color3.fromRGB(55,125,220) }
+)
 
 --============================================================
 -- MOVABLE ROLE QUICK BUTTONS
@@ -442,10 +445,12 @@ UI.CreateActionFeature(
 			return
 		end
 		ExecuteYeet(target,target.Name)
-	end
+	end,
+	"user-x",
+	{ Color = Color3.fromRGB(125,80,200) }
 )
 
-UI.CreateActionFeature(UI.FlingPage,"Stop Fling","Stops the current fling",StopFling)
+UI.CreateActionFeature(UI.FlingPage,"Stop Fling","Stops the current fling",StopFling,"square")
 
 UI.CreateActionFeature(
 	UI.FlingPage,
@@ -454,7 +459,8 @@ UI.CreateActionFeature(
 	function()
 		RefreshPlayerDropdown()
 		MM2.Notify("Player list refreshed.",1.5,"refresh-cw","Player List")
-	end
+	end,
+	"refresh-cw"
 )
 
 UI.AddSection(

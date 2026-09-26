@@ -3487,7 +3487,8 @@ local ResetPositionButton =
 		function()
 
 			ResetHeldPosition()
-		end
+		end,
+		"undo-2"
 	)
 
 print(

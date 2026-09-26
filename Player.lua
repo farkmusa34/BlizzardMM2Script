@@ -766,7 +766,9 @@ UI.CreateActionFeature(
 	UI.PlayerPage,
 	"Bomb Jump",
 	"Perform one timed Fake Bomb jump",
-	function() TriggerBombJump() end
+	function() TriggerBombJump() end,
+	"bomb",
+	{ Color = Color3.fromRGB(235,145,45) }
 )
 
 UI.CreateToggle(
@@ -791,7 +793,8 @@ UI.CreateActionFeature(
 		local char = LocalPlayer.Character
 		local humanoid = char and char:FindFirstChildOfClass("Humanoid")
 		if humanoid then humanoid.Health = 0 end
-	end
+	end,
+	"rotate-ccw"
 )
 
 --============================================================

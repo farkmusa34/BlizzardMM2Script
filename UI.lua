@@ -1313,7 +1313,8 @@ function UI.CreateActionFeature(
 	titleText,
 	description,
 	callback,
-	icon
+	icon,
+	style
 )
 
 	local parent =
@@ -1346,6 +1347,9 @@ function UI.CreateActionFeature(
 					),
 
 				Icon = icon,
+
+				-- Optional per-action accent/fill. WindUI ignores unsupported fields safely.
+				Color = style and style.Color or nil,
 
 				Callback =
 					function()

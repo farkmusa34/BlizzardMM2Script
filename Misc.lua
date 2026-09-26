@@ -543,7 +543,8 @@ UI.CreateActionFeature(
 	"Reconnect to the current server",
 	function()
 		RejoinCurrentPlace()
-	end
+	end,
+	"log-in"
 )
 
 --============================================================
@@ -663,7 +664,8 @@ UI.CreateActionFeature(
 	"Join another public server",
 	function()
 		ServerHop()
-	end
+	end,
+	"shuffle"
 )
 
 --============================================================
@@ -961,7 +963,8 @@ UI.CreateActionFeature(
 	"Save your current menu settings",
 	function()
 		SaveConfig()
-	end
+	end,
+	"save"
 )
 
 UI.CreateActionFeature(
@@ -970,7 +973,8 @@ UI.CreateActionFeature(
 	"Restore the default configuration",
 	function()
 		ResetConfig()
-	end
+	end,
+	"undo-2"
 )
 
 --============================================================
@@ -1039,7 +1043,8 @@ UI.CreateActionFeature(
 	"Hide the main menu",
 	function()
 		HideMenu()
-	end
+	end,
+	"eye-off"
 )
 
 --============================================================
@@ -1101,7 +1106,9 @@ UI.CreateActionFeature(
 	"Disable features and remove the menu",
 	function()
 		UnloadMenu()
-	end
+	end,
+	"power",
+	{ Color = Color3.fromRGB(205,65,70) }
 )
 
 --============================================================

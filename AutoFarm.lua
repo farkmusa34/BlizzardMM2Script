@@ -2026,7 +2026,8 @@ UI.CreateActionFeature(
 	UI.AutoFarmPage,
 	"Reset Stats",
 	"Resets coin rate statistics",
-	FarmResetStats
+	FarmResetStats,
+	"refresh-cw"
 )
 
 MM2.Track(
