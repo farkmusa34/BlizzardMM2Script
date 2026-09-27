@@ -394,7 +394,7 @@ DiagnosticTitle.Font = Enum.Font.GothamBold
 DiagnosticTitle.TextSize = 11
 DiagnosticTitle.TextXAlignment = Enum.TextXAlignment.Left
 DiagnosticTitle.TextColor3 = Color3.fromRGB(245,245,250)
-DiagnosticTitle.Text = "SERVER-FACING + HITBOX DIAGNOSTIC"
+DiagnosticTitle.Text = "FIRE-STATE / CADENCE DIAGNOSTIC"
 DiagnosticTitle.Parent = DiagnosticFrame
 
 local DiagnosticStatus = Instance.new("TextLabel")
@@ -407,7 +407,7 @@ DiagnosticStatus.TextWrapped = false
 DiagnosticStatus.TextXAlignment = Enum.TextXAlignment.Left
 DiagnosticStatus.TextYAlignment = Enum.TextYAlignment.Top
 DiagnosticStatus.TextColor3 = Color3.fromRGB(220,220,225)
-DiagnosticStatus.Text = "Ready\nMode: Hitbox / Part Intersection\nActual shot: 60ms XYZ\nTracking body-part intersections"
+DiagnosticStatus.Text = "Ready\nMode: Fire State / Cadence\nActual shot: 60ms XYZ\nTracking gun state + timing"
 DiagnosticStatus.Parent = DiagnosticFrame
 
 local CopyLogsButton = Instance.new("TextButton")
@@ -474,7 +474,7 @@ ClearLogsButton.Activated:Connect(function()
 	table.clear(DiagnosticLogLines)
 	ExactFireDiagnostic.ShotNumber = 0
 	ExactFireDiagnostic.Pending = nil
-	SetDiagnosticStatus("Logs cleared\nMode: Hitbox / Part Intersection\nActual shot: 60ms XYZ\nTracking body-part intersections")
+	SetDiagnosticStatus("Logs cleared\nMode: Fire State / Cadence\nActual shot: 60ms XYZ\nTracking gun state + timing")
 	ClearLogsButton.Text = "CLEARED!"
 	task.delay(1.2,function()
 		if ClearLogsButton and ClearLogsButton.Parent then ClearLogsButton.Text = "CLEAR LOGS" end
@@ -921,14 +921,60 @@ local function MonitorExactFireDiagnostic(record)
 		PushDiagnosticLog("HealthChange="..eventText(eventTimes.HealthChange))
 		PushDiagnosticLog("DenseFrames="..tostring(#denseSamples))
 		PushDiagnosticLog("ActualPrediction=60ms XYZ (UNCHANGED)")
+		PushDiagnosticLog("FIRE STATE / CADENCE SUMMARY")
+		PushDiagnosticLog("------------------------------------------------------------")
+		if record.PreFireState then
+			PushDiagnosticLog(string.format("PreFireSinceLastShot=%.3fms PreFireCooldownRemaining=%.3fms",
+				record.PreFireState.SinceLastManualShot*1000,record.PreFireState.CooldownRemaining*1000))
+			PushDiagnosticLog("PreFireToolEnabled="..tostring(record.PreFireState.ToolEnabled).." PreFireCantShoot="..tostring(record.PreFireState.CantShootEnabled))
+		end
+		if record.ReturnFireState then
+			PushDiagnosticLog("ReturnToolEnabled="..tostring(record.ReturnFireState.ToolEnabled).." ReturnCantShoot="..tostring(record.ReturnFireState.CantShootEnabled))
+		end
 		PushDiagnosticLog("Outcome="..outcome)
 		PushDiagnosticLog("============================================================")
 		SetDiagnosticStatus(
 			"Shot #"..record.Id.." complete\n"
 			.."Outcome: "..outcome.."\n"
-			.."Hitbox + part intersections captured."
+			.."Fire-state + cadence data captured."
 		)
 	end)
+end
+
+local function ReadGunFireState(gun,character)
+	local state = {}
+	state.Clock = os.clock()
+	state.Parent = gun and gun.Parent and gun.Parent:GetFullName() or "nil"
+	state.Equipped = gun ~= nil and character ~= nil and gun.Parent == character
+	state.ToolEnabled = (gun and gun:IsA("Tool")) and gun.Enabled or nil
+	local cantShoot = gun and gun:FindFirstChild("CantShoot")
+	if cantShoot and cantShoot:IsA("BillboardGui") then
+		state.CantShootEnabled = cantShoot.Enabled
+	else
+		state.CantShootEnabled = nil
+	end
+	local handle = gun and gun:FindFirstChild("Handle")
+	state.HandlePresent = handle ~= nil and handle:IsA("BasePart")
+	local shootRemote = gun and gun:FindFirstChild("Shoot")
+	state.RemotePresent = shootRemote ~= nil and shootRemote:IsA("RemoteEvent")
+	state.SinceLastManualShot = state.Clock-(LastManualShot or 0)
+	state.CooldownRemaining = math.max(0,SHOT_COOLDOWN-state.SinceLastManualShot)
+	state.ShootBusy = ShootBusy == true
+	return state
+end
+
+local function LogGunFireState(label,state)
+	PushDiagnosticLog(label)
+	PushDiagnosticLog("------------------------------------------------------------")
+	PushDiagnosticLog("Clock="..string.format("%.6f",state.Clock))
+	PushDiagnosticLog("GunParent="..tostring(state.Parent))
+	PushDiagnosticLog("GunEquipped="..tostring(state.Equipped))
+	PushDiagnosticLog("ToolEnabled="..tostring(state.ToolEnabled))
+	PushDiagnosticLog("CantShootEnabled="..tostring(state.CantShootEnabled))
+	PushDiagnosticLog("HandlePresent="..tostring(state.HandlePresent).." RemotePresent="..tostring(state.RemotePresent))
+	PushDiagnosticLog("ShootBusy="..tostring(state.ShootBusy))
+	PushDiagnosticLog(string.format("SinceLastManualShot=%.3fms CooldownRemaining=%.3fms",
+		state.SinceLastManualShot*1000,state.CooldownRemaining*1000))
 end
 
 local function FireCombatGun(gun,targetPosition)
@@ -973,7 +1019,7 @@ local function FireCombatGun(gun,targetPosition)
 		local fireVelocity = targetPart and targetPart.Parent and targetPart.AssemblyLinearVelocity or nil
 
 		PushDiagnosticLog("============================================================")
-		PushDiagnosticLog("SERVER-FACING + HITBOX DIAGNOSTIC SHOT #"..diagnostic.Id)
+		PushDiagnosticLog("FIRE-STATE / CADENCE DIAGNOSTIC SHOT #"..diagnostic.Id)
 		PushDiagnosticLog("Target="..tostring(diagnostic.Player and diagnostic.Player.Name or "?"))
 		PushDiagnosticLog("Prediction=60ms XYZ (vertical enabled)")
 		PushDiagnosticLog("OriginMode="..originMode)
@@ -1105,6 +1151,13 @@ local function FireCombatGun(gun,targetPosition)
 		PushDiagnosticLog("FireCallClock="..string.format("%.6f",os.clock()))
 	end
 
+	local preFireState = nil
+	if ExactFireDiagnostic.Enabled and diagnostic then
+		preFireState = ReadGunFireState(gun,character)
+		diagnostic.PreFireState = preFireState
+		LogGunFireState("PRE-FIRE STATE",preFireState)
+	end
+
 	local remoteStart = os.clock()
 	shoot:FireServer(originCFrame,destinationCFrame)
 
@@ -1118,6 +1171,20 @@ local function FireCombatGun(gun,targetPosition)
 			"FireServerReturn=%.3fms",
 			(diagnostic.RemoteReturnClock-remoteStart)*1000
 		))
+		local returnState = ReadGunFireState(gun,character)
+		diagnostic.ReturnFireState = returnState
+		LogGunFireState("IMMEDIATE POST-FIRE STATE",returnState)
+		task.spawn(function()
+			for _,delaySeconds in ipairs({0.016,0.050,0.100,0.250}) do
+				local waitFor = delaySeconds-(os.clock()-remoteStart)
+				if waitFor > 0 then task.wait(waitFor) end
+				if gun and gun.Parent then
+					LogGunFireState(string.format("GUN STATE +%.0fMS",delaySeconds*1000),ReadGunFireState(gun,character))
+				else
+					PushDiagnosticLog(string.format("GUN STATE +%.0fMS: gun unavailable",delaySeconds*1000))
+				end
+			end
+		end)
 		PushDiagnosticLog("POST-FIRE HITBOX TRACKING: every Heartbeat through 100ms, then 150/200ms")
 		PushDiagnosticLog("------------------------------------------------------------")
 		ExactFireDiagnostic.Pending = nil
