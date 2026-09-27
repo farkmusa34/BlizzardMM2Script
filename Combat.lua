@@ -78,7 +78,7 @@ UI.CreateToggle(UI.CombatPage, "Shoot Murderer (Legit)", "Shows a shoot button t
 		MM2.UI.FloatingLegitShootButton.Visible = on
 	end
 end)
-UI.CreateToggle(UI.CombatPage, "General Prediction Diagnostic", "Automatically fires controlled legit shots across different target movement states", "GeneralPredictionDiagnostic")
+UI.CreateToggle(UI.CombatPage, "General Prediction Diagnostic", "Auto-fires one diagnostic shot for the movement case selected in the diagnostic panel", "GeneralPredictionDiagnostic")
 UI.CreateToggle(UI.CombatPage, "Shoot Murderer (Rage)", "Shows a rage shoot button that can target the murderer through walls", "ShowShootButton", function(on)
 	if MM2.UI.FloatingShootHolder then
 		MM2.UI.FloatingShootHolder.Visible = on
@@ -174,7 +174,8 @@ local LastTriggerShot = 0
 local DiagnosticVYWindowLatched = false
 local GeneralDiagnosticRequestedCase = nil
 local GeneralDiagnosticCaseIndex = 1
-local GENERAL_DIAGNOSTIC_CASES = {"HORIZONTAL","RISING","APEX","FALLING","FAST_FALL","DIAGONAL_FALL"}
+local GeneralDiagnosticSelectedIndex = 1
+local GENERAL_DIAGNOSTIC_CASES = {"GROUNDED_HORIZONTAL","EARLY_RISE","LATE_RISE","APEX","NORMAL_FALL","FAST_FALL","DIAGONAL_RISE","DIAGONAL_FALL","DIRECTION_CHANGE","JUMP_SPAM"}
 local LastManualShot = 0
 local ShootBusy = false
 
@@ -407,7 +408,7 @@ DiagnosticGui.Parent = MM2.PlayerGui
 
 local DiagnosticFrame = Instance.new("Frame")
 DiagnosticFrame.Name = "Main"
-DiagnosticFrame.Size = UDim2.fromOffset(238,166)
+DiagnosticFrame.Size = UDim2.fromOffset(238,232)
 DiagnosticFrame.Position = UDim2.new(0.5,-119,0.16,0)
 DiagnosticFrame.BackgroundColor3 = Color3.fromRGB(18,18,22)
 DiagnosticFrame.BackgroundTransparency = 0.08
@@ -437,7 +438,7 @@ DiagnosticTitle.Text = "GENERAL MOVEMENT PREDICTION DIAGNOSTIC"
 DiagnosticTitle.Parent = DiagnosticFrame
 
 local DiagnosticStatus = Instance.new("TextLabel")
-DiagnosticStatus.Size = UDim2.new(1,-12,0,70)
+DiagnosticStatus.Size = UDim2.new(1,-12,0,64)
 DiagnosticStatus.Position = UDim2.fromOffset(6,24)
 DiagnosticStatus.BackgroundTransparency = 1
 DiagnosticStatus.Font = Enum.Font.Code
@@ -446,8 +447,62 @@ DiagnosticStatus.TextWrapped = false
 DiagnosticStatus.TextXAlignment = Enum.TextXAlignment.Left
 DiagnosticStatus.TextYAlignment = Enum.TextYAlignment.Top
 DiagnosticStatus.TextColor3 = Color3.fromRGB(220,220,225)
-DiagnosticStatus.Text = "Ready\n6 controlled movement shots\nEnable General Prediction Diagnostic\nMove target naturally"
+DiagnosticStatus.Text = "Choose a shot type below\nEnable General Prediction Diagnostic\nIt will auto-fire ONE matching shot"
 DiagnosticStatus.Parent = DiagnosticFrame
+
+local CasePrevButton = Instance.new("TextButton")
+CasePrevButton.Size = UDim2.fromOffset(34,27)
+CasePrevButton.Position = UDim2.fromOffset(6,94)
+CasePrevButton.BackgroundColor3 = Color3.fromRGB(32,32,39)
+CasePrevButton.BorderSizePixel = 0
+CasePrevButton.Font = Enum.Font.GothamBold
+CasePrevButton.TextSize = 14
+CasePrevButton.TextColor3 = Color3.fromRGB(245,245,250)
+CasePrevButton.Text = "<"
+CasePrevButton.Parent = DiagnosticFrame
+
+local CaseSelectButton = Instance.new("TextButton")
+CaseSelectButton.Size = UDim2.new(1,-86,0,27)
+CaseSelectButton.Position = UDim2.fromOffset(43,94)
+CaseSelectButton.BackgroundColor3 = Color3.fromRGB(32,32,39)
+CaseSelectButton.BorderSizePixel = 0
+CaseSelectButton.Font = Enum.Font.GothamSemibold
+CaseSelectButton.TextSize = 9
+CaseSelectButton.TextColor3 = Color3.fromRGB(245,245,250)
+CaseSelectButton.Text = GENERAL_DIAGNOSTIC_CASES[GeneralDiagnosticSelectedIndex]
+CaseSelectButton.Parent = DiagnosticFrame
+
+local CaseNextButton = Instance.new("TextButton")
+CaseNextButton.Size = UDim2.fromOffset(34,27)
+CaseNextButton.Position = UDim2.new(1,-40,0,94)
+CaseNextButton.BackgroundColor3 = Color3.fromRGB(32,32,39)
+CaseNextButton.BorderSizePixel = 0
+CaseNextButton.Font = Enum.Font.GothamBold
+CaseNextButton.TextSize = 14
+CaseNextButton.TextColor3 = Color3.fromRGB(245,245,250)
+CaseNextButton.Text = ">"
+CaseNextButton.Parent = DiagnosticFrame
+
+local function RefreshDiagnosticCaseSelection()
+    CaseSelectButton.Text = GENERAL_DIAGNOSTIC_CASES[GeneralDiagnosticSelectedIndex]
+    DiagnosticStatus.Text = "Selected: "..CaseSelectButton.Text.."\nEnable General Prediction Diagnostic\nWaiting only for this movement case"
+end
+
+CasePrevButton.Activated:Connect(function()
+    GeneralDiagnosticSelectedIndex -= 1
+    if GeneralDiagnosticSelectedIndex < 1 then GeneralDiagnosticSelectedIndex = #GENERAL_DIAGNOSTIC_CASES end
+    RefreshDiagnosticCaseSelection()
+end)
+CaseNextButton.Activated:Connect(function()
+    GeneralDiagnosticSelectedIndex += 1
+    if GeneralDiagnosticSelectedIndex > #GENERAL_DIAGNOSTIC_CASES then GeneralDiagnosticSelectedIndex = 1 end
+    RefreshDiagnosticCaseSelection()
+end)
+CaseSelectButton.Activated:Connect(function()
+    GeneralDiagnosticSelectedIndex += 1
+    if GeneralDiagnosticSelectedIndex > #GENERAL_DIAGNOSTIC_CASES then GeneralDiagnosticSelectedIndex = 1 end
+    RefreshDiagnosticCaseSelection()
+end)
 
 local CopyLogsButton = Instance.new("TextButton")
 CopyLogsButton.Size = UDim2.new(1,-12,0,27)
@@ -1095,14 +1150,11 @@ local function MonitorExactFireDiagnostic(record)
 		end
 		PushDiagnosticLog("Outcome="..outcome)
 
-		if record.Id >= #GENERAL_DIAGNOSTIC_CASES then
-			PushDiagnosticLog("GENERAL DIAGNOSTIC COMPLETE - copy logs now")
+		if Flags.GeneralPredictionDiagnostic and record.GeneralCase then
+			PushDiagnosticLog("SELECTED DIAGNOSTIC COMPLETE - copy logs now")
 			Flags.GeneralPredictionDiagnostic = false
 			if UI.SetToggleState then UI.SetToggleState("GeneralPredictionDiagnostic",false,false) end
-			SetDiagnosticStatus("COMPLETE\n"..tostring(record.Id).." movement shots captured\nPress COPY LOGS\nSend the full log")
-		else
-			local nextCase = GENERAL_DIAGNOSTIC_CASES[math.min(record.Id + 1,#GENERAL_DIAGNOSTIC_CASES)]
-			SetDiagnosticStatus("Shot #"..record.Id.." complete: "..outcome.."\nCaptured: "..tostring(record.GeneralCase).."\nWaiting for: "..tostring(nextCase))
+			SetDiagnosticStatus("COMPLETE: "..tostring(record.GeneralCase).."\nOutcome: "..outcome.."\nChoose another case, then enable again")
 		end
 
 		PushDiagnosticLog("============================================================")
@@ -1498,18 +1550,32 @@ local function GeneralDiagnosticMatches(caseName,torso,humanoid)
 	local v = torso.AssemblyLinearVelocity
 	local hs = Vector3.new(v.X,0,v.Z).Magnitude
 	local airborne = humanoid.FloorMaterial == Enum.Material.Air
-	if caseName == "HORIZONTAL" then
+	if caseName == "GROUNDED_HORIZONTAL" then
 		return hs >= 8 and math.abs(v.Y) <= 5 and not airborne
-	elseif caseName == "RISING" then
-		return airborne and v.Y >= 20 and v.Y <= 50
+	elseif caseName == "EARLY_RISE" then
+		return airborne and hs < 8 and v.Y >= 35
+	elseif caseName == "LATE_RISE" then
+		return airborne and hs < 8 and v.Y >= 12 and v.Y < 35
 	elseif caseName == "APEX" then
-		return airborne and math.abs(v.Y) <= 6
-	elseif caseName == "FALLING" then
-		return airborne and v.Y <= -12 and v.Y >= -30
+		return airborne and math.abs(v.Y) <= 6 and hs < 8
+	elseif caseName == "NORMAL_FALL" then
+		return airborne and hs < 8 and v.Y <= -12 and v.Y >= -30
 	elseif caseName == "FAST_FALL" then
 		return airborne and v.Y <= -35 and v.Y >= -45 and hs <= 2
+	elseif caseName == "DIAGONAL_RISE" then
+		return airborne and hs >= 8 and v.Y >= 12
 	elseif caseName == "DIAGONAL_FALL" then
 		return airborne and hs >= 8 and v.Y <= -12
+	elseif caseName == "DIRECTION_CHANGE" then
+		local samples = DiagnosticMotionBuffers[torso.Parent and Players:GetPlayerFromCharacter(torso.Parent)]
+		if samples and #samples >= 2 and hs >= 8 then
+			local old = samples[math.max(1,#samples-1)].Velocity
+			local a,b = Vector3.new(old.X,0,old.Z),Vector3.new(v.X,0,v.Z)
+			return a.Magnitude >= 8 and b.Magnitude >= 8 and a.Unit:Dot(b.Unit) < 0.35
+		end
+		return false
+	elseif caseName == "JUMP_SPAM" then
+		return airborne and hs >= 4 and math.abs(v.Y) >= 8
 	end
 	return false
 end
@@ -1517,25 +1583,19 @@ end
 task.spawn(function()
 	while task.wait(0.03) do
 		if Flags.GeneralPredictionDiagnostic and ExactFireDiagnostic.Enabled then
-			if ExactFireDiagnostic.ShotNumber >= #GENERAL_DIAGNOSTIC_CASES then
-				Flags.GeneralPredictionDiagnostic = false
-				if UI.SetToggleState then UI.SetToggleState("GeneralPredictionDiagnostic",false,false) end
-			else
-				GeneralDiagnosticCaseIndex = math.clamp(ExactFireDiagnostic.ShotNumber + 1,1,#GENERAL_DIAGNOSTIC_CASES)
-				local wanted = GENERAL_DIAGNOSTIC_CASES[GeneralDiagnosticCaseIndex]
-				local murderer = FindLiveMurderer()
-				local torso = murderer and GetCombatTorso(murderer.Character)
-				local humanoid = murderer and murderer.Character and murderer.Character:FindFirstChildOfClass("Humanoid")
-				if torso and humanoid then
-					local v = torso.AssemblyLinearVelocity
-					local hs = Vector3.new(v.X,0,v.Z).Magnitude
-					SetDiagnosticStatus(string.format("Waiting %d/6: %s\nHSpeed %.1f | VY %.1f\nAuto-fire when condition matches",GeneralDiagnosticCaseIndex,wanted,hs,v.Y))
-					if not ShootBusy and os.clock()-LastManualShot >= SHOT_COOLDOWN and HasClearLineOfSight(torso) and GeneralDiagnosticMatches(wanted,torso,humanoid) then
-						GeneralDiagnosticRequestedCase = wanted
-						local ok = MM2.Functions.ShootMurdererLegit()
-						GeneralDiagnosticRequestedCase = nil
-						if not ok and ExactFireDiagnostic.Pending then ExactFireDiagnostic.Pending = nil end
-					end
+			local wanted = GENERAL_DIAGNOSTIC_CASES[GeneralDiagnosticSelectedIndex]
+			local murderer = FindLiveMurderer()
+			local torso = murderer and GetCombatTorso(murderer.Character)
+			local humanoid = murderer and murderer.Character and murderer.Character:FindFirstChildOfClass("Humanoid")
+			if torso and humanoid then
+				local v = torso.AssemblyLinearVelocity
+				local hs = Vector3.new(v.X,0,v.Z).Magnitude
+				SetDiagnosticStatus(string.format("SELECTED: %s\nHSpeed %.1f | VY %.1f\nAuto-fire ONE shot when matched",wanted,hs,v.Y))
+				if not ShootBusy and os.clock()-LastManualShot >= SHOT_COOLDOWN and HasClearLineOfSight(torso) and GeneralDiagnosticMatches(wanted,torso,humanoid) then
+					GeneralDiagnosticRequestedCase = wanted
+					local ok = MM2.Functions.ShootMurdererLegit()
+					GeneralDiagnosticRequestedCase = nil
+					if not ok and ExactFireDiagnostic.Pending then ExactFireDiagnostic.Pending = nil end
 				end
 			end
 		end
