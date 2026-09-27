@@ -38,32 +38,56 @@ local VoidFallStarted = nil
 local BombJumpBusy = false
 local FloatingBombButton = nil
 
-local WalkSpeedHumanoid = nil
 local WalkSpeedEnforcerConnection = nil
 
 --============================================================
 -- WALK SPEED
+-- V3 validated implementation:
+-- one Heartbeat controller, and only writes when WS differs.
 --============================================================
+
+local function GetDesiredWalkSpeed()
+	return math.clamp(
+		tonumber(Settings.WalkSpeed) or 16,
+		16,
+		120
+	)
+end
 
 local function ApplyWalkSpeed()
 	local _,humanoid = MM2.GetLocalCharacter()
-	if not humanoid then return end
+	if not humanoid then
+		return
+	end
 
-	local desired = math.clamp(tonumber(Settings.WalkSpeed) or 16,16,120)
+	local desired = GetDesiredWalkSpeed()
 
-	-- Same behavior as the V2 speed test that was smooth at 120:
-	-- only write when the current speed differs from the selected speed.
 	if humanoid.WalkSpeed ~= desired then
 		humanoid.WalkSpeed = desired
 	end
 end
 
-local function StartWalkSpeedEnforcer()
-	if WalkSpeedEnforcerConnection then return end
+local function StartWalkSpeedController()
+	if WalkSpeedEnforcerConnection then
+		return
+	end
 
 	WalkSpeedEnforcerConnection = RunService.Heartbeat:Connect(function()
-		if MM2.Running then
-			ApplyWalkSpeed()
+		if not MM2.Running then
+			return
+		end
+
+		local _,humanoid = MM2.GetLocalCharacter()
+		if not humanoid then
+			return
+		end
+
+		local desired = GetDesiredWalkSpeed()
+
+		-- Exact V3 behavior: do nothing while the selected value is
+		-- already active. No property-changed callback and no Stepped loop.
+		if humanoid.WalkSpeed ~= desired then
+			humanoid.WalkSpeed = desired
 		end
 	end)
 
@@ -71,205 +95,6 @@ local function StartWalkSpeedEnforcer()
 end
 
 MM2.Functions.ApplyWalkSpeed = ApplyWalkSpeed
-
-
---============================================================
--- BLIZZARD PLAYER READ-ONLY DIAGNOSTIC
--- Logs only. Does not modify character movement/state.
---============================================================
-
-local PlayerDiagLogs = {}
-local PlayerDiagLastState,PlayerDiagLastFloor,PlayerDiagLastWS,PlayerDiagLastY
-local PlayerDiagLastSnapshot = 0
-local PlayerDiagLastObjects = ""
-local PlayerDiagInfo
-
-local function PlayerDiagAdd(text)
-	PlayerDiagLogs[#PlayerDiagLogs+1] = string.format("[%.3f] %s",os.clock(),text)
-	while #PlayerDiagLogs > 300 do table.remove(PlayerDiagLogs,1) end
-end
-
-local function PlayerDiagObjects(hrp)
-	local t = {}
-	for _,obj in ipairs(hrp:GetChildren()) do
-		if obj:IsA("Attachment") or obj:IsA("LinearVelocity")
-			or obj:IsA("AlignOrientation") or obj:IsA("VectorForce")
-			or obj:IsA("BodyVelocity") or obj:IsA("BodyGyro")
-			or obj:IsA("BodyPosition") then
-			t[#t+1] = obj.ClassName..":"..obj.Name
-		end
-	end
-	table.sort(t)
-	return table.concat(t,",")
-end
-
-local function CreatePlayerDiagnostic()
-	local pg = LocalPlayer:WaitForChild("PlayerGui")
-	local old = pg:FindFirstChild("BlizzardPlayerReadOnlyDiagnostic")
-	if old then old:Destroy() end
-
-	local gui = Instance.new("ScreenGui")
-	gui.Name = "BlizzardPlayerReadOnlyDiagnostic"
-	gui.ResetOnSpawn = false
-	gui.DisplayOrder = 999999
-	gui.Parent = pg
-
-	local main = Instance.new("Frame")
-	main.Size = UDim2.fromOffset(290,190)
-	main.Position = UDim2.new(0.5,-145,0.12,0)
-	main.BackgroundColor3 = Color3.fromRGB(18,18,18)
-	main.BorderSizePixel = 0
-	main.Parent = gui
-	Instance.new("UICorner",main).CornerRadius = UDim.new(0,12)
-
-	local title = Instance.new("TextLabel")
-	title.Size = UDim2.new(1,-20,0,30)
-	title.Position = UDim2.fromOffset(10,4)
-	title.BackgroundTransparency = 1
-	title.Text = "PLAYER DIAGNOSTIC • READ ONLY"
-	title.TextColor3 = Color3.new(1,1,1)
-	title.Font = Enum.Font.GothamBold
-	title.TextSize = 12
-	title.TextXAlignment = Enum.TextXAlignment.Left
-	title.Active = true
-	title.Parent = main
-
-	local info = Instance.new("TextLabel")
-	info.Size = UDim2.fromOffset(270,95)
-	info.Position = UDim2.fromOffset(10,38)
-	info.BackgroundColor3 = Color3.fromRGB(27,27,27)
-	info.BorderSizePixel = 0
-	info.TextColor3 = Color3.fromRGB(235,235,235)
-	info.Font = Enum.Font.Code
-	info.TextSize = 11
-	info.TextXAlignment = Enum.TextXAlignment.Left
-	info.TextYAlignment = Enum.TextYAlignment.Center
-	info.Text = "  Waiting for character..."
-	info.Parent = main
-	Instance.new("UICorner",info).CornerRadius = UDim.new(0,8)
-	PlayerDiagInfo = info
-
-	local clear = Instance.new("TextButton")
-	clear.Size = UDim2.fromOffset(128,40)
-	clear.Position = UDim2.fromOffset(10,140)
-	clear.BackgroundColor3 = Color3.fromRGB(38,38,38)
-	clear.BorderSizePixel = 0
-	clear.TextColor3 = Color3.new(1,1,1)
-	clear.Font = Enum.Font.GothamBold
-	clear.TextSize = 11
-	clear.Text = "CLEAR"
-	clear.Parent = main
-	Instance.new("UICorner",clear).CornerRadius = UDim.new(0,8)
-
-	local copy = Instance.new("TextButton")
-	copy.Size = UDim2.fromOffset(132,40)
-	copy.Position = UDim2.fromOffset(148,140)
-	copy.BackgroundColor3 = Color3.fromRGB(235,235,235)
-	copy.BorderSizePixel = 0
-	copy.TextColor3 = Color3.fromRGB(15,15,15)
-	copy.Font = Enum.Font.GothamBold
-	copy.TextSize = 11
-	copy.Text = "COPY LOGS"
-	copy.Parent = main
-	Instance.new("UICorner",copy).CornerRadius = UDim.new(0,8)
-
-	clear.MouseButton1Click:Connect(function()
-		table.clear(PlayerDiagLogs)
-		PlayerDiagLastState,PlayerDiagLastFloor,PlayerDiagLastWS,PlayerDiagLastY = nil,nil,nil,nil
-		PlayerDiagLastSnapshot = 0
-		PlayerDiagLastObjects = ""
-		PlayerDiagAdd("LOGS CLEARED")
-	end)
-
-	copy.MouseButton1Click:Connect(function()
-		local text = table.concat(PlayerDiagLogs,"\n")
-		if setclipboard then setclipboard(text)
-		elseif toclipboard then toclipboard(text) end
-		copy.Text = "COPIED"
-		task.delay(0.6,function()
-			if copy.Parent then copy.Text = "COPY LOGS" end
-		end)
-	end)
-
-	-- UI dragging only.
-	local dragging,dragStart,startPos,dragInput = false,nil,nil,nil
-	title.InputBegan:Connect(function(input)
-		if input.UserInputType == Enum.UserInputType.MouseButton1
-			or input.UserInputType == Enum.UserInputType.Touch then
-			dragging = true
-			dragStart = input.Position
-			startPos = main.Position
-			input.Changed:Connect(function()
-				if input.UserInputState == Enum.UserInputState.End then dragging=false end
-			end)
-		end
-	end)
-	title.InputChanged:Connect(function(input)
-		if input.UserInputType == Enum.UserInputType.MouseMovement
-			or input.UserInputType == Enum.UserInputType.Touch then dragInput=input end
-	end)
-	Track(UIS.InputChanged:Connect(function(input)
-		if dragging and input == dragInput then
-			local d=input.Position-dragStart
-			main.Position=UDim2.new(startPos.X.Scale,startPos.X.Offset+d.X,startPos.Y.Scale,startPos.Y.Offset+d.Y)
-		end
-	end))
-
-	PlayerDiagAdd("READ-ONLY DIAGNOSTIC STARTED")
-end
-
-local function UpdatePlayerDiagnostic()
-	if not PlayerDiagInfo then return end
-	local _,hum,hrp = MM2.GetLocalCharacter()
-	if not hum or not hrp then
-		PlayerDiagInfo.Text="  Waiting for character..."
-		return
-	end
-
-	local v=hrp.AssemblyLinearVelocity
-	local actual=Vector3.new(v.X,0,v.Z).Magnitude
-	local state=hum:GetState()
-	local floor=hum.FloorMaterial
-	local objects=PlayerDiagObjects(hrp)
-
-	PlayerDiagInfo.Text=string.format(
-		"  WS:%-5.1f Actual:%-6.1f Y:%.2f\n  State:%-11s Floor:%s\n  AutoRotate:%s Platform:%s Sit:%s\n  Fly:%s Noclip:%s Wall:%s Inf:%s",
-		hum.WalkSpeed,actual,v.Y,state.Name,floor.Name,
-		tostring(hum.AutoRotate),tostring(hum.PlatformStand),tostring(hum.Sit),
-		tostring(Flags.Fly),tostring(Flags.Noclip),tostring(Flags.WallClimb),tostring(Flags.InfiniteJump)
-	)
-
-	if PlayerDiagLastState and state~=PlayerDiagLastState then
-		PlayerDiagAdd(string.format("STATE %s -> %s | WS=%.1f Actual=%.1f Y=%.2f Floor=%s AR=%s PS=%s Sit=%s",
-			PlayerDiagLastState.Name,state.Name,hum.WalkSpeed,actual,v.Y,floor.Name,
-			tostring(hum.AutoRotate),tostring(hum.PlatformStand),tostring(hum.Sit)))
-	end
-	if PlayerDiagLastFloor and floor~=PlayerDiagLastFloor then
-		PlayerDiagAdd(string.format("FLOOR %s -> %s | WS=%.1f Actual=%.1f Y=%.2f State=%s",
-			PlayerDiagLastFloor.Name,floor.Name,hum.WalkSpeed,actual,v.Y,state.Name))
-	end
-	if PlayerDiagLastWS and math.abs(hum.WalkSpeed-PlayerDiagLastWS)>0.01 then
-		PlayerDiagAdd(string.format("WALKSPEED %.1f -> %.1f | State=%s",PlayerDiagLastWS,hum.WalkSpeed,state.Name))
-	end
-	if PlayerDiagLastY and actual>5 and math.abs(v.Y-PlayerDiagLastY)>=6 then
-		PlayerDiagAdd(string.format("Y-KICK %.2f -> %.2f | WS=%.1f Actual=%.1f State=%s Floor=%s",
-			PlayerDiagLastY,v.Y,hum.WalkSpeed,actual,state.Name,floor.Name))
-	end
-	if objects~=PlayerDiagLastObjects then
-		PlayerDiagAdd("HRP OBJECTS: "..(objects~="" and objects or "(none)"))
-		PlayerDiagLastObjects=objects
-	end
-	if os.clock()-PlayerDiagLastSnapshot>=0.5 then
-		PlayerDiagLastSnapshot=os.clock()
-		PlayerDiagAdd(string.format("SNAP | WS=%.1f Actual=%.1f Y=%.2f State=%s Floor=%s AR=%s PS=%s Sit=%s Fly=%s Noclip=%s Wall=%s Inf=%s HRP=[%s]",
-			hum.WalkSpeed,actual,v.Y,state.Name,floor.Name,tostring(hum.AutoRotate),
-			tostring(hum.PlatformStand),tostring(hum.Sit),tostring(Flags.Fly),
-			tostring(Flags.Noclip),tostring(Flags.WallClimb),tostring(Flags.InfiniteJump),objects))
-	end
-
-	PlayerDiagLastState,PlayerDiagLastFloor,PlayerDiagLastWS,PlayerDiagLastY=state,floor,hum.WalkSpeed,v.Y
-end
-
 
 --============================================================
 -- MOBILE FLY CONTROLS
@@ -884,12 +709,8 @@ UI.CreateSlider(
 	16,120,4
 )
 
-StartWalkSpeedEnforcer()
+StartWalkSpeedController()
 ApplyWalkSpeed()
-CreatePlayerDiagnostic()
-Track(RunService.Heartbeat:Connect(function()
-	if MM2.Running then UpdatePlayerDiagnostic() end
-end))
 
 --============================================================
 -- JUMP SECTION
