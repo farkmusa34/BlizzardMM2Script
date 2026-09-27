@@ -40,7 +40,6 @@ local FloatingBombButton = nil
 
 local WalkSpeedHumanoid = nil
 local WalkSpeedChangedConnection = nil
-local WalkSpeedEnforcerConnection = nil
 
 --============================================================
 -- WALK SPEED
@@ -96,21 +95,6 @@ local function ApplyWalkSpeed()
 				end
 			end)
 	end
-end
-
-local function StartWalkSpeedEnforcer()
-	if WalkSpeedEnforcerConnection then
-		return
-	end
-
-	WalkSpeedEnforcerConnection =
-		RunService.Stepped:Connect(function()
-			if MM2.Running then
-				ApplyWalkSpeed()
-			end
-		end)
-
-	Track(WalkSpeedEnforcerConnection)
 end
 
 MM2.Functions.ApplyWalkSpeed = ApplyWalkSpeed
@@ -728,7 +712,6 @@ UI.CreateSlider(
 	16,120,4
 )
 
-StartWalkSpeedEnforcer()
 ApplyWalkSpeed()
 
 --============================================================
