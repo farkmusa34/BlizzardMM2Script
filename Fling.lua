@@ -280,10 +280,20 @@ local function KillLocalFlingVelocity(character,humanoid,hrp)
 			if part.AssemblyAngularVelocity.Magnitude > ANTI_FLING_ANGULAR_LIMIT then
 				part.AssemblyAngularVelocity = Vector3.zero
 			end
-			if not Flags.Fly and part.AssemblyLinearVelocity.Magnitude > ANTI_FLING_LINEAR_LIMIT then
-				part.AssemblyLinearVelocity = Vector3.zero
-				part.AssemblyAngularVelocity = Vector3.zero
-				killedLinear = true
+			if not Flags.Fly then
+				local velocity = part.AssemblyLinearVelocity
+				local horizontalSpeed = Vector3.new(velocity.X,0,velocity.Z).Magnitude
+				local verticalSpeed = math.abs(velocity.Y)
+				local walkSpeed = humanoid and humanoid.WalkSpeed or 16
+				local horizontalLimit = math.max(walkSpeed * 1.75, ANTI_FLING_LINEAR_LIMIT)
+
+				-- Allow intentional high WalkSpeed while still catching abnormal
+				-- vertical launches and horizontal velocity far beyond movement speed.
+				if verticalSpeed > ANTI_FLING_LINEAR_LIMIT or horizontalSpeed > horizontalLimit then
+					part.AssemblyLinearVelocity = Vector3.zero
+					part.AssemblyAngularVelocity = Vector3.zero
+					killedLinear = true
+				end
 			end
 		end
 	end
