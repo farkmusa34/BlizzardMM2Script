@@ -1497,6 +1497,9 @@ MM2.Functions.ShootMurderer = function()
 	return success,message
 end
 
+-- Forward declaration: ShootMurdererLegit revalidates diagnostic cases before the matcher is defined below.
+local GeneralDiagnosticMatches
+
 MM2.Functions.ShootMurdererLegit = function()
 	if ShootBusy then return false,"Busy" end
 	local now = os.clock()
@@ -1552,7 +1555,7 @@ end
 -- Fires only through ShootMurdererLegit, so normal visibility/cooldown/gun checks remain intact.
 -- The diagnostic does NOT alter production prediction; it only chooses when to sample/fire.
 --============================================================
-local function GeneralDiagnosticMatches(caseName,torso,humanoid)
+GeneralDiagnosticMatches = function(caseName,torso,humanoid)
 	if not torso or not humanoid or humanoid.Health <= 0 then return false end
 	local v = torso.AssemblyLinearVelocity
 	local hs = Vector3.new(v.X,0,v.Z).Magnitude
