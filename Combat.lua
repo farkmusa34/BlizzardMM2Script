@@ -1387,6 +1387,25 @@ MM2.Functions.ShootMurdererLegit = function()
 		torso = GetCombatTorso(murderer.Character)
 		if not torso then return false,"No Gun or Murderer" end
 		if not HasClearLineOfSight(torso) then return false,"Murderer Behind Wall" end
+		-- FINAL VY GATE:
+		-- Re-read velocity immediately before prediction/fire so a shot cannot
+		-- slip outside the diagnostic -45..-35 studs/s window while the earlier
+		-- LOS/gun/equip checks are running.
+		if Flags.DiagnosticAutoVYShot then
+			local finalVelocity = torso.AssemblyLinearVelocity
+			local finalHorizontalSpeed = Vector3.new(finalVelocity.X, 0, finalVelocity.Z).Magnitude
+			local finalInWindow = finalVelocity.Y <= -35 and finalVelocity.Y >= -45
+			local finalCleanVertical = finalHorizontalSpeed <= 1.0
+
+			if not finalInWindow or not finalCleanVertical then
+				return false, string.format(
+					"Final VY Gate Rejected (VY=%.3f HSpeed=%.3f)",
+					finalVelocity.Y,
+					finalHorizontalSpeed
+				)
+			end
+		end
+
 		local actualPredictionMs = GetNextDiagnosticPredictionMs()
 		local targetPosition = GetManualShootTargetPosition(
 			torso,
