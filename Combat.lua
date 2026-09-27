@@ -394,7 +394,7 @@ DiagnosticTitle.Font = Enum.Font.GothamBold
 DiagnosticTitle.TextSize = 11
 DiagnosticTitle.TextXAlignment = Enum.TextXAlignment.Left
 DiagnosticTitle.TextColor3 = Color3.fromRGB(245,245,250)
-DiagnosticTitle.Text = "CFRAME ORIGIN DIAGNOSTIC"
+DiagnosticTitle.Text = "JUMP TIMING DIAGNOSTIC"
 DiagnosticTitle.Parent = DiagnosticFrame
 
 local DiagnosticStatus = Instance.new("TextLabel")
@@ -407,7 +407,7 @@ DiagnosticStatus.TextWrapped = false
 DiagnosticStatus.TextXAlignment = Enum.TextXAlignment.Left
 DiagnosticStatus.TextYAlignment = Enum.TextYAlignment.Top
 DiagnosticStatus.TextColor3 = Color3.fromRGB(220,220,225)
-DiagnosticStatus.Text = "Ready\nMode: FINAL CFrame Diagnostic\nOdd=HRP | Even=Target-2\nPrediction: 60ms XYZ"
+DiagnosticStatus.Text = "Ready\nMode: Jump Timing Diagnostic\nPre-shot: 200ms rolling buffer\nPrediction: 60ms XYZ"
 DiagnosticStatus.Parent = DiagnosticFrame
 
 local CopyLogsButton = Instance.new("TextButton")
@@ -474,7 +474,7 @@ ClearLogsButton.Activated:Connect(function()
 	table.clear(DiagnosticLogLines)
 	ExactFireDiagnostic.ShotNumber = 0
 	ExactFireDiagnostic.Pending = nil
-	SetDiagnosticStatus("Logs cleared\nMode: FINAL CFrame Diagnostic\nOdd=HRP | Even=Target-2\nPrediction: 60ms XYZ")
+	SetDiagnosticStatus("Logs cleared\nMode: Jump Timing Diagnostic\nPre-shot: 200ms rolling buffer\nPrediction: 60ms XYZ")
 	ClearLogsButton.Text = "CLEARED!"
 	task.delay(1.2,function()
 		if ClearLogsButton and ClearLogsButton.Parent then ClearLogsButton.Text = "CLEAR LOGS" end
@@ -529,6 +529,51 @@ local function DiagnosticVector3(v)
 	return string.format("(%.2f, %.2f, %.2f)",v.X,v.Y,v.Z)
 end
 
+
+-- Rolling target-motion buffer. Read-only: this does not alter prediction or firing.
+local PRE_SHOT_WINDOW = 0.200
+local PRE_SHOT_MAX_SAMPLES = 40
+local DiagnosticMotionBuffer = {}
+
+local function DiagnosticHumanoidState(humanoid)
+	if not humanoid then return "NONE" end
+	local ok,state = pcall(function() return humanoid:GetState() end)
+	return ok and tostring(state):gsub("Enum.HumanoidStateType.","") or "?"
+end
+
+local function CaptureDiagnosticMotionSample()
+	local player = FindLiveMurderer()
+	local torso = player and GetCombatTorso(player.Character)
+	local humanoid = player and player.Character and player.Character:FindFirstChildOfClass("Humanoid")
+	if not player or not torso or not humanoid then return end
+	local now = os.clock()
+	table.insert(DiagnosticMotionBuffer,{
+		Clock=now,
+		Player=player,
+		Position=torso.Position,
+		Velocity=torso.AssemblyLinearVelocity,
+		State=DiagnosticHumanoidState(humanoid),
+		Floor=tostring(humanoid.FloorMaterial):gsub("Enum.Material.",""),
+		Jump=humanoid.Jump == true,
+	})
+	while #DiagnosticMotionBuffer > PRE_SHOT_MAX_SAMPLES do table.remove(DiagnosticMotionBuffer,1) end
+	while #DiagnosticMotionBuffer > 0 and now-DiagnosticMotionBuffer[1].Clock > PRE_SHOT_WINDOW do
+		table.remove(DiagnosticMotionBuffer,1)
+	end
+end
+
+RunService.Heartbeat:Connect(CaptureDiagnosticMotionSample)
+
+local function SnapshotDiagnosticMotion(player,shotClock)
+	local out = {}
+	for _,sample in ipairs(DiagnosticMotionBuffer) do
+		if sample.Player == player and sample.Clock <= shotClock and shotClock-sample.Clock <= PRE_SHOT_WINDOW then
+			table.insert(out,sample)
+		end
+	end
+	return out
+end
+
 local function BeginExactFireDiagnostic(player,torso,entryClock,targetPosition)
 	if not ExactFireDiagnostic.Enabled or not player or not torso then
 		return nil
@@ -548,6 +593,10 @@ local function BeginExactFireDiagnostic(player,torso,entryClock,targetPosition)
 		BaseVelocity = torso.AssemblyLinearVelocity,
 		TargetPosition = targetPosition,
 		StartHealth = humanoid and humanoid.Health or -1,
+		PreShotSamples = SnapshotDiagnosticMotion(player,entryClock),
+		BaseState = DiagnosticHumanoidState(humanoid),
+		BaseFloor = humanoid and tostring(humanoid.FloorMaterial):gsub("Enum.Material.","") or "NONE",
+		BaseJump = humanoid and humanoid.Jump == true or false,
 	}
 
 	ExactFireDiagnostic.Pending = record
@@ -572,11 +621,14 @@ local function MonitorExactFireDiagnostic(record)
 				local errorToSentTarget = (position-record.TargetPosition).Magnitude
 
 				PushDiagnosticLog(string.format(
-					"+%dms H=%s Pos=%s Vel=%s ErrorToSentTarget=%.3f",
+					"+%dms H=%s Pos=%s Vel=%s State=%s Floor=%s Jump=%s ErrorToSentTarget=%.3f",
 					math.floor(checkpoint*1000+0.5),
 					humanoid and string.format("%.1f",humanoid.Health) or "?",
 					DiagnosticVector3(position),
 					DiagnosticVector3(velocity),
+					DiagnosticHumanoidState(humanoid),
+					humanoid and tostring(humanoid.FloorMaterial):gsub("Enum.Material.","") or "NONE",
+					tostring(humanoid and humanoid.Jump == true or false),
 					errorToSentTarget
 				))
 			else
@@ -624,19 +676,9 @@ local function FireCombatGun(gun,targetPosition)
 	local unitDirection = direction.Unit
 	local diagnostic = ExactFireDiagnostic.Pending
 
-	-- Controlled CFrame argument diagnostic:
-	-- Odd diagnostic shots use shooter HRP origin; even shots use target-minus-2.
-	-- Prediction and destination remain unchanged to isolate the first CFrame.
-	local originMode = "TARGET_MINUS_2"
-	if diagnostic then
-		originMode = (diagnostic.Id % 2 == 1) and "HRP_ORIGIN" or "TARGET_MINUS_2"
-	end
-	local originCFrame
-	if originMode == "HRP_ORIGIN" then
-		originCFrame = CFrame.new(hrp.Position,targetPosition)
-	else
-		originCFrame = CFrame.new(targetPosition-unitDirection*2,targetPosition)
-	end
+	-- Keep shot construction fixed while the diagnostic isolates jump timing.
+	local originMode = "HRP_ORIGIN"
+	local originCFrame = CFrame.new(hrp.Position,targetPosition)
 	local destinationCFrame = CFrame.new(targetPosition)
 	if ExactFireDiagnostic.Enabled and diagnostic then
 		diagnostic.FireClock = os.clock()
@@ -653,12 +695,31 @@ local function FireCombatGun(gun,targetPosition)
 		local fireVelocity = targetPart and targetPart.Parent and targetPart.AssemblyLinearVelocity or nil
 
 		PushDiagnosticLog("============================================================")
-		PushDiagnosticLog("FINAL CFRAME DIAGNOSTIC SHOT #"..diagnostic.Id)
+		PushDiagnosticLog("JUMP TIMING DIAGNOSTIC SHOT #"..diagnostic.Id)
 		PushDiagnosticLog("Target="..tostring(diagnostic.Player and diagnostic.Player.Name or "?"))
 		PushDiagnosticLog("Prediction=60ms XYZ (vertical enabled)")
 		PushDiagnosticLog("OriginMode="..originMode)
+		PushDiagnosticLog("PRE-SHOT ROLLING BUFFER (oldest -> newest)")
+		PushDiagnosticLog("------------------------------------------------------------")
+		local pre = diagnostic.PreShotSamples or {}
+		if #pre == 0 then
+			PushDiagnosticLog("No pre-shot samples available")
+		else
+			for _,sample in ipairs(pre) do
+				PushDiagnosticLog(string.format(
+					"%+.1fms Pos=%s Vel=%s State=%s Floor=%s Jump=%s",
+					(sample.Clock-diagnostic.EntryClock)*1000,
+					DiagnosticVector3(sample.Position),
+					DiagnosticVector3(sample.Velocity),
+					sample.State,sample.Floor,tostring(sample.Jump)
+				))
+			end
+		end
+		PushDiagnosticLog("PREDICTION/FIRE SNAPSHOT")
+		PushDiagnosticLog("------------------------------------------------------------")
 		PushDiagnosticLog("BasePosition="..DiagnosticVector3(diagnostic.BasePosition))
 		PushDiagnosticLog("BaseVelocity="..DiagnosticVector3(diagnostic.BaseVelocity))
+		PushDiagnosticLog("BaseState="..diagnostic.BaseState.." BaseFloor="..diagnostic.BaseFloor.." BaseJump="..tostring(diagnostic.BaseJump))
 		PushDiagnosticLog("SentTarget="..DiagnosticVector3(targetPosition))
 
 		if firePosition and fireVelocity then
@@ -724,7 +785,7 @@ local function FireCombatGun(gun,targetPosition)
 			"FireServerReturn=%.3fms",
 			(diagnostic.RemoteReturnClock-remoteStart)*1000
 		))
-		PushDiagnosticLog("POST-FIRE: 16/33/50/66/100/150/200ms")
+		PushDiagnosticLog("POST-FIRE MOTION: 16/33/50/66/100/150/200ms")
 		PushDiagnosticLog("------------------------------------------------------------")
 		ExactFireDiagnostic.Pending = nil
 		MonitorExactFireDiagnostic(diagnostic)
