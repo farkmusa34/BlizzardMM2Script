@@ -71,7 +71,42 @@ local IsPrivateServer =
 	or PrivateServerId ~= ""
 	or PrivateServerOwnerId ~= 0
 
-if IsPrivateServer then
+-- Only this Roblox account may use Blizzard in private servers.
+local PRIVATE_SERVER_ALLOWED_USERNAME =
+	"Lolimthegoat18199"
+
+local AllowedPrivateServerUserId = nil
+
+local resolveOk,
+resolvedUserId =
+	pcall(function()
+
+		return Players:GetUserIdFromNameAsync(
+			PRIVATE_SERVER_ALLOWED_USERNAME
+		)
+
+	end)
+
+if resolveOk then
+
+	AllowedPrivateServerUserId =
+		tonumber(resolvedUserId)
+
+else
+
+	warn(
+		"[MM2 LOADER] Could not resolve private-server allowlisted account."
+	)
+
+end
+
+local CanUsePrivateServer =
+	AllowedPrivateServerUserId ~= nil
+	and LocalPlayer.UserId == AllowedPrivateServerUserId
+
+if IsPrivateServer
+	and not CanUsePrivateServer
+then
 
 	warn(
 		"[MM2 LOADER] Private server detected. Blizzard blocked."
@@ -82,6 +117,18 @@ if IsPrivateServer then
 	)
 
 	return
+end
+
+if IsPrivateServer
+	and CanUsePrivateServer
+then
+
+	print(
+		"[MM2 LOADER] Private server access authorized for "
+		.. PRIVATE_SERVER_ALLOWED_USERNAME
+		.. "."
+	)
+
 end
 
 --============================================================
