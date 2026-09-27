@@ -1854,20 +1854,50 @@ local function UpdateCombatFeatures()
 		return
 	end
 
-	local targetPosition = rayResult.Position
+	-- AUTO VY CONTROL FOR THE PREDICTION-SWEEP DIAGNOSTIC.
+	-- Do not fire manually: keep the TriggerBot enabled and keep the crosshair
+	-- on the murderer. The bot waits until the target is descending in the
+	-- requested -35..-45 studs/s vertical-velocity window, then fires once.
 	local velocity = targetPart.AssemblyLinearVelocity
-	local horizontalVelocity = Vector3.new(
-		velocity.X,
-		0,
-		velocity.Z
-	)
-	local predictionTime = 0.06
-	if horizontalVelocity.Magnitude > 120 then
-		horizontalVelocity = horizontalVelocity.Unit * 120
+	local verticalVelocity = velocity.Y
+	if verticalVelocity > -35 or verticalVelocity < -45 then
+		return
 	end
-	targetPosition += horizontalVelocity * predictionTime
+
+	-- Re-check the target immediately before building the server-facing shot.
+	-- This keeps the prediction snapshot fresh instead of using data from when
+	-- the target first started falling.
+	if not IsLivePlayer(targetPlayer) then return end
+	targetPart = GetCombatTorso(targetPlayer.Character)
+	if not targetPart then return end
+	velocity = targetPart.AssemblyLinearVelocity
+	verticalVelocity = velocity.Y
+	if verticalVelocity > -35 or verticalVelocity < -45 then
+		return
+	end
+
+	local diagnosticEntryClock = os.clock()
+	local actualPredictionMs = GetNextDiagnosticPredictionMs()
+	local targetPosition = GetManualShootTargetPosition(
+		targetPart,
+		DIAGNOSTIC_VERTICAL_PREDICTION,
+		actualPredictionMs/1000
+	)
+
+	BeginExactFireDiagnostic(
+		targetPlayer,
+		targetPart,
+		diagnosticEntryClock,
+		targetPosition,
+		actualPredictionMs
+	)
+
 	if FireCombatGun(gun,targetPosition) then
-		LastTriggerShot = os.clock()
+		local firedAt = os.clock()
+		LastTriggerShot = firedAt
+		LastManualShot = firedAt
+	else
+		ExactFireDiagnostic.Pending = nil
 	end
 end
 
