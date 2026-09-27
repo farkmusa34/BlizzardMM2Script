@@ -394,7 +394,7 @@ DiagnosticTitle.Font = Enum.Font.GothamBold
 DiagnosticTitle.TextSize = 11
 DiagnosticTitle.TextXAlignment = Enum.TextXAlignment.Left
 DiagnosticTitle.TextColor3 = Color3.fromRGB(245,245,250)
-DiagnosticTitle.Text = "FIRE-STATE / CADENCE DIAGNOSTIC"
+DiagnosticTitle.Text = "SERVER ACCEPTANCE / ENDPOINT DIAGNOSTIC"
 DiagnosticTitle.Parent = DiagnosticFrame
 
 local DiagnosticStatus = Instance.new("TextLabel")
@@ -407,7 +407,7 @@ DiagnosticStatus.TextWrapped = false
 DiagnosticStatus.TextXAlignment = Enum.TextXAlignment.Left
 DiagnosticStatus.TextYAlignment = Enum.TextYAlignment.Top
 DiagnosticStatus.TextColor3 = Color3.fromRGB(220,220,225)
-DiagnosticStatus.Text = "Ready\nMode: Fire State / Cadence\nActual shot: 60ms XYZ\nTracking gun state + timing"
+DiagnosticStatus.Text = "Ready\nMode: Server Acceptance / Endpoint\nActual shot: 60ms XYZ\nTracking endpoint/body overlap + timing"
 DiagnosticStatus.Parent = DiagnosticFrame
 
 local CopyLogsButton = Instance.new("TextButton")
@@ -474,7 +474,7 @@ ClearLogsButton.Activated:Connect(function()
 	table.clear(DiagnosticLogLines)
 	ExactFireDiagnostic.ShotNumber = 0
 	ExactFireDiagnostic.Pending = nil
-	SetDiagnosticStatus("Logs cleared\nMode: Fire State / Cadence\nActual shot: 60ms XYZ\nTracking gun state + timing")
+	SetDiagnosticStatus("Logs cleared\nMode: Server Acceptance / Endpoint\nActual shot: 60ms XYZ\nTracking endpoint/body overlap + timing")
 	ClearLogsButton.Text = "CLEARED!"
 	task.delay(1.2,function()
 		if ClearLogsButton and ClearLogsButton.Parent then ClearLogsButton.Text = "CLEAR LOGS" end
@@ -690,6 +690,56 @@ local function JoinIntersectionNames(info)
     return table.concat(names,",")
 end
 
+--============================================================
+-- SERVER-ACCEPTANCE / ENDPOINT HELPERS (READ-ONLY)
+-- Tests whether the exact Arg2 destination point is actually inside a live
+-- body-part OBB at each sampled frame. This is intentionally different from
+-- the existing segment-intersection test: a segment can cross a character
+-- even when the endpoint itself is outside every body part.
+--============================================================
+local function PointInsidePartOBB(point,part)
+    if not point or not part or not part:IsA("BasePart") then return false,nil end
+    local p = part.CFrame:PointToObjectSpace(point)
+    local h = part.Size*0.5
+    local inside = math.abs(p.X) <= h.X and math.abs(p.Y) <= h.Y and math.abs(p.Z) <= h.Z
+    -- Signed clearance to the nearest box face while inside; negative means outside.
+    local clearance = math.min(h.X-math.abs(p.X),h.Y-math.abs(p.Y),h.Z-math.abs(p.Z))
+    return inside,clearance
+end
+
+local function InspectEndpointAgainstCharacter(character,point)
+    local result={InsideParts={},NearestPart=nil,NearestCenterDistance=math.huge,BestClearance=-math.huge}
+    if not character or not point then return result end
+    local seen={}
+    for _,name in ipairs(DIAGNOSTIC_BODY_PARTS) do
+        local part=character:FindFirstChild(name)
+        if part and part:IsA("BasePart") and not seen[part] then
+            seen[part]=true
+            local centerDistance=(point-part.Position).Magnitude
+            if centerDistance < result.NearestCenterDistance then
+                result.NearestCenterDistance=centerDistance
+                result.NearestPart=part.Name
+            end
+            local inside,clearance=PointInsidePartOBB(point,part)
+            if clearance and clearance > result.BestClearance then
+                result.BestClearance=clearance
+                result.BestClearancePart=part.Name
+            end
+            if inside then
+                table.insert(result.InsideParts,{Name=part.Name,Clearance=clearance})
+            end
+        end
+    end
+    return result
+end
+
+local function JoinEndpointInsideNames(info)
+    if not info or #info.InsideParts==0 then return "NONE" end
+    local names={}
+    for _,v in ipairs(info.InsideParts) do table.insert(names,v.Name) end
+    return table.concat(names,",")
+end
+
 local function BeginExactFireDiagnostic(player,torso,entryClock,targetPosition)
 	if not ExactFireDiagnostic.Enabled or not player or not torso then
 		return nil
@@ -727,6 +777,10 @@ local function BeginExactFireDiagnostic(player,torso,entryClock,targetPosition)
 	record.PartIntersectionFrames = 0
 	record.FirstPartIntersection = nil
 	record.ClosestPartCenter = {Distance=math.huge, Part=nil, Checkpoint=nil}
+	record.EndpointInsideFrames = 0
+	record.FirstEndpointInside = nil
+	record.EndpointInsideAtHealthChange = nil
+	record.BestEndpointClearance = {Value=-math.huge, Part=nil, Checkpoint=nil}
 
 	ExactFireDiagnostic.Pending = record
 	return record
@@ -767,6 +821,7 @@ local function MonitorExactFireDiagnostic(record)
 			local errorToSentTarget = (position-record.TargetPosition).Magnitude
 
 			local hitboxInfo = nil
+			local endpointInfo = nil
 			if record.ShotOrigin and record.ShotDestination then
 				hitboxInfo = InspectCharacterAgainstShot(record.Player and record.Player.Character,record.ShotOrigin,record.ShotDestination)
 				if hitboxInfo.NearestCenterDistance < record.ClosestPartCenter.Distance then
@@ -778,6 +833,18 @@ local function MonitorExactFireDiagnostic(record)
 					record.PartIntersectionFrames += 1
 					if not record.FirstPartIntersection then
 						record.FirstPartIntersection = {Ms=elapsedMs,Parts=JoinIntersectionNames(hitboxInfo)}
+					end
+				end
+						endpointInfo = InspectEndpointAgainstCharacter(record.Player and record.Player.Character,record.ShotDestination)
+				if endpointInfo.BestClearance > record.BestEndpointClearance.Value then
+					record.BestEndpointClearance.Value=endpointInfo.BestClearance
+					record.BestEndpointClearance.Part=endpointInfo.BestClearancePart
+					record.BestEndpointClearance.Checkpoint=elapsedMs
+				end
+				if #endpointInfo.InsideParts > 0 then
+					record.EndpointInsideFrames += 1
+					if not record.FirstEndpointInside then
+						record.FirstEndpointInside={Ms=elapsedMs,Parts=JoinEndpointInsideNames(endpointInfo)}
 					end
 				end
 			end
@@ -838,6 +905,14 @@ local function MonitorExactFireDiagnostic(record)
 				PushDiagnosticLog(string.format("      ShotSegment: Intersects=%s | NearestCenter=%s %.3f",
 					JoinIntersectionNames(hitboxInfo), tostring(hitboxInfo.NearestPart or "NONE"),
 					hitboxInfo.NearestCenterDistance < math.huge and hitboxInfo.NearestCenterDistance or -1
+				))
+			end
+			if endpointInfo then
+				PushDiagnosticLog(string.format("      Arg2Endpoint: Inside=%s | NearestCenter=%s %.3f | BestSignedClearance=%s %.3f",
+					JoinEndpointInsideNames(endpointInfo),tostring(endpointInfo.NearestPart or "NONE"),
+					endpointInfo.NearestCenterDistance < math.huge and endpointInfo.NearestCenterDistance or -1,
+					tostring(endpointInfo.BestClearancePart or "NONE"),
+					endpointInfo.BestClearance > -math.huge and endpointInfo.BestClearance or -999
 				))
 			end
 			return true
@@ -912,6 +987,19 @@ local function MonitorExactFireDiagnostic(record)
 				tostring(record.ClosestPartCenter.Part or "NONE"),record.ClosestPartCenter.Distance,record.ClosestPartCenter.Checkpoint))
 		end
 
+		PushDiagnosticLog("SERVER ACCEPTANCE / ARG2 ENDPOINT SUMMARY")
+		PushDiagnosticLog("------------------------------------------------------------")
+		if record.FirstEndpointInside then
+			PushDiagnosticLog(string.format("FirstArg2Inside=+%.1fms Parts=%s",record.FirstEndpointInside.Ms,record.FirstEndpointInside.Parts))
+		else
+			PushDiagnosticLog("FirstArg2Inside=NONE")
+		end
+		PushDiagnosticLog("Arg2InsideFrames="..tostring(record.EndpointInsideFrames or 0))
+		if record.BestEndpointClearance and record.BestEndpointClearance.Checkpoint then
+			PushDiagnosticLog(string.format("BestArg2SignedClearance=%s %.3f At=+%.1fms",
+				tostring(record.BestEndpointClearance.Part or "NONE"),record.BestEndpointClearance.Value,record.BestEndpointClearance.Checkpoint))
+		end
+		PushDiagnosticLog("InterpretationHint=positive clearance means Arg2 was inside that live body-part box; negative means outside")
 		PushDiagnosticLog("TRANSITION TIMELINE")
 		PushDiagnosticLog("------------------------------------------------------------")
 		PushDiagnosticLog("Fire=+0.0ms")
@@ -921,7 +1009,7 @@ local function MonitorExactFireDiagnostic(record)
 		PushDiagnosticLog("HealthChange="..eventText(eventTimes.HealthChange))
 		PushDiagnosticLog("DenseFrames="..tostring(#denseSamples))
 		PushDiagnosticLog("ActualPrediction=60ms XYZ (UNCHANGED)")
-		PushDiagnosticLog("FIRE STATE / CADENCE SUMMARY")
+		PushDiagnosticLog("SERVER ACCEPTANCE CONTROL SUMMARY")
 		PushDiagnosticLog("------------------------------------------------------------")
 		if record.PreFireState then
 			PushDiagnosticLog(string.format("PreFireSinceLastShot=%.3fms PreFireCooldownRemaining=%.3fms",
@@ -936,7 +1024,7 @@ local function MonitorExactFireDiagnostic(record)
 		SetDiagnosticStatus(
 			"Shot #"..record.Id.." complete\n"
 			.."Outcome: "..outcome.."\n"
-			.."Fire-state + cadence data captured."
+			.."Server-acceptance geometry captured."
 		)
 	end)
 end
@@ -1019,7 +1107,7 @@ local function FireCombatGun(gun,targetPosition)
 		local fireVelocity = targetPart and targetPart.Parent and targetPart.AssemblyLinearVelocity or nil
 
 		PushDiagnosticLog("============================================================")
-		PushDiagnosticLog("FIRE-STATE / CADENCE DIAGNOSTIC SHOT #"..diagnostic.Id)
+		PushDiagnosticLog("SERVER ACCEPTANCE / ENDPOINT DIAGNOSTIC SHOT #"..diagnostic.Id)
 		PushDiagnosticLog("Target="..tostring(diagnostic.Player and diagnostic.Player.Name or "?"))
 		PushDiagnosticLog("Prediction=60ms XYZ (vertical enabled)")
 		PushDiagnosticLog("OriginMode="..originMode)
