@@ -1151,10 +1151,8 @@ local function MonitorExactFireDiagnostic(record)
 		PushDiagnosticLog("Outcome="..outcome)
 
 		if Flags.GeneralPredictionDiagnostic and record.GeneralCase then
-			PushDiagnosticLog("SELECTED DIAGNOSTIC COMPLETE - copy logs now")
-			Flags.GeneralPredictionDiagnostic = false
-			if UI.SetToggleState then UI.SetToggleState("GeneralPredictionDiagnostic",false,false) end
-			SetDiagnosticStatus("COMPLETE: "..tostring(record.GeneralCase).."\nOutcome: "..outcome.."\nChoose another case, then enable again")
+			PushDiagnosticLog("SELECTED DIAGNOSTIC COMPLETE - General Prediction Diagnostic remains ON")
+			SetDiagnosticStatus("COMPLETE: "..tostring(record.GeneralCase).."\nOutcome: "..outcome.."\nDiagnostic remains ON; waiting for next matching shot")
 		end
 
 		PushDiagnosticLog("============================================================")
@@ -1565,7 +1563,8 @@ local function GeneralDiagnosticMatches(caseName,torso,humanoid)
 	elseif caseName == "DIAGONAL_RISE" then
 		return airborne and hs >= 8 and v.Y >= 12
 	elseif caseName == "DIAGONAL_FALL" then
-		return airborne and hs >= 8 and v.Y <= -12
+		-- Fast diagonal-fall sample: wait until the target is genuinely descending fast.
+		return airborne and hs >= 8 and v.Y >= -45 and v.Y <= -30
 	elseif caseName == "DIRECTION_CHANGE" then
 		local samples = DiagnosticMotionBuffers[torso.Parent and Players:GetPlayerFromCharacter(torso.Parent)]
 		if samples and #samples >= 2 and hs >= 8 then
@@ -1590,7 +1589,7 @@ task.spawn(function()
 			if torso and humanoid then
 				local v = torso.AssemblyLinearVelocity
 				local hs = Vector3.new(v.X,0,v.Z).Magnitude
-				SetDiagnosticStatus(string.format("SELECTED: %s\nHSpeed %.1f | VY %.1f\nAuto-fire ONE shot when matched",wanted,hs,v.Y))
+				SetDiagnosticStatus(string.format("SELECTED: %s\nHSpeed %.1f | VY %.1f\nAuto-fire when matched; diagnostic stays ON",wanted,hs,v.Y))
 				if not ShootBusy and os.clock()-LastManualShot >= SHOT_COOLDOWN and HasClearLineOfSight(torso) and GeneralDiagnosticMatches(wanted,torso,humanoid) then
 					GeneralDiagnosticRequestedCase = wanted
 					local ok = MM2.Functions.ShootMurdererLegit()
