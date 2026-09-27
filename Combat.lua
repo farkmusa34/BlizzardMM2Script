@@ -394,7 +394,7 @@ DiagnosticTitle.Font = Enum.Font.GothamBold
 DiagnosticTitle.TextSize = 11
 DiagnosticTitle.TextXAlignment = Enum.TextXAlignment.Left
 DiagnosticTitle.TextColor3 = Color3.fromRGB(245,245,250)
-DiagnosticTitle.Text = "DENSE JUMP TIMING DIAGNOSTIC"
+DiagnosticTitle.Text = "HITBOX / PART INTERSECTION DIAGNOSTIC"
 DiagnosticTitle.Parent = DiagnosticFrame
 
 local DiagnosticStatus = Instance.new("TextLabel")
@@ -407,7 +407,7 @@ DiagnosticStatus.TextWrapped = false
 DiagnosticStatus.TextXAlignment = Enum.TextXAlignment.Left
 DiagnosticStatus.TextYAlignment = Enum.TextYAlignment.Top
 DiagnosticStatus.TextColor3 = Color3.fromRGB(220,220,225)
-DiagnosticStatus.Text = "Ready\nMode: Dense Jump Timing Diagnostic\nActual shot: 60ms XYZ\nDense sampling: 0-100ms"
+DiagnosticStatus.Text = "Ready\nMode: Hitbox / Part Intersection\nActual shot: 60ms XYZ\nTracking body-part intersections"
 DiagnosticStatus.Parent = DiagnosticFrame
 
 local CopyLogsButton = Instance.new("TextButton")
@@ -474,7 +474,7 @@ ClearLogsButton.Activated:Connect(function()
 	table.clear(DiagnosticLogLines)
 	ExactFireDiagnostic.ShotNumber = 0
 	ExactFireDiagnostic.Pending = nil
-	SetDiagnosticStatus("Logs cleared\nMode: Dense Jump Timing Diagnostic\nActual shot: 60ms XYZ\nDense sampling: 0-100ms")
+	SetDiagnosticStatus("Logs cleared\nMode: Hitbox / Part Intersection\nActual shot: 60ms XYZ\nTracking body-part intersections")
 	ClearLogsButton.Text = "CLEARED!"
 	task.delay(1.2,function()
 		if ClearLogsButton and ClearLogsButton.Parent then ClearLogsButton.Text = "CLEAR LOGS" end
@@ -608,6 +608,88 @@ local function BuildHypotheticalTargets(position,velocity)
 	return targets
 end
 
+
+--============================================================
+-- HITBOX / PART-INTERSECTION HELPERS (READ-ONLY)
+-- The real shot is NOT changed. These only inspect the fixed shot segment.
+--============================================================
+local DIAGNOSTIC_BODY_PARTS = {
+    "Head","UpperTorso","LowerTorso","Torso","HumanoidRootPart",
+    "LeftUpperArm","LeftLowerArm","LeftHand","RightUpperArm","RightLowerArm","RightHand",
+    "LeftUpperLeg","LeftLowerLeg","LeftFoot","RightUpperLeg","RightLowerLeg","RightFoot",
+    "Left Arm","Right Arm","Left Leg","Right Leg",
+}
+
+local function PointToSegmentDistance(point,a,b)
+    local ab = b-a
+    local denom = ab:Dot(ab)
+    if denom <= 1e-8 then return (point-a).Magnitude,0,a end
+    local t = math.clamp((point-a):Dot(ab)/denom,0,1)
+    local closest = a+ab*t
+    return (point-closest).Magnitude,t,closest
+end
+
+-- Segment-vs-oriented-box slab test. Uses the live BasePart CFrame/Size.
+local function SegmentIntersectsPart(a,b,part)
+    if not part or not part:IsA("BasePart") then return false,nil end
+    local la = part.CFrame:PointToObjectSpace(a)
+    local lb = part.CFrame:PointToObjectSpace(b)
+    local d = lb-la
+    local h = part.Size*0.5
+    local tmin,tmax = 0,1
+    local function axis(origin,delta,half)
+        if math.abs(delta) < 1e-8 then
+            return math.abs(origin) <= half
+        end
+        local t1=(-half-origin)/delta
+        local t2=( half-origin)/delta
+        if t1>t2 then t1,t2=t2,t1 end
+        tmin=math.max(tmin,t1)
+        tmax=math.min(tmax,t2)
+        return tmin<=tmax
+    end
+    if not axis(la.X,d.X,h.X) then return false,nil end
+    if not axis(la.Y,d.Y,h.Y) then return false,nil end
+    if not axis(la.Z,d.Z,h.Z) then return false,nil end
+    local hitLocal=la+d*tmin
+    return true,part.CFrame:PointToWorldSpace(hitLocal)
+end
+
+local function InspectCharacterAgainstShot(character,origin,destination)
+    local result={Intersections={},NearestPart=nil,NearestCenterDistance=math.huge,NearestSurfaceApprox=math.huge}
+    if not character then return result end
+    local seen={}
+    for _,name in ipairs(DIAGNOSTIC_BODY_PARTS) do
+        local part=character:FindFirstChild(name)
+        if part and part:IsA("BasePart") and not seen[part] then
+            seen[part]=true
+            local centerDist,t,closest=PointToSegmentDistance(part.Position,origin,destination)
+            -- Approximate center-to-surface clearance for quick comparison only.
+            local radius=part.Size.Magnitude*0.5
+            local surfaceApprox=math.max(0,centerDist-radius)
+            if centerDist<result.NearestCenterDistance then
+                result.NearestCenterDistance=centerDist
+                result.NearestSurfaceApprox=surfaceApprox
+                result.NearestPart=part.Name
+                result.NearestT=t
+                result.NearestPoint=closest
+            end
+            local hit,hitPoint=SegmentIntersectsPart(origin,destination,part)
+            if hit then
+                table.insert(result.Intersections,{Name=part.Name,Point=hitPoint})
+            end
+        end
+    end
+    return result
+end
+
+local function JoinIntersectionNames(info)
+    if not info or #info.Intersections==0 then return "NONE" end
+    local names={}
+    for _,v in ipairs(info.Intersections) do table.insert(names,v.Name) end
+    return table.concat(names,",")
+end
+
 local function BeginExactFireDiagnostic(player,torso,entryClock,targetPosition)
 	if not ExactFireDiagnostic.Enabled or not player or not torso then
 		return nil
@@ -642,6 +724,9 @@ local function BeginExactFireDiagnostic(player,torso,entryClock,targetPosition)
 		record.HypotheticalClosest[ms] = {Error = math.huge, Checkpoint = nil}
 	end
 	record.SentTargetClosest = {Error = math.huge, Checkpoint = nil}
+	record.PartIntersectionFrames = 0
+	record.FirstPartIntersection = nil
+	record.ClosestPartCenter = {Distance=math.huge, Part=nil, Checkpoint=nil}
 
 	ExactFireDiagnostic.Pending = record
 	return record
@@ -680,6 +765,22 @@ local function MonitorExactFireDiagnostic(record)
 			local health = humanoid and humanoid.Health or -1
 			local elapsedMs = elapsed*1000
 			local errorToSentTarget = (position-record.TargetPosition).Magnitude
+
+			local hitboxInfo = nil
+			if record.ShotOrigin and record.ShotDestination then
+				hitboxInfo = InspectCharacterAgainstShot(record.Player and record.Player.Character,record.ShotOrigin,record.ShotDestination)
+				if hitboxInfo.NearestCenterDistance < record.ClosestPartCenter.Distance then
+					record.ClosestPartCenter.Distance = hitboxInfo.NearestCenterDistance
+					record.ClosestPartCenter.Part = hitboxInfo.NearestPart
+					record.ClosestPartCenter.Checkpoint = elapsedMs
+				end
+				if #hitboxInfo.Intersections > 0 then
+					record.PartIntersectionFrames += 1
+					if not record.FirstPartIntersection then
+						record.FirstPartIntersection = {Ms=elapsedMs,Parts=JoinIntersectionNames(hitboxInfo)}
+					end
+				end
+			end
 
 			-- Transition timestamps are observational only.
 			if not eventTimes.YRise and velocity.Y > 6 then
@@ -733,6 +834,12 @@ local function MonitorExactFireDiagnostic(record)
 				state, floor, tostring(jump), errorToSentTarget
 			))
 			PushDiagnosticLog("      HypotheticalErrors: "..table.concat(hypoParts," | "))
+			if hitboxInfo then
+				PushDiagnosticLog(string.format("      ShotSegment: Intersects=%s | NearestCenter=%s %.3f",
+					JoinIntersectionNames(hitboxInfo), tostring(hitboxInfo.NearestPart or "NONE"),
+					hitboxInfo.NearestCenterDistance < math.huge and hitboxInfo.NearestCenterDistance or -1
+				))
+			end
 			return true
 		end
 
@@ -792,6 +899,19 @@ local function MonitorExactFireDiagnostic(record)
 		local function eventText(v)
 			return v and string.format("+%.1fms",v) or "not observed"
 		end
+		PushDiagnosticLog("HITBOX / PART INTERSECTION SUMMARY")
+		PushDiagnosticLog("------------------------------------------------------------")
+		if record.FirstPartIntersection then
+			PushDiagnosticLog(string.format("FirstIntersection=+%.1fms Parts=%s",record.FirstPartIntersection.Ms,record.FirstPartIntersection.Parts))
+		else
+			PushDiagnosticLog("FirstIntersection=NONE")
+		end
+		PushDiagnosticLog("IntersectionFrames="..tostring(record.PartIntersectionFrames or 0))
+		if record.ClosestPartCenter and record.ClosestPartCenter.Checkpoint then
+			PushDiagnosticLog(string.format("ClosestPartCenter=%s Distance=%.3f At=+%.1fms",
+				tostring(record.ClosestPartCenter.Part or "NONE"),record.ClosestPartCenter.Distance,record.ClosestPartCenter.Checkpoint))
+		end
+
 		PushDiagnosticLog("TRANSITION TIMELINE")
 		PushDiagnosticLog("------------------------------------------------------------")
 		PushDiagnosticLog("Fire=+0.0ms")
@@ -806,7 +926,7 @@ local function MonitorExactFireDiagnostic(record)
 		SetDiagnosticStatus(
 			"Shot #"..record.Id.." complete\n"
 			.."Outcome: "..outcome.."\n"
-			.."Dense 0-100ms timeline captured."
+			.."Hitbox + part intersections captured."
 		)
 	end)
 end
@@ -838,6 +958,8 @@ local function FireCombatGun(gun,targetPosition)
 	local destinationCFrame = CFrame.new(targetPosition)
 	if ExactFireDiagnostic.Enabled and diagnostic then
 		diagnostic.FireClock = os.clock()
+		diagnostic.ShotOrigin = originCFrame.Position
+		diagnostic.ShotDestination = destinationCFrame.Position
 		SetDiagnosticStatus(
 			"Shot #"..diagnostic.Id.." fired\n"
 			.."Target: "..tostring(diagnostic.Player and diagnostic.Player.Name or "?").."\n"
@@ -851,7 +973,7 @@ local function FireCombatGun(gun,targetPosition)
 		local fireVelocity = targetPart and targetPart.Parent and targetPart.AssemblyLinearVelocity or nil
 
 		PushDiagnosticLog("============================================================")
-		PushDiagnosticLog("DENSE JUMP TIMING DIAGNOSTIC SHOT #"..diagnostic.Id)
+		PushDiagnosticLog("HITBOX / PART INTERSECTION DIAGNOSTIC SHOT #"..diagnostic.Id)
 		PushDiagnosticLog("Target="..tostring(diagnostic.Player and diagnostic.Player.Name or "?"))
 		PushDiagnosticLog("Prediction=60ms XYZ (vertical enabled)")
 		PushDiagnosticLog("OriginMode="..originMode)
@@ -935,6 +1057,14 @@ local function FireCombatGun(gun,targetPosition)
 			(originCFrame.Position-destinationCFrame.Position).Magnitude,
 			(hrp.Position-destinationCFrame.Position).Magnitude
 		))
+		local fireHitbox = InspectCharacterAgainstShot(diagnostic.Player and diagnostic.Player.Character,originCFrame.Position,destinationCFrame.Position)
+		PushDiagnosticLog("FIRE-TIME HITBOX CHECK")
+		PushDiagnosticLog("------------------------------------------------------------")
+		PushDiagnosticLog("IntersectedParts="..JoinIntersectionNames(fireHitbox))
+		PushDiagnosticLog(string.format("NearestPartCenter=%s Distance=%.3f",
+			tostring(fireHitbox.NearestPart or "NONE"),
+			fireHitbox.NearestCenterDistance < math.huge and fireHitbox.NearestCenterDistance or -1
+		))
 	end
 
 	local remoteStart = os.clock()
@@ -946,7 +1076,7 @@ local function FireCombatGun(gun,targetPosition)
 			"FireServerReturn=%.3fms",
 			(diagnostic.RemoteReturnClock-remoteStart)*1000
 		))
-		PushDiagnosticLog("POST-FIRE MOTION: every Heartbeat through 100ms, then 150/200ms")
+		PushDiagnosticLog("POST-FIRE HITBOX TRACKING: every Heartbeat through 100ms, then 150/200ms")
 		PushDiagnosticLog("------------------------------------------------------------")
 		ExactFireDiagnostic.Pending = nil
 		MonitorExactFireDiagnostic(diagnostic)
