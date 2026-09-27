@@ -1515,12 +1515,21 @@ MM2.Functions.ShootMurdererLegit = function()
 		if not torso then return false,"No Gun or Murderer" end
 		if not HasClearLineOfSight(torso) then return false,"Murderer Behind Wall" end
 
+		-- Revalidate the selected diagnostic case at the exact fire point.
+		-- This prevents FAST_FALL (and other narrow cases) from matching in the
+		-- auto-trigger loop, then firing after the target has already left the window.
+		if Flags.GeneralPredictionDiagnostic and GeneralDiagnosticRequestedCase then
+			local diagnosticHumanoid = murderer.Character and murderer.Character:FindFirstChildOfClass("Humanoid")
+			if not diagnosticHumanoid or not GeneralDiagnosticMatches(GeneralDiagnosticRequestedCase,torso,diagnosticHumanoid) then
+				return false,"Diagnostic Window Missed"
+			end
+		end
+
 		local targetPosition = GetProductionShootTargetPosition(torso)
 		if Flags.GeneralPredictionDiagnostic and GeneralDiagnosticRequestedCase and not ExactFireDiagnostic.Pending then
-			local v = torso.AssemblyLinearVelocity
-			local hs = Vector3.new(v.X,0,v.Z).Magnitude
-			local fastFall = v.Y <= -35 and v.Y >= -45 and hs <= 1.0
-			local actualMs = fastFall and 20 or math.floor(MANUAL_SHOOT_PREDICTION*1000 + 0.5)
+			-- Diagnostic is read-only: always report the real production prediction.
+			-- Do not substitute a special FAST_FALL timing here.
+			local actualMs = math.floor(MANUAL_SHOOT_PREDICTION*1000 + 0.5)
 			BeginExactFireDiagnostic(murderer,torso,os.clock(),targetPosition,actualMs,0)
 		end
 		if not FireCombatGun(gun,targetPosition) then
@@ -1580,7 +1589,7 @@ local function GeneralDiagnosticMatches(caseName,torso,humanoid)
 end
 
 task.spawn(function()
-	while task.wait(0.03) do
+	while task.wait(0.01) do
 		if Flags.GeneralPredictionDiagnostic and ExactFireDiagnostic.Enabled then
 			local wanted = GENERAL_DIAGNOSTIC_CASES[GeneralDiagnosticSelectedIndex]
 			local murderer = FindLiveMurderer()
@@ -1589,7 +1598,7 @@ task.spawn(function()
 			if torso and humanoid then
 				local v = torso.AssemblyLinearVelocity
 				local hs = Vector3.new(v.X,0,v.Z).Magnitude
-				SetDiagnosticStatus(string.format("SELECTED: %s\nHSpeed %.1f | VY %.1f\nAuto-fire when matched; diagnostic stays ON",wanted,hs,v.Y))
+				SetDiagnosticStatus(string.format("SELECTED: %s\nHSpeed %.1f | VY %.1f\nExact-window auto-fire; diagnostic stays ON",wanted,hs,v.Y))
 				if not ShootBusy and os.clock()-LastManualShot >= SHOT_COOLDOWN and HasClearLineOfSight(torso) and GeneralDiagnosticMatches(wanted,torso,humanoid) then
 					GeneralDiagnosticRequestedCase = wanted
 					local ok = MM2.Functions.ShootMurdererLegit()
