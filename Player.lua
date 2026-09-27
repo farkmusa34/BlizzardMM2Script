@@ -39,62 +39,34 @@ local BombJumpBusy = false
 local FloatingBombButton = nil
 
 local WalkSpeedHumanoid = nil
-local WalkSpeedChangedConnection = nil
 
 --============================================================
 -- WALK SPEED
 --============================================================
 
-local function DisconnectWalkSpeedWatcher()
-	if WalkSpeedChangedConnection then
-		WalkSpeedChangedConnection:Disconnect()
-		WalkSpeedChangedConnection = nil
-	end
-
-	WalkSpeedHumanoid = nil
-end
-
 local function ApplyWalkSpeed()
 	local _,humanoid = MM2.GetLocalCharacter()
-	if not humanoid then
-		return
-	end
+	if not humanoid then return end
 
-	local desired = math.clamp(
-		tonumber(Settings.WalkSpeed) or 16,
-		16,
-		120
-	)
+	local desired = math.clamp(tonumber(Settings.WalkSpeed) or 16,16,120)
 
+	-- Same behavior as the V2 speed test that was smooth at 120:
+	-- only write when the current speed differs from the selected speed.
 	if humanoid.WalkSpeed ~= desired then
 		humanoid.WalkSpeed = desired
 	end
+end
 
-	if WalkSpeedHumanoid ~= humanoid then
-		DisconnectWalkSpeedWatcher()
+local function StartWalkSpeedEnforcer()
+	if WalkSpeedEnforcerConnection then return end
 
-		WalkSpeedHumanoid = humanoid
+	WalkSpeedEnforcerConnection = RunService.Heartbeat:Connect(function()
+		if MM2.Running then
+			ApplyWalkSpeed()
+		end
+	end)
 
-		WalkSpeedChangedConnection =
-			humanoid:GetPropertyChangedSignal("WalkSpeed"):Connect(function()
-				if not MM2.Running
-					or not WalkSpeedHumanoid
-					or not WalkSpeedHumanoid.Parent
-				then
-					return
-				end
-
-				local target = math.clamp(
-					tonumber(Settings.WalkSpeed) or 16,
-					16,
-					120
-				)
-
-				if WalkSpeedHumanoid.WalkSpeed ~= target then
-					WalkSpeedHumanoid.WalkSpeed = target
-				end
-			end)
-	end
+	Track(WalkSpeedEnforcerConnection)
 end
 
 MM2.Functions.ApplyWalkSpeed = ApplyWalkSpeed
@@ -712,6 +684,7 @@ UI.CreateSlider(
 	16,120,4
 )
 
+StartWalkSpeedEnforcer()
 ApplyWalkSpeed()
 
 --============================================================
@@ -819,7 +792,6 @@ Track(LocalPlayer.CharacterAdded:Connect(function(char)
 	MobileFlyUp = false
 	MobileFlyDown = false
 
-	DisconnectWalkSpeedWatcher()
 
 	task.wait(0.25)
 
