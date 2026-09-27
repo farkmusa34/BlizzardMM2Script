@@ -68,7 +68,7 @@ end
 
 UI.AddSection(UI.CombatPage, "Aim", "Crosshair and aiming features")
 UI.CreateToggle(UI.CombatPage, "TriggerBot", "Automatically fires when your crosshair is directly on the murderer", "TriggerBot")
-UI.CreateToggle(UI.CombatPage, "Diagnostic Auto VY Shot", "Final acceptance-boundary test: fixed 20ms prediction with -2/-1/0/+1/+2 stud Y endpoint offsets; fires only at VY -35 to -45", "DiagnosticAutoVYShot")
+UI.CreateToggle(UI.CombatPage, "Diagnostic Auto VY Shot", "Boundary-V3: fixed 20ms with -2/-1/0/+1/+2 Y offsets; strict final FireServer gate requires VY -35 to -45", "DiagnosticAutoVYShot")
 UI.CreateToggle(UI.CombatPage, "Aim Lock", "While Shift Lock is on, tracks the murderer’s torso", "AimLock")
 
 UI.AddSection(UI.CombatPage, "Sheriff", "Legit and rage gun features")
@@ -409,7 +409,7 @@ DiagnosticTitle.Font = Enum.Font.GothamBold
 DiagnosticTitle.TextSize = 11
 DiagnosticTitle.TextXAlignment = Enum.TextXAlignment.Left
 DiagnosticTitle.TextColor3 = Color3.fromRGB(245,245,250)
-DiagnosticTitle.Text = "FINAL ACCEPTANCE BOUNDARY DIAGNOSTIC"
+DiagnosticTitle.Text = "BOUNDARY-V3 STRICT FIRE-GATE DIAGNOSTIC"
 DiagnosticTitle.Parent = DiagnosticFrame
 
 local DiagnosticStatus = Instance.new("TextLabel")
@@ -1148,7 +1148,7 @@ local function FireCombatGun(gun,targetPosition)
 		local fireVelocity = targetPart and targetPart.Parent and targetPart.AssemblyLinearVelocity or nil
 
 		PushDiagnosticLog("============================================================")
-		PushDiagnosticLog("FINAL ACCEPTANCE BOUNDARY DIAGNOSTIC SHOT #"..diagnostic.Id)
+		PushDiagnosticLog("BOUNDARY-V3 STRICT FIRE-GATE DIAGNOSTIC SHOT #"..diagnostic.Id)
 		PushDiagnosticLog("Target="..tostring(diagnostic.Player and diagnostic.Player.Name or "?"))
 		PushDiagnosticLog(string.format("Prediction=%dms XYZ + YOffset=%.1f studs (ACTUAL SERVER-FACING; vertical enabled)",diagnostic.ActualPredictionMs or DIAGNOSTIC_BASE_PREDICTION_MS,diagnostic.EndpointOffsetStuds or 0))
 		PushDiagnosticLog("OriginMode="..originMode)
@@ -1292,6 +1292,38 @@ local function FireCombatGun(gun,targetPosition)
 		preFireState = ReadGunFireState(gun,character)
 		diagnostic.PreFireState = preFireState
 		LogGunFireState("PRE-FIRE STATE",preFireState)
+	end
+
+	-- BOUNDARY-V3 STRICT FINAL FIRE GATE:
+	-- This is the last possible check before the server-facing RemoteEvent.
+	-- The earlier gate protects shot construction; this one guarantees that
+	-- DiagnosticAutoVYShot never sends a diagnostic shot if the target has
+	-- drifted outside VY -35..-45 (inclusive) while logs were being built.
+	if Flags.DiagnosticAutoVYShot and diagnostic then
+		local finalTargetPart = diagnostic.Torso
+		local finalVelocity = finalTargetPart and finalTargetPart.Parent and finalTargetPart.AssemblyLinearVelocity or nil
+		local finalHorizontalSpeed = finalVelocity and Vector3.new(finalVelocity.X,0,finalVelocity.Z).Magnitude or math.huge
+		local finalVY = finalVelocity and finalVelocity.Y or math.huge
+		local finalInWindow = finalVY >= -45 and finalVY <= -35
+		local finalCleanVertical = finalHorizontalSpeed <= 1.0
+
+		PushDiagnosticLog(string.format(
+			"BOUNDARY-V3 FINAL FIRE GATE: VY=%.3f HSpeed=%.3f InWindow=%s CleanVertical=%s",
+			finalVY,finalHorizontalSpeed,tostring(finalInWindow),tostring(finalCleanVertical)
+		))
+
+		if not finalInWindow or not finalCleanVertical then
+			PushDiagnosticLog("BOUNDARY-V3 FIRE REJECTED: no FireServer call was sent")
+			-- This was not a real test shot. Restore the sequence so the same
+			-- endpoint offset is retried on the next valid window entry.
+			ExactFireDiagnostic.ShotNumber = math.max(0,ExactFireDiagnostic.ShotNumber-1)
+			ExactFireDiagnostic.Pending = nil
+			SetDiagnosticStatus(string.format(
+				"STRICT GATE REJECTED\nVY %.3f | HSpeed %.3f\nNo server shot sent; retrying same offset",
+				finalVY,finalHorizontalSpeed
+			))
+			return false
+		end
 	end
 
 	local remoteStart = os.clock()
