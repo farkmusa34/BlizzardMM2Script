@@ -38,20 +38,20 @@ local VoidFallStarted = nil
 local BombJumpBusy = false
 local FloatingBombButton = nil
 
+local WalkSpeedHumanoid = nil
+local WalkSpeedChangedConnection = nil
 local WalkSpeedEnforcerConnection = nil
 
 --============================================================
 -- WALK SPEED
--- V3 validated implementation:
--- one Heartbeat controller, and only writes when WS differs.
 --============================================================
 
-local function GetDesiredWalkSpeed()
-	return math.clamp(
-		tonumber(Settings.WalkSpeed) or 16,
-		16,
-		120
-	)
+local function DisconnectWalkSpeedWatcher()
+	if WalkSpeedChangedConnection then
+		WalkSpeedChangedConnection:Disconnect()
+		WalkSpeedChangedConnection = nil
+	end
+	WalkSpeedHumanoid = nil
 end
 
 local function ApplyWalkSpeed()
@@ -59,38 +59,47 @@ local function ApplyWalkSpeed()
 	if not humanoid then
 		return
 	end
-
-	local desired = GetDesiredWalkSpeed()
-
+	local desired = math.clamp(
+		tonumber(Settings.WalkSpeed) or 16,
+		16,
+		120
+	)
 	if humanoid.WalkSpeed ~= desired then
 		humanoid.WalkSpeed = desired
 	end
+	if WalkSpeedHumanoid ~= humanoid then
+		DisconnectWalkSpeedWatcher()
+		WalkSpeedHumanoid = humanoid
+		WalkSpeedChangedConnection =
+			humanoid:GetPropertyChangedSignal("WalkSpeed"):Connect(function()
+				if not MM2.Running
+					or not WalkSpeedHumanoid
+					or not WalkSpeedHumanoid.Parent
+				then
+					return
+				end
+				local target = math.clamp(
+					tonumber(Settings.WalkSpeed) or 16,
+					16,
+					120
+				)
+				if WalkSpeedHumanoid.WalkSpeed ~= target then
+					WalkSpeedHumanoid.WalkSpeed = target
+				end
+			end)
+	end
 end
 
-local function StartWalkSpeedController()
+local function StartWalkSpeedEnforcer()
 	if WalkSpeedEnforcerConnection then
 		return
 	end
-
-	WalkSpeedEnforcerConnection = RunService.Heartbeat:Connect(function()
-		if not MM2.Running then
-			return
-		end
-
-		local _,humanoid = MM2.GetLocalCharacter()
-		if not humanoid then
-			return
-		end
-
-		local desired = GetDesiredWalkSpeed()
-
-		-- Exact V3 behavior: do nothing while the selected value is
-		-- already active. No property-changed callback and no Stepped loop.
-		if humanoid.WalkSpeed ~= desired then
-			humanoid.WalkSpeed = desired
-		end
-	end)
-
+	WalkSpeedEnforcerConnection =
+		RunService.Stepped:Connect(function()
+			if MM2.Running then
+				ApplyWalkSpeed()
+			end
+		end)
 	Track(WalkSpeedEnforcerConnection)
 end
 
@@ -114,11 +123,9 @@ local function StyleMobileFlyButton(button)
 	button.TextColor3 = Color3.fromRGB(255,255,255)
 	button.AutoButtonColor = true
 	button.ZIndex = 60
-
 	local corner = Instance.new("UICorner")
 	corner.CornerRadius = UDim.new(1,0)
 	corner.Parent = button
-
 	local stroke = Instance.new("UIStroke")
 	stroke.Thickness = 2
 	stroke.Color = Color3.fromRGB(80,220,255)
@@ -129,12 +136,10 @@ local function CreateMobileFlyButtons()
 	if not IsMobileFlyDevice() then
 		return
 	end
-
 	local overlay = UI.TracerGui or UI.ScreenGui
 	if not overlay then
 		return
 	end
-
 	if not MobileFlyUpButton then
 		MobileFlyUpButton = Instance.new("TextButton")
 		MobileFlyUpButton.Name = "MM2_MobileFlyUpButton"
@@ -143,7 +148,6 @@ local function CreateMobileFlyButtons()
 		MobileFlyUpButton.Text = "▲"
 		StyleMobileFlyButton(MobileFlyUpButton)
 		MobileFlyUpButton.Parent = overlay
-
 		MobileFlyUpButton.InputBegan:Connect(function(input)
 			if input.UserInputType == Enum.UserInputType.Touch
 				or input.UserInputType == Enum.UserInputType.MouseButton1
@@ -151,7 +155,6 @@ local function CreateMobileFlyButtons()
 				MobileFlyUp = true
 			end
 		end)
-
 		MobileFlyUpButton.InputEnded:Connect(function(input)
 			if input.UserInputType == Enum.UserInputType.Touch
 				or input.UserInputType == Enum.UserInputType.MouseButton1
@@ -160,7 +163,6 @@ local function CreateMobileFlyButtons()
 			end
 		end)
 	end
-
 	if not MobileFlyDownButton then
 		MobileFlyDownButton = Instance.new("TextButton")
 		MobileFlyDownButton.Name = "MM2_MobileFlyDownButton"
@@ -169,7 +171,6 @@ local function CreateMobileFlyButtons()
 		MobileFlyDownButton.Text = "▼"
 		StyleMobileFlyButton(MobileFlyDownButton)
 		MobileFlyDownButton.Parent = overlay
-
 		MobileFlyDownButton.InputBegan:Connect(function(input)
 			if input.UserInputType == Enum.UserInputType.Touch
 				or input.UserInputType == Enum.UserInputType.MouseButton1
@@ -177,7 +178,6 @@ local function CreateMobileFlyButtons()
 				MobileFlyDown = true
 			end
 		end)
-
 		MobileFlyDownButton.InputEnded:Connect(function(input)
 			if input.UserInputType == Enum.UserInputType.Touch
 				or input.UserInputType == Enum.UserInputType.MouseButton1
@@ -186,7 +186,6 @@ local function CreateMobileFlyButtons()
 			end
 		end)
 	end
-
 	MobileFlyUpButton.Visible = true
 	MobileFlyDownButton.Visible = true
 end
@@ -194,7 +193,6 @@ end
 local function SetMobileFlyButtonsVisible(on)
 	MobileFlyUp = false
 	MobileFlyDown = false
-
 	if not IsMobileFlyDevice() then
 		if MobileFlyUpButton then
 			MobileFlyUpButton.Visible = false
@@ -204,7 +202,6 @@ local function SetMobileFlyButtonsVisible(on)
 		end
 		return
 	end
-
 	if on then
 		CreateMobileFlyButtons()
 		if MobileFlyUpButton then
@@ -255,7 +252,6 @@ local function StopFly()
 	MobileFlyUp = false
 	MobileFlyDown = false
 	SetMobileFlyButtonsVisible(false)
-
 	local _,_,hrp = MM2.GetLocalCharacter()
 	if hrp then
 		hrp.AssemblyLinearVelocity = Vector3.zero
@@ -267,31 +263,25 @@ MM2.Functions.StopFly = StopFly
 
 local function StartFly()
 	StopFly()
-
 	local char,humanoid,hrp = MM2.GetLocalCharacter()
 	if not char or not humanoid or not hrp then
 		return
 	end
-
 	FlyHumanoid = humanoid
 	humanoid.AutoRotate = false
-
 	pcall(function()
 		humanoid:SetStateEnabled(Enum.HumanoidStateType.Freefall,false)
 		humanoid:ChangeState(Enum.HumanoidStateType.Physics)
 	end)
-
 	FlyAttachment = Instance.new("Attachment")
 	FlyAttachment.Name = "MM2_V8_FlyAttachment"
 	FlyAttachment.Parent = hrp
-
 	FlyVelocity = Instance.new("LinearVelocity")
 	FlyVelocity.Name = "MM2_V8_FlyVelocity"
 	FlyVelocity.Attachment0 = FlyAttachment
 	FlyVelocity.MaxForce = math.huge
 	FlyVelocity.VectorVelocity = Vector3.zero
 	FlyVelocity.Parent = hrp
-
 	FlyOrientation = Instance.new("AlignOrientation")
 	FlyOrientation.Name = "MM2_V8_FlyOrientation"
 	FlyOrientation.Mode = Enum.OrientationAlignmentMode.OneAttachment
@@ -300,42 +290,34 @@ local function StartFly()
 	FlyOrientation.Responsiveness = 30
 	FlyOrientation.RigidityEnabled = false
 	FlyOrientation.Parent = hrp
-
 	if IsMobileFlyDevice() then
 		SetMobileFlyButtonsVisible(true)
 	end
-
 	FlyConnection = RunService.RenderStepped:Connect(function()
 		if not Flags.Fly then
 			return
 		end
-
 		local currentChar,currentHumanoid,currentHRP = MM2.GetLocalCharacter()
 		if not currentChar or not currentHumanoid or not currentHRP
 			or not FlyVelocity or not FlyVelocity.Parent
 		then
 			return
 		end
-
 		local cam = workspace.CurrentCamera
 		if not cam then
 			return
 		end
-
 		local look = cam.CFrame.LookVector
 		local right = cam.CFrame.RightVector
 		local flatLook = Vector3.new(look.X,0,look.Z)
 		local flatRight = Vector3.new(right.X,0,right.Z)
-
 		if flatLook.Magnitude > 0.01 then
 			flatLook = flatLook.Unit
 		end
 		if flatRight.Magnitude > 0.01 then
 			flatRight = flatRight.Unit
 		end
-
 		local move = Vector3.zero
-
 		if UIS.TouchEnabled then
 			local mobileMove = currentHumanoid.MoveDirection
 			if mobileMove.Magnitude > 0.01 then
@@ -359,13 +341,10 @@ local function StartFly()
 				move -= Vector3.yAxis
 			end
 		end
-
 		if move.Magnitude > 0 then
 			move = move.Unit * Settings.FlySpeed
 		end
-
 		FlyVelocity.VectorVelocity = move
-
 		if flatLook.Magnitude > 0.01 then
 			FlyOrientation.CFrame = CFrame.lookAt(Vector3.zero,flatLook.Unit)
 		end
@@ -413,10 +392,8 @@ local function UpdateNoclipVoidProtection()
 		VoidFallStarted = nil
 		return
 	end
-
 	local char,humanoid,hrp = MM2.GetLocalCharacter()
 	if not char or not humanoid or not hrp then return end
-
 	local closeGround = RaycastGroundBelow(char,hrp,8)
 	if closeGround and math.abs(hrp.AssemblyLinearVelocity.Y) < 25 then
 		LastSafeCFrame = hrp.CFrame
@@ -424,14 +401,12 @@ local function UpdateNoclipVoidProtection()
 		return
 	end
 	if not LastSafeCFrame then return end
-
 	local groundFarBelow = RaycastGroundBelow(char,hrp,120)
 	local noGroundBelow = groundFarBelow == nil
 	local fellFarBelowSafe = hrp.Position.Y < LastSafeCFrame.Position.Y - 35
 	local isFalling = humanoid:GetState() == Enum.HumanoidStateType.Freefall
 		or hrp.AssemblyLinearVelocity.Y < -20
 	local likelyVoid = isFalling and noGroundBelow and fellFarBelowSafe
-
 	if likelyVoid then
 		if not VoidFallStarted then VoidFallStarted = os.clock() end
 		if os.clock() - VoidFallStarted >= 1 then
@@ -488,24 +463,19 @@ local WALL_CHECK_DISTANCE = 3.25
 local function IsTouchingWall()
 	local char,_,hrp = MM2.GetLocalCharacter()
 	if not char or not hrp then return false end
-
 	local params = RaycastParams.new()
 	params.FilterType = Enum.RaycastFilterType.Exclude
 	params.FilterDescendantsInstances = {char}
-
 	local forward = Vector3.new(hrp.CFrame.LookVector.X,0,hrp.CFrame.LookVector.Z)
 	if forward.Magnitude <= 0.01 then return false end
 	forward = forward.Unit
-
 	local right = Vector3.new(hrp.CFrame.RightVector.X,0,hrp.CFrame.RightVector.Z)
 	if right.Magnitude > 0.01 then right = right.Unit end
-
 	local origins = {
 		hrp.Position,
 		hrp.Position + right * 1.2,
 		hrp.Position - right * 1.2,
 	}
-
 	for _,origin in ipairs(origins) do
 		local result = workspace:Raycast(origin,forward * WALL_CHECK_DISTANCE,params)
 		if result and result.Instance and result.Instance:IsA("BasePart") then
@@ -541,14 +511,12 @@ local function FindBombTool()
 			if IsBombTool(obj) then return obj end
 		end
 	end
-
 	local backpack = LocalPlayer:FindFirstChildOfClass("Backpack")
 	if backpack then
 		for _,obj in ipairs(backpack:GetChildren()) do
 			if IsBombTool(obj) then return obj end
 		end
 	end
-
 	return nil
 end
 
@@ -556,36 +524,28 @@ local function TriggerBombJump()
 	if BombJumpBusy then
 		return false
 	end
-
 	BombJumpBusy = true
-
 	local char,humanoid,hrp = MM2.GetLocalCharacter()
 	local bomb = FindBombTool()
-
 	if not char or not humanoid or not hrp then
 		BombJumpBusy = false
 		return false
 	end
-
 	if not bomb then
 		BombJumpBusy = false
-
 		MM2.Notify(
 			"No bomb in inventory.",
 			2.5,
 			"package-x",
 			"Bomb Jump"
 		)
-
 		return false
 	end
-
 	local backpack = LocalPlayer:FindFirstChildOfClass("Backpack")
 	if not backpack then
 		BombJumpBusy = false
 		return false
 	end
-
 	humanoid:EquipTool(bomb)
 	task.wait(0.06)
 	humanoid:UnequipTools()
@@ -595,7 +555,6 @@ local function TriggerBombJump()
 	humanoid.Jump = true
 	humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
 	task.wait(0.035)
-
 	local forward = Vector3.new(hrp.CFrame.LookVector.X,0,hrp.CFrame.LookVector.Z)
 	if forward.Magnitude > 0.01 then
 		forward = forward.Unit
@@ -606,11 +565,9 @@ local function TriggerBombJump()
 			velocity.Z + forward.Z * 8
 		)
 	end
-
 	task.delay(0.30,function()
 		BombJumpBusy = false
 	end)
-
 	return true
 end
 
@@ -627,9 +584,7 @@ local function CreateBombJumpButton()
 		FloatingBombHolder.Visible = true
 		return
 	end
-
 	assert(UI.CreateMovableCardButton,"Updated UI.lua quick-button helper is required")
-
 	FloatingBombButton,FloatingBombHolder =
 		UI.CreateMovableCardButton(
 			"FloatingBombJump",
@@ -641,7 +596,6 @@ local function CreateBombJumpButton()
 			end,
 			"orange"
 		)
-
 	MM2.UI.FloatingBombButton = FloatingBombButton
 	MM2.UI.FloatingBombHolder = FloatingBombHolder
 end
@@ -703,13 +657,12 @@ UI.CreateSlider(
 			16,
 			120
 		)
-
 		ApplyWalkSpeed()
 	end,
 	16,120,4
 )
 
-StartWalkSpeedController()
+StartWalkSpeedEnforcer()
 ApplyWalkSpeed()
 
 --============================================================
@@ -792,15 +745,12 @@ Track(UIS.JumpRequest:Connect(function()
 		end
 		return
 	end
-
 	local _,humanoid = MM2.GetLocalCharacter()
 	if not humanoid then return end
-
 	if Flags.InfiniteJump then
 		humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
 		return
 	end
-
 	if Flags.WallClimb and IsTouchingWall() then
 		humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
 	end
@@ -816,18 +766,14 @@ Track(LocalPlayer.CharacterAdded:Connect(function(char)
 	BombJumpBusy = false
 	MobileFlyUp = false
 	MobileFlyDown = false
-
-
+	DisconnectWalkSpeedWatcher()
 	task.wait(0.25)
-
 	local humanoid = char:FindFirstChildOfClass("Humanoid")
 	if humanoid then
 		humanoid.UseJumpPower = true
 		humanoid.JumpPower = Settings.JumpPower
 	end
-
 	ApplyWalkSpeed()
-
 	if Flags.Fly then StartFly() end
 	if Flags.Noclip then StartPlayerNoclip() end
 	if Flags.BombJumpButton then SetBombButtonVisible(true) end
