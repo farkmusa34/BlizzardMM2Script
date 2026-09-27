@@ -68,6 +68,7 @@ end
 
 UI.AddSection(UI.CombatPage, "Aim", "Crosshair and aiming features")
 UI.CreateToggle(UI.CombatPage, "TriggerBot", "Automatically fires when your crosshair is directly on the murderer", "TriggerBot")
+UI.CreateToggle(UI.CombatPage, "Diagnostic Auto VY Shot", "Automatically uses the legit murderer shot once when target VY enters -35 to -45; no crosshair required", "DiagnosticAutoVYShot")
 UI.CreateToggle(UI.CombatPage, "Aim Lock", "While Shift Lock is on, tracks the murderer’s torso", "AimLock")
 
 UI.AddSection(UI.CombatPage, "Sheriff", "Legit and rage gun features")
@@ -170,6 +171,7 @@ local AIMLOCK_FOV = 150
 local COMBAT_MAX_DISTANCE = 2000
 local SHOT_COOLDOWN = 1.5
 local LastTriggerShot = 0
+local DiagnosticVYWindowLatched = false
 local LastManualShot = 0
 local ShootBusy = false
 
@@ -1821,6 +1823,37 @@ end)
 local function UpdateCombatFeatures()
 	local camera = workspace.CurrentCamera
 	if not camera then return end
+
+	-- Separate diagnostic trigger. This does NOT use the normal TriggerBot or crosshair.
+	-- It arms again only after the murderer leaves the -35..-45 VY window.
+	if Flags.DiagnosticAutoVYShot then
+		local murderer = FindLiveMurderer()
+		local targetPart = murderer and GetCombatTorso(murderer.Character)
+		if targetPart and IsLivePlayer(murderer) then
+			local velocity = targetPart.AssemblyLinearVelocity
+			local horizontalSpeed = Vector3.new(velocity.X, 0, velocity.Z).Magnitude
+			local inWindow = velocity.Y <= -35 and velocity.Y >= -45
+			local cleanVertical = horizontalSpeed <= 1.0
+
+			if not inWindow then
+				DiagnosticVYWindowLatched = false
+			elseif cleanVertical and not DiagnosticVYWindowLatched then
+				-- Latch before calling so RenderStep cannot spam while the shot is processing.
+				DiagnosticVYWindowLatched = true
+				local success = MM2.Functions.ShootMurdererLegit()
+				-- If no shot happened (busy/cooldown/no gun/blocked LOS), allow another
+				-- attempt while still in the window. A successful shot stays latched
+				-- until the target leaves the window.
+				if not success then
+					DiagnosticVYWindowLatched = false
+				end
+			end
+		else
+			DiagnosticVYWindowLatched = false
+		end
+	else
+		DiagnosticVYWindowLatched = false
+	end
 	local active = Flags.TriggerBot or Flags.AimLock
 	CrosshairDot.Visible = active
 	if not active then
@@ -1854,50 +1887,20 @@ local function UpdateCombatFeatures()
 		return
 	end
 
-	-- AUTO VY CONTROL FOR THE PREDICTION-SWEEP DIAGNOSTIC.
-	-- Do not fire manually: keep the TriggerBot enabled and keep the crosshair
-	-- on the murderer. The bot waits until the target is descending in the
-	-- requested -35..-45 studs/s vertical-velocity window, then fires once.
+	local targetPosition = rayResult.Position
 	local velocity = targetPart.AssemblyLinearVelocity
-	local verticalVelocity = velocity.Y
-	if verticalVelocity > -35 or verticalVelocity < -45 then
-		return
-	end
-
-	-- Re-check the target immediately before building the server-facing shot.
-	-- This keeps the prediction snapshot fresh instead of using data from when
-	-- the target first started falling.
-	if not IsLivePlayer(targetPlayer) then return end
-	targetPart = GetCombatTorso(targetPlayer.Character)
-	if not targetPart then return end
-	velocity = targetPart.AssemblyLinearVelocity
-	verticalVelocity = velocity.Y
-	if verticalVelocity > -35 or verticalVelocity < -45 then
-		return
-	end
-
-	local diagnosticEntryClock = os.clock()
-	local actualPredictionMs = GetNextDiagnosticPredictionMs()
-	local targetPosition = GetManualShootTargetPosition(
-		targetPart,
-		DIAGNOSTIC_VERTICAL_PREDICTION,
-		actualPredictionMs/1000
+	local horizontalVelocity = Vector3.new(
+		velocity.X,
+		0,
+		velocity.Z
 	)
-
-	BeginExactFireDiagnostic(
-		targetPlayer,
-		targetPart,
-		diagnosticEntryClock,
-		targetPosition,
-		actualPredictionMs
-	)
-
+	local predictionTime = 0.06
+	if horizontalVelocity.Magnitude > 120 then
+		horizontalVelocity = horizontalVelocity.Unit * 120
+	end
+	targetPosition += horizontalVelocity * predictionTime
 	if FireCombatGun(gun,targetPosition) then
-		local firedAt = os.clock()
-		LastTriggerShot = firedAt
-		LastManualShot = firedAt
-	else
-		ExactFireDiagnostic.Pending = nil
+		LastTriggerShot = os.clock()
 	end
 end
 
