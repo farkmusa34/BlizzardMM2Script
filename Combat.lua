@@ -68,7 +68,7 @@ end
 
 UI.AddSection(UI.CombatPage, "Aim", "Crosshair and aiming features")
 UI.CreateToggle(UI.CombatPage, "TriggerBot", "Automatically fires when your crosshair is directly on the murderer", "TriggerBot")
-UI.CreateToggle(UI.CombatPage, "Diagnostic Auto VY Shot", "Boundary-V3: fixed 20ms with -2/-1/0/+1/+2 Y offsets; strict final FireServer gate requires VY -35 to -45", "DiagnosticAutoVYShot")
+UI.CreateToggle(UI.CombatPage, "Diagnostic Auto VY Shot", "FINAL A/B: exactly 2 clean falling shots at fixed 20ms; Shot 1 = 0 Y offset, Shot 2 = +2 Y offset; strict VY -35 to -45", "DiagnosticAutoVYShot")
 UI.CreateToggle(UI.CombatPage, "Aim Lock", "While Shift Lock is on, tracks the murderer’s torso", "AimLock")
 
 UI.AddSection(UI.CombatPage, "Sheriff", "Legit and rage gun features")
@@ -194,7 +194,7 @@ local DIAGNOSTIC_BASE_PREDICTION_MS = 20
 -- server-facing destination vertically. This isolates whether the server cares
 -- about the Arg2 endpoint itself or accepts a shot because the origin->destination
 -- segment intersects a live body part.
-local ACTUAL_ENDPOINT_OFFSET_SWEEP = {-2.0,-1.0,0.0,1.0,2.0}
+local ACTUAL_ENDPOINT_OFFSET_SWEEP = {0.0,2.0}
 
 local function GetManualShootTargetPosition(torso,useVerticalPrediction,predictionSeconds)
 	local velocity = torso.AssemblyLinearVelocity
@@ -358,13 +358,14 @@ end
 
 --============================================================
 -- CFRAME-ORIGIN LEGIT SHOOT DIAGNOSTIC
--- Keeps prediction fixed at 20 ms and performs a REAL vertical endpoint-offset sweep using the same HRP-based origin.
+-- FINAL A/B: keeps prediction fixed at 20 ms and changes ONLY endpoint Y offset: 0 studs, then +2 studs.
 --============================================================
 
 local ExactFireDiagnostic = {
 	Enabled = true,
 	ShotNumber = 0,
 	Pending = nil,
+	Results = {},
 }
 
 local function GetNextDiagnosticOffsetStuds()
@@ -409,7 +410,7 @@ DiagnosticTitle.Font = Enum.Font.GothamBold
 DiagnosticTitle.TextSize = 11
 DiagnosticTitle.TextXAlignment = Enum.TextXAlignment.Left
 DiagnosticTitle.TextColor3 = Color3.fromRGB(245,245,250)
-DiagnosticTitle.Text = "BOUNDARY-V3 STRICT FIRE-GATE DIAGNOSTIC"
+DiagnosticTitle.Text = "FINAL A/B VERTICAL PREDICTION DIAGNOSTIC"
 DiagnosticTitle.Parent = DiagnosticFrame
 
 local DiagnosticStatus = Instance.new("TextLabel")
@@ -422,7 +423,7 @@ DiagnosticStatus.TextWrapped = false
 DiagnosticStatus.TextXAlignment = Enum.TextXAlignment.Left
 DiagnosticStatus.TextYAlignment = Enum.TextYAlignment.Top
 DiagnosticStatus.TextColor3 = Color3.fromRGB(220,220,225)
-DiagnosticStatus.Text = "Ready\nFixed prediction: 20ms XYZ\nEndpoint Y offsets: -2/-1/0/+1/+2\nNext offset: -2.0 studs"
+DiagnosticStatus.Text = "Ready\nExactly 2 shots\n#1 20ms + 0Y | #2 20ms + 2Y\nStrict VY gate: -35..-45"
 DiagnosticStatus.Parent = DiagnosticFrame
 
 local CopyLogsButton = Instance.new("TextButton")
@@ -489,7 +490,8 @@ ClearLogsButton.Activated:Connect(function()
 	table.clear(DiagnosticLogLines)
 	ExactFireDiagnostic.ShotNumber = 0
 	ExactFireDiagnostic.Pending = nil
-	SetDiagnosticStatus("Logs cleared\nFixed prediction: 20ms XYZ\nEndpoint Y offsets: -2/-1/0/+1/+2\nNext offset: -2.0 studs")
+	ExactFireDiagnostic.Results = {}
+	SetDiagnosticStatus("Logs cleared\nExactly 2 shots\n#1 20ms + 0Y | #2 20ms + 2Y\nStrict VY gate: -35..-45")
 	ClearLogsButton.Text = "CLEARED!"
 	task.delay(1.2,function()
 		if ClearLogsButton and ClearLogsButton.Parent then ClearLogsButton.Text = "CLEAR LOGS" end
@@ -964,6 +966,13 @@ local function MonitorExactFireDiagnostic(record)
 			outcome = endHealth < record.StartHealth and "HIT" or "NO HEALTH CHANGE"
 		end
 
+		ExactFireDiagnostic.Results[record.Id] = {
+			Offset = record.EndpointOffsetStuds,
+			Outcome = outcome,
+			BestClearance = record.BestEndpointClearance and record.BestEndpointClearance.Value or -math.huge,
+			FirstInside = record.FirstEndpointInside and record.FirstEndpointInside.Ms or nil,
+		}
+
 		PushDiagnosticLog("ANALYSIS SUMMARY")
 		PushDiagnosticLog("------------------------------------------------------------")
 		PushDiagnosticLog("Phase="..tostring(record.Phase))
@@ -1060,13 +1069,35 @@ local function MonitorExactFireDiagnostic(record)
 			PushDiagnosticLog("ReturnToolEnabled="..tostring(record.ReturnFireState.ToolEnabled).." ReturnCantShoot="..tostring(record.ReturnFireState.CantShootEnabled))
 		end
 		PushDiagnosticLog("Outcome="..outcome)
+
+		if record.Id == 2 then
+			local a = ExactFireDiagnostic.Results[1]
+			local b = ExactFireDiagnostic.Results[2]
+			PushDiagnosticLog("FINAL A/B COMPARISON")
+			PushDiagnosticLog("------------------------------------------------------------")
+			if a and b then
+				PushDiagnosticLog(string.format("A: 20ms + %.1fY => %s | BestClearance=%.3f | FirstArg2Inside=%s",
+					a.Offset,a.Outcome,a.BestClearance,a.FirstInside and string.format("+%.1fms",a.FirstInside) or "NONE"))
+				PushDiagnosticLog(string.format("B: 20ms + %.1fY => %s | BestClearance=%.3f | FirstArg2Inside=%s",
+					b.Offset,b.Outcome,b.BestClearance,b.FirstInside and string.format("+%.1fms",b.FirstInside) or "NONE"))
+				PushDiagnosticLog("Purpose=Same 20ms prediction; only server-facing Y endpoint offset changed")
+			end
+			PushDiagnosticLog("FINAL DIAGNOSTIC COMPLETE - copy logs now")
+			Flags.DiagnosticAutoVYShot = false
+			DiagnosticVYWindowLatched = false
+			if UI.SetToggleState then UI.SetToggleState("DiagnosticAutoVYShot",false,false) end
+			SetDiagnosticStatus("COMPLETE\n2/2 shots captured\nPress COPY LOGS\nSend the full log")
+		end
+
 		PushDiagnosticLog("============================================================")
-		local nextOffset = ACTUAL_ENDPOINT_OFFSET_SWEEP[(record.Id % #ACTUAL_ENDPOINT_OFFSET_SWEEP) + 1]
-		SetDiagnosticStatus(
-			"Shot #"..record.Id.." complete: "..outcome.."\n"
-			.."Actual: 20ms + YOffset "..string.format("%+.1f",record.EndpointOffsetStuds or 0).."\n"
-			.."Next offset: "..string.format("%+.1f studs",nextOffset)
-		)
+		if record.Id < 2 then
+			local nextOffset = ACTUAL_ENDPOINT_OFFSET_SWEEP[record.Id + 1]
+			SetDiagnosticStatus(
+				"Shot #"..record.Id.." complete: "..outcome.."\n"
+				.."Actual: 20ms + YOffset "..string.format("%+.1f",record.EndpointOffsetStuds or 0).."\n"
+				.."Next offset: "..string.format("%+.1f studs",nextOffset)
+			)
+		end
 	end)
 end
 
@@ -1148,7 +1179,7 @@ local function FireCombatGun(gun,targetPosition)
 		local fireVelocity = targetPart and targetPart.Parent and targetPart.AssemblyLinearVelocity or nil
 
 		PushDiagnosticLog("============================================================")
-		PushDiagnosticLog("BOUNDARY-V3 STRICT FIRE-GATE DIAGNOSTIC SHOT #"..diagnostic.Id)
+		PushDiagnosticLog("FINAL A/B VERTICAL PREDICTION DIAGNOSTIC SHOT #"..diagnostic.Id)
 		PushDiagnosticLog("Target="..tostring(diagnostic.Player and diagnostic.Player.Name or "?"))
 		PushDiagnosticLog(string.format("Prediction=%dms XYZ + YOffset=%.1f studs (ACTUAL SERVER-FACING; vertical enabled)",diagnostic.ActualPredictionMs or DIAGNOSTIC_BASE_PREDICTION_MS,diagnostic.EndpointOffsetStuds or 0))
 		PushDiagnosticLog("OriginMode="..originMode)
@@ -1408,6 +1439,9 @@ MM2.Functions.ShootMurderer = function()
 end
 
 MM2.Functions.ShootMurdererLegit = function()
+	if Flags.DiagnosticAutoVYShot and ExactFireDiagnostic.ShotNumber >= 2 then
+		return false,"Final Diagnostic Complete"
+	end
 	if ShootBusy then return false,"Busy" end
 	local now = os.clock()
 	local diagnosticEntryClock = now
