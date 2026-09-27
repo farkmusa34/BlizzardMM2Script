@@ -78,6 +78,7 @@ UI.CreateToggle(UI.CombatPage, "Shoot Murderer (Legit)", "Shows a shoot button t
 		MM2.UI.FloatingLegitShootButton.Visible = on
 	end
 end)
+UI.CreateToggle(UI.CombatPage, "General Prediction Diagnostic", "Automatically fires controlled legit shots across different target movement states", "GeneralPredictionDiagnostic")
 UI.CreateToggle(UI.CombatPage, "Shoot Murderer (Rage)", "Shows a rage shoot button that can target the murderer through walls", "ShowShootButton", function(on)
 	if MM2.UI.FloatingShootHolder then
 		MM2.UI.FloatingShootHolder.Visible = on
@@ -171,6 +172,9 @@ local COMBAT_MAX_DISTANCE = 2000
 local SHOT_COOLDOWN = 1.5
 local LastTriggerShot = 0
 local DiagnosticVYWindowLatched = false
+local GeneralDiagnosticRequestedCase = nil
+local GeneralDiagnosticCaseIndex = 1
+local GENERAL_DIAGNOSTIC_CASES = {"HORIZONTAL","RISING","APEX","FALLING","FAST_FALL","DIAGONAL_FALL"}
 local LastManualShot = 0
 local ShootBusy = false
 
@@ -429,7 +433,7 @@ DiagnosticTitle.Font = Enum.Font.GothamBold
 DiagnosticTitle.TextSize = 11
 DiagnosticTitle.TextXAlignment = Enum.TextXAlignment.Left
 DiagnosticTitle.TextColor3 = Color3.fromRGB(245,245,250)
-DiagnosticTitle.Text = "FINAL A/B VERTICAL PREDICTION DIAGNOSTIC"
+DiagnosticTitle.Text = "GENERAL MOVEMENT PREDICTION DIAGNOSTIC"
 DiagnosticTitle.Parent = DiagnosticFrame
 
 local DiagnosticStatus = Instance.new("TextLabel")
@@ -442,7 +446,7 @@ DiagnosticStatus.TextWrapped = false
 DiagnosticStatus.TextXAlignment = Enum.TextXAlignment.Left
 DiagnosticStatus.TextYAlignment = Enum.TextYAlignment.Top
 DiagnosticStatus.TextColor3 = Color3.fromRGB(220,220,225)
-DiagnosticStatus.Text = "Ready\nExactly 2 shots\n#1 20ms + 0Y | #2 20ms + 2Y\nStrict VY gate: -35..-45"
+DiagnosticStatus.Text = "Ready\n6 controlled movement shots\nEnable General Prediction Diagnostic\nMove target naturally"
 DiagnosticStatus.Parent = DiagnosticFrame
 
 local CopyLogsButton = Instance.new("TextButton")
@@ -510,7 +514,8 @@ ClearLogsButton.Activated:Connect(function()
 	ExactFireDiagnostic.ShotNumber = 0
 	ExactFireDiagnostic.Pending = nil
 	ExactFireDiagnostic.Results = {}
-	SetDiagnosticStatus("Logs cleared\nExactly 2 shots\n#1 20ms + 0Y | #2 20ms + 2Y\nStrict VY gate: -35..-45")
+	GeneralDiagnosticCaseIndex = 1
+	SetDiagnosticStatus("Logs cleared\n6 controlled movement shots\nEnable General Prediction Diagnostic")
 	ClearLogsButton.Text = "CLEARED!"
 	task.delay(1.2,function()
 		if ClearLogsButton and ClearLogsButton.Parent then ClearLogsButton.Text = "CLEAR LOGS" end
@@ -610,7 +615,7 @@ local function SnapshotDiagnosticMotion(player,shotClock)
 	return out
 end
 
-local HYPOTHETICAL_MS = {20,30,40,50,60}
+local HYPOTHETICAL_MS = {20,30,40,50,60,80,100}
 
 local function ClassifyDiagnosticPhase(record)
 	local vy = record.BaseVelocity.Y
@@ -803,6 +808,7 @@ local function BeginExactFireDiagnostic(player,torso,entryClock,targetPosition,a
 		BaseJump = humanoid and humanoid.Jump == true or false,
 	}
 	record.Phase = ClassifyDiagnosticPhase(record)
+	record.GeneralCase = GeneralDiagnosticRequestedCase or record.Phase
 	-- Vertical-only diagnostic controls. These are READ-ONLY and never alter the shot.
 	local bv = record.BaseVelocity
 	record.BaseHorizontalSpeed = Vector3.new(bv.X,0,bv.Z).Magnitude
@@ -1089,34 +1095,17 @@ local function MonitorExactFireDiagnostic(record)
 		end
 		PushDiagnosticLog("Outcome="..outcome)
 
-		if record.Id == 2 then
-			local a = ExactFireDiagnostic.Results[1]
-			local b = ExactFireDiagnostic.Results[2]
-			PushDiagnosticLog("FINAL A/B COMPARISON")
-			PushDiagnosticLog("------------------------------------------------------------")
-			if a and b then
-				PushDiagnosticLog(string.format("A: 20ms + %.1fY => %s | BestClearance=%.3f | FirstArg2Inside=%s",
-					a.Offset,a.Outcome,a.BestClearance,a.FirstInside and string.format("+%.1fms",a.FirstInside) or "NONE"))
-				PushDiagnosticLog(string.format("B: 20ms + %.1fY => %s | BestClearance=%.3f | FirstArg2Inside=%s",
-					b.Offset,b.Outcome,b.BestClearance,b.FirstInside and string.format("+%.1fms",b.FirstInside) or "NONE"))
-				PushDiagnosticLog("Purpose=Same 20ms prediction; only server-facing Y endpoint offset changed")
-			end
-			PushDiagnosticLog("FINAL DIAGNOSTIC COMPLETE - copy logs now")
-			Flags.DiagnosticAutoVYShot = false
-			DiagnosticVYWindowLatched = false
-			if UI.SetToggleState then UI.SetToggleState("DiagnosticAutoVYShot",false,false) end
-			SetDiagnosticStatus("COMPLETE\n2/2 shots captured\nPress COPY LOGS\nSend the full log")
+		if record.Id >= #GENERAL_DIAGNOSTIC_CASES then
+			PushDiagnosticLog("GENERAL DIAGNOSTIC COMPLETE - copy logs now")
+			Flags.GeneralPredictionDiagnostic = false
+			if UI.SetToggleState then UI.SetToggleState("GeneralPredictionDiagnostic",false,false) end
+			SetDiagnosticStatus("COMPLETE\n"..tostring(record.Id).." movement shots captured\nPress COPY LOGS\nSend the full log")
+		else
+			local nextCase = GENERAL_DIAGNOSTIC_CASES[math.min(record.Id + 1,#GENERAL_DIAGNOSTIC_CASES)]
+			SetDiagnosticStatus("Shot #"..record.Id.." complete: "..outcome.."\nCaptured: "..tostring(record.GeneralCase).."\nWaiting for: "..tostring(nextCase))
 		end
 
 		PushDiagnosticLog("============================================================")
-		if record.Id < 2 then
-			local nextOffset = ACTUAL_ENDPOINT_OFFSET_SWEEP[record.Id + 1]
-			SetDiagnosticStatus(
-				"Shot #"..record.Id.." complete: "..outcome.."\n"
-				.."Actual: 20ms + YOffset "..string.format("%+.1f",record.EndpointOffsetStuds or 0).."\n"
-				.."Next offset: "..string.format("%+.1f studs",nextOffset)
-			)
-		end
 	end)
 end
 
@@ -1198,7 +1187,7 @@ local function FireCombatGun(gun,targetPosition)
 		local fireVelocity = targetPart and targetPart.Parent and targetPart.AssemblyLinearVelocity or nil
 
 		PushDiagnosticLog("============================================================")
-		PushDiagnosticLog("FINAL A/B VERTICAL PREDICTION DIAGNOSTIC SHOT #"..diagnostic.Id)
+		PushDiagnosticLog("GENERAL MOVEMENT PREDICTION DIAGNOSTIC SHOT #"..diagnostic.Id)
 		PushDiagnosticLog("Target="..tostring(diagnostic.Player and diagnostic.Player.Name or "?"))
 		PushDiagnosticLog(string.format("Prediction=%dms XYZ + YOffset=%.1f studs (ACTUAL SERVER-FACING; vertical enabled)",diagnostic.ActualPredictionMs or DIAGNOSTIC_BASE_PREDICTION_MS,diagnostic.EndpointOffsetStuds or 0))
 		PushDiagnosticLog("OriginMode="..originMode)
@@ -1209,7 +1198,8 @@ local function FireCombatGun(gun,targetPosition)
 			diagnostic.BaseVerticalSpeed or 0,
 			tostring(diagnostic.VerticalOnlyAtFire)
 		))
-		PushDiagnosticLog("Instruction=Target should jump in place; do not intentionally move horizontally")
+		PushDiagnosticLog("RequestedMovementCase="..tostring(diagnostic.GeneralCase or "UNKNOWN"))
+		PushDiagnosticLog("Instruction=Automatic trigger selected this movement state; production prediction was not changed")
 		PushDiagnosticLog("PRE-SHOT ROLLING BUFFER (oldest -> newest)")
 		PushDiagnosticLog("------------------------------------------------------------")
 		local pre = diagnostic.PreShotSamples or {}
@@ -1349,7 +1339,7 @@ local function FireCombatGun(gun,targetPosition)
 	-- The earlier gate protects shot construction; this one guarantees that
 	-- DiagnosticAutoVYShot never sends a diagnostic shot if the target has
 	-- drifted outside VY -35..-45 (inclusive) while logs were being built.
-	if Flags.DiagnosticAutoVYShot and diagnostic then
+	if Flags.DiagnosticAutoVYShot and not Flags.GeneralPredictionDiagnostic and diagnostic then
 		local finalTargetPart = diagnostic.Torso
 		local finalVelocity = finalTargetPart and finalTargetPart.Parent and finalTargetPart.AssemblyLinearVelocity or nil
 		local finalHorizontalSpeed = finalVelocity and Vector3.new(finalVelocity.X,0,finalVelocity.Z).Magnitude or math.huge
@@ -1476,6 +1466,13 @@ MM2.Functions.ShootMurdererLegit = function()
 		if not HasClearLineOfSight(torso) then return false,"Murderer Behind Wall" end
 
 		local targetPosition = GetProductionShootTargetPosition(torso)
+		if Flags.GeneralPredictionDiagnostic and GeneralDiagnosticRequestedCase and not ExactFireDiagnostic.Pending then
+			local v = torso.AssemblyLinearVelocity
+			local hs = Vector3.new(v.X,0,v.Z).Magnitude
+			local fastFall = v.Y <= -35 and v.Y >= -45 and hs <= 1.0
+			local actualMs = fastFall and 20 or math.floor(MANUAL_SHOOT_PREDICTION*1000 + 0.5)
+			BeginExactFireDiagnostic(murderer,torso,os.clock(),targetPosition,actualMs,0)
+		end
 		if not FireCombatGun(gun,targetPosition) then
 			return false,"Shot Failed"
 		end
@@ -1489,6 +1486,61 @@ MM2.Functions.ShootMurdererLegit = function()
 	end
 	return success,message
 end
+
+
+--============================================================
+-- GENERAL PREDICTION DIAGNOSTIC AUTO-TRIGGER
+-- Fires only through ShootMurdererLegit, so normal visibility/cooldown/gun checks remain intact.
+-- The diagnostic does NOT alter production prediction; it only chooses when to sample/fire.
+--============================================================
+local function GeneralDiagnosticMatches(caseName,torso,humanoid)
+	if not torso or not humanoid or humanoid.Health <= 0 then return false end
+	local v = torso.AssemblyLinearVelocity
+	local hs = Vector3.new(v.X,0,v.Z).Magnitude
+	local airborne = humanoid.FloorMaterial == Enum.Material.Air
+	if caseName == "HORIZONTAL" then
+		return hs >= 8 and math.abs(v.Y) <= 5 and not airborne
+	elseif caseName == "RISING" then
+		return airborne and v.Y >= 20 and v.Y <= 50
+	elseif caseName == "APEX" then
+		return airborne and math.abs(v.Y) <= 6
+	elseif caseName == "FALLING" then
+		return airborne and v.Y <= -12 and v.Y >= -30
+	elseif caseName == "FAST_FALL" then
+		return airborne and v.Y <= -35 and v.Y >= -45 and hs <= 2
+	elseif caseName == "DIAGONAL_FALL" then
+		return airborne and hs >= 8 and v.Y <= -12
+	end
+	return false
+end
+
+task.spawn(function()
+	while task.wait(0.03) do
+		if Flags.GeneralPredictionDiagnostic and ExactFireDiagnostic.Enabled then
+			if ExactFireDiagnostic.ShotNumber >= #GENERAL_DIAGNOSTIC_CASES then
+				Flags.GeneralPredictionDiagnostic = false
+				if UI.SetToggleState then UI.SetToggleState("GeneralPredictionDiagnostic",false,false) end
+			else
+				GeneralDiagnosticCaseIndex = math.clamp(ExactFireDiagnostic.ShotNumber + 1,1,#GENERAL_DIAGNOSTIC_CASES)
+				local wanted = GENERAL_DIAGNOSTIC_CASES[GeneralDiagnosticCaseIndex]
+				local murderer = FindLiveMurderer()
+				local torso = murderer and GetCombatTorso(murderer.Character)
+				local humanoid = murderer and murderer.Character and murderer.Character:FindFirstChildOfClass("Humanoid")
+				if torso and humanoid then
+					local v = torso.AssemblyLinearVelocity
+					local hs = Vector3.new(v.X,0,v.Z).Magnitude
+					SetDiagnosticStatus(string.format("Waiting %d/6: %s\nHSpeed %.1f | VY %.1f\nAuto-fire when condition matches",GeneralDiagnosticCaseIndex,wanted,hs,v.Y))
+					if not ShootBusy and os.clock()-LastManualShot >= SHOT_COOLDOWN and HasClearLineOfSight(torso) and GeneralDiagnosticMatches(wanted,torso,humanoid) then
+						GeneralDiagnosticRequestedCase = wanted
+						local ok = MM2.Functions.ShootMurdererLegit()
+						GeneralDiagnosticRequestedCase = nil
+						if not ok and ExactFireDiagnostic.Pending then ExactFireDiagnostic.Pending = nil end
+					end
+				end
+			end
+		end
+	end
+end)
 
 --============================================================
 -- RAGE THROW
