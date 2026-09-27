@@ -589,12 +589,15 @@ local function ClassifyDiagnosticPhase(record)
 			break
 		end
 	end
+	-- Direction wins over recent jump history. This prevents descending shots
+	-- from being mislabeled JUMP_START just because a jump occurred recently.
+	if vy <= -10 then return "FALLING" end
+	if airborne and vy < -2 then return "DESCENT_NEAR_APEX" end
 	if not airborne and math.abs(vy) < 5 and not jumpStartedRecently then return "GROUNDED" end
-	if jumpStartedRecently and vy < 8 then return "JUMP_START" end
+	if jumpStartedRecently and vy >= -2 and vy < 8 then return "JUMP_START" end
 	if vy >= 35 then return "EARLY_ASCENT" end
 	if vy >= 10 then return "LATE_ASCENT" end
-	if vy > -10 then return "APEX" end
-	return "FALLING"
+	return "APEX"
 end
 
 local function BuildHypotheticalTargets(position,velocity)
@@ -634,6 +637,11 @@ local function BeginExactFireDiagnostic(player,torso,entryClock,targetPosition)
 	record.BestHypothetical = nil
 	record.BestHypotheticalError = math.huge
 	record.BestHypotheticalCheckpoint = nil
+	record.HypotheticalClosest = {}
+	for _,ms in ipairs(HYPOTHETICAL_MS) do
+		record.HypotheticalClosest[ms] = {Error = math.huge, Checkpoint = nil}
+	end
+	record.SentTargetClosest = {Error = math.huge, Checkpoint = nil}
 
 	ExactFireDiagnostic.Pending = record
 	return record
@@ -655,11 +663,21 @@ local function MonitorExactFireDiagnostic(record)
 				local position = torso.Position
 				local velocity = torso.AssemblyLinearVelocity
 				local errorToSentTarget = (position-record.TargetPosition).Magnitude
+				local checkpointMs = math.floor(checkpoint*1000+0.5)
+				if errorToSentTarget < record.SentTargetClosest.Error then
+					record.SentTargetClosest.Error = errorToSentTarget
+					record.SentTargetClosest.Checkpoint = checkpointMs
+				end
 				local hypoParts = {}
 				for _,ms in ipairs(HYPOTHETICAL_MS) do
 					local hp = record.HypotheticalTargets[ms]
 					local err = (position-hp).Magnitude
 					table.insert(hypoParts,string.format("%dms=%.3f",ms,err))
+					local closest = record.HypotheticalClosest[ms]
+					if closest and err < closest.Error then
+						closest.Error = err
+						closest.Checkpoint = checkpointMs
+					end
 					if err < record.BestHypotheticalError then
 						record.BestHypotheticalError = err
 						record.BestHypothetical = ms
@@ -705,6 +723,26 @@ local function MonitorExactFireDiagnostic(record)
 			))
 		else
 			PushDiagnosticLog("BestHypothetical=unavailable")
+		end
+		PushDiagnosticLog("CLOSEST APPROACH BY HYPOTHETICAL")
+		local closestParts = {}
+		for _,ms in ipairs(HYPOTHETICAL_MS) do
+			local closest = record.HypotheticalClosest[ms]
+			if closest and closest.Checkpoint then
+				table.insert(closestParts,string.format(
+					"%dms=%.3f@+%dms",ms,closest.Error,closest.Checkpoint
+				))
+			else
+				table.insert(closestParts,string.format("%dms=unavailable",ms))
+			end
+		end
+		PushDiagnosticLog(table.concat(closestParts," | "))
+		if record.SentTargetClosest and record.SentTargetClosest.Checkpoint then
+			PushDiagnosticLog(string.format(
+				"Actual60msClosest=%.3f studs At=+%dms",
+				record.SentTargetClosest.Error,
+				record.SentTargetClosest.Checkpoint
+			))
 		end
 		PushDiagnosticLog("ActualPrediction=60ms XYZ")
 		PushDiagnosticLog("Outcome="..outcome)
