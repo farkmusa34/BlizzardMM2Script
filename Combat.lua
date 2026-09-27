@@ -394,7 +394,7 @@ DiagnosticTitle.Font = Enum.Font.GothamBold
 DiagnosticTitle.TextSize = 11
 DiagnosticTitle.TextXAlignment = Enum.TextXAlignment.Left
 DiagnosticTitle.TextColor3 = Color3.fromRGB(245,245,250)
-DiagnosticTitle.Text = "JUMP TIMING DIAGNOSTIC"
+DiagnosticTitle.Text = "PREDICTION PHASE DIAGNOSTIC"
 DiagnosticTitle.Parent = DiagnosticFrame
 
 local DiagnosticStatus = Instance.new("TextLabel")
@@ -407,7 +407,7 @@ DiagnosticStatus.TextWrapped = false
 DiagnosticStatus.TextXAlignment = Enum.TextXAlignment.Left
 DiagnosticStatus.TextYAlignment = Enum.TextYAlignment.Top
 DiagnosticStatus.TextColor3 = Color3.fromRGB(220,220,225)
-DiagnosticStatus.Text = "Ready\nMode: Jump Timing Diagnostic\nPre-shot: 200ms rolling buffer\nPrediction: 60ms XYZ"
+DiagnosticStatus.Text = "Ready\nMode: Prediction Phase Diagnostic\nActual shot: 60ms XYZ\nHypothetical: 20/30/40/50/60ms"
 DiagnosticStatus.Parent = DiagnosticFrame
 
 local CopyLogsButton = Instance.new("TextButton")
@@ -474,7 +474,7 @@ ClearLogsButton.Activated:Connect(function()
 	table.clear(DiagnosticLogLines)
 	ExactFireDiagnostic.ShotNumber = 0
 	ExactFireDiagnostic.Pending = nil
-	SetDiagnosticStatus("Logs cleared\nMode: Jump Timing Diagnostic\nPre-shot: 200ms rolling buffer\nPrediction: 60ms XYZ")
+	SetDiagnosticStatus("Logs cleared\nMode: Prediction Phase Diagnostic\nActual shot: 60ms XYZ\nHypothetical: 20/30/40/50/60ms")
 	ClearLogsButton.Text = "CLEARED!"
 	task.delay(1.2,function()
 		if ClearLogsButton and ClearLogsButton.Parent then ClearLogsButton.Text = "CLEAR LOGS" end
@@ -574,6 +574,37 @@ local function SnapshotDiagnosticMotion(player,shotClock)
 	return out
 end
 
+local HYPOTHETICAL_MS = {20,30,40,50,60}
+
+local function ClassifyDiagnosticPhase(record)
+	local vy = record.BaseVelocity.Y
+	local floor = record.BaseFloor
+	local airborne = floor == "Air"
+	local pre = record.PreShotSamples or {}
+	local jumpStartedRecently = false
+	for i = math.max(1,#pre-8),#pre do
+		local sample = pre[i]
+		if sample and (sample.State == "Jumping" or sample.Jump or sample.Velocity.Y > 6) then
+			jumpStartedRecently = true
+			break
+		end
+	end
+	if not airborne and math.abs(vy) < 5 and not jumpStartedRecently then return "GROUNDED" end
+	if jumpStartedRecently and vy < 8 then return "JUMP_START" end
+	if vy >= 35 then return "EARLY_ASCENT" end
+	if vy >= 10 then return "LATE_ASCENT" end
+	if vy > -10 then return "APEX" end
+	return "FALLING"
+end
+
+local function BuildHypotheticalTargets(position,velocity)
+	local targets = {}
+	for _,ms in ipairs(HYPOTHETICAL_MS) do
+		targets[ms] = position + velocity*(ms/1000)
+	end
+	return targets
+end
+
 local function BeginExactFireDiagnostic(player,torso,entryClock,targetPosition)
 	if not ExactFireDiagnostic.Enabled or not player or not torso then
 		return nil
@@ -598,6 +629,11 @@ local function BeginExactFireDiagnostic(player,torso,entryClock,targetPosition)
 		BaseFloor = humanoid and tostring(humanoid.FloorMaterial):gsub("Enum.Material.","") or "NONE",
 		BaseJump = humanoid and humanoid.Jump == true or false,
 	}
+	record.Phase = ClassifyDiagnosticPhase(record)
+	record.HypotheticalTargets = BuildHypotheticalTargets(record.BasePosition,record.BaseVelocity)
+	record.BestHypothetical = nil
+	record.BestHypotheticalError = math.huge
+	record.BestHypotheticalCheckpoint = nil
 
 	ExactFireDiagnostic.Pending = record
 	return record
@@ -619,6 +655,17 @@ local function MonitorExactFireDiagnostic(record)
 				local position = torso.Position
 				local velocity = torso.AssemblyLinearVelocity
 				local errorToSentTarget = (position-record.TargetPosition).Magnitude
+				local hypoParts = {}
+				for _,ms in ipairs(HYPOTHETICAL_MS) do
+					local hp = record.HypotheticalTargets[ms]
+					local err = (position-hp).Magnitude
+					table.insert(hypoParts,string.format("%dms=%.3f",ms,err))
+					if err < record.BestHypotheticalError then
+						record.BestHypotheticalError = err
+						record.BestHypothetical = ms
+						record.BestHypotheticalCheckpoint = math.floor(checkpoint*1000+0.5)
+					end
+				end
 
 				PushDiagnosticLog(string.format(
 					"+%dms H=%s Pos=%s Vel=%s State=%s Floor=%s Jump=%s ErrorToSentTarget=%.3f",
@@ -631,6 +678,7 @@ local function MonitorExactFireDiagnostic(record)
 					tostring(humanoid and humanoid.Jump == true or false),
 					errorToSentTarget
 				))
+				PushDiagnosticLog("      HypotheticalErrors: "..table.concat(hypoParts," | "))
 			else
 				PushDiagnosticLog(string.format(
 					"+%dms Target part unavailable",
@@ -645,6 +693,20 @@ local function MonitorExactFireDiagnostic(record)
 			outcome = endHealth < record.StartHealth and "HIT" or "NO HEALTH CHANGE"
 		end
 
+		PushDiagnosticLog("ANALYSIS SUMMARY")
+		PushDiagnosticLog("------------------------------------------------------------")
+		PushDiagnosticLog("Phase="..tostring(record.Phase))
+		if record.BestHypothetical then
+			PushDiagnosticLog(string.format(
+				"BestHypothetical=%dms Error=%.3f studs At=+%dms",
+				record.BestHypothetical,
+				record.BestHypotheticalError,
+				record.BestHypotheticalCheckpoint or -1
+			))
+		else
+			PushDiagnosticLog("BestHypothetical=unavailable")
+		end
+		PushDiagnosticLog("ActualPrediction=60ms XYZ")
 		PushDiagnosticLog("Outcome="..outcome)
 		PushDiagnosticLog("============================================================")
 		SetDiagnosticStatus(
@@ -695,10 +757,11 @@ local function FireCombatGun(gun,targetPosition)
 		local fireVelocity = targetPart and targetPart.Parent and targetPart.AssemblyLinearVelocity or nil
 
 		PushDiagnosticLog("============================================================")
-		PushDiagnosticLog("JUMP TIMING DIAGNOSTIC SHOT #"..diagnostic.Id)
+		PushDiagnosticLog("PREDICTION PHASE DIAGNOSTIC SHOT #"..diagnostic.Id)
 		PushDiagnosticLog("Target="..tostring(diagnostic.Player and diagnostic.Player.Name or "?"))
 		PushDiagnosticLog("Prediction=60ms XYZ (vertical enabled)")
 		PushDiagnosticLog("OriginMode="..originMode)
+		PushDiagnosticLog("Phase="..tostring(diagnostic.Phase))
 		PushDiagnosticLog("PRE-SHOT ROLLING BUFFER (oldest -> newest)")
 		PushDiagnosticLog("------------------------------------------------------------")
 		local pre = diagnostic.PreShotSamples or {}
@@ -721,6 +784,10 @@ local function FireCombatGun(gun,targetPosition)
 		PushDiagnosticLog("BaseVelocity="..DiagnosticVector3(diagnostic.BaseVelocity))
 		PushDiagnosticLog("BaseState="..diagnostic.BaseState.." BaseFloor="..diagnostic.BaseFloor.." BaseJump="..tostring(diagnostic.BaseJump))
 		PushDiagnosticLog("SentTarget="..DiagnosticVector3(targetPosition))
+		PushDiagnosticLog("HYPOTHETICAL TARGETS (read-only; actual shot remains 60ms)")
+		for _,ms in ipairs(HYPOTHETICAL_MS) do
+			PushDiagnosticLog(string.format("%dms=%s",ms,DiagnosticVector3(diagnostic.HypotheticalTargets[ms])))
+		end
 
 		if firePosition and fireVelocity then
 			PushDiagnosticLog("FireMomentPosition="..DiagnosticVector3(firePosition))
