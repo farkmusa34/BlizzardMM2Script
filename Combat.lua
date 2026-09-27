@@ -394,7 +394,7 @@ DiagnosticTitle.Font = Enum.Font.GothamBold
 DiagnosticTitle.TextSize = 11
 DiagnosticTitle.TextXAlignment = Enum.TextXAlignment.Left
 DiagnosticTitle.TextColor3 = Color3.fromRGB(245,245,250)
-DiagnosticTitle.Text = "PREDICTION PHASE DIAGNOSTIC"
+DiagnosticTitle.Text = "DENSE JUMP TIMING DIAGNOSTIC"
 DiagnosticTitle.Parent = DiagnosticFrame
 
 local DiagnosticStatus = Instance.new("TextLabel")
@@ -407,7 +407,7 @@ DiagnosticStatus.TextWrapped = false
 DiagnosticStatus.TextXAlignment = Enum.TextXAlignment.Left
 DiagnosticStatus.TextYAlignment = Enum.TextYAlignment.Top
 DiagnosticStatus.TextColor3 = Color3.fromRGB(220,220,225)
-DiagnosticStatus.Text = "Ready\nMode: Prediction Phase Diagnostic\nActual shot: 60ms XYZ\nHypothetical: 20/30/40/50/60ms"
+DiagnosticStatus.Text = "Ready\nMode: Dense Jump Timing Diagnostic\nActual shot: 60ms XYZ\nDense sampling: 0-100ms"
 DiagnosticStatus.Parent = DiagnosticFrame
 
 local CopyLogsButton = Instance.new("TextButton")
@@ -474,7 +474,7 @@ ClearLogsButton.Activated:Connect(function()
 	table.clear(DiagnosticLogLines)
 	ExactFireDiagnostic.ShotNumber = 0
 	ExactFireDiagnostic.Pending = nil
-	SetDiagnosticStatus("Logs cleared\nMode: Prediction Phase Diagnostic\nActual shot: 60ms XYZ\nHypothetical: 20/30/40/50/60ms")
+	SetDiagnosticStatus("Logs cleared\nMode: Dense Jump Timing Diagnostic\nActual shot: 60ms XYZ\nDense sampling: 0-100ms")
 	ClearLogsButton.Text = "CLEARED!"
 	task.delay(1.2,function()
 		if ClearLogsButton and ClearLogsButton.Parent then ClearLogsButton.Text = "CLEAR LOGS" end
@@ -648,64 +648,111 @@ local function BeginExactFireDiagnostic(player,torso,entryClock,targetPosition)
 end
 
 local function MonitorExactFireDiagnostic(record)
+	-- Read-only dense sampler. The actual shot remains the existing 60 ms XYZ shot.
 	task.spawn(function()
-		local checkpoints = {0.016,0.033,0.050,0.066,0.100,0.150,0.200}
-		local previous = 0
+		local fireClock = record.FireClock or os.clock()
+		local denseWindow = 0.100
+		local extraCheckpoints = {0.150,0.200}
+		local denseSamples = {}
+		local eventTimes = {
+			YRise = nil,
+			FloorAir = nil,
+			StateChange = nil,
+			HealthChange = nil,
+		}
+		local initialState = record.BaseState
+		local initialFloor = record.BaseFloor
+		local initialHealth = record.StartHealth
+		local lastHealth = initialHealth
 
-		for _,checkpoint in ipairs(checkpoints) do
-			task.wait(math.max(0,checkpoint-previous))
-			previous = checkpoint
-
+		local function inspectSample(elapsed,tag)
 			local torso = record.Torso
 			local humanoid = record.Humanoid
+			if not torso or not torso.Parent then
+				return false
+			end
 
-			if torso and torso.Parent then
-				local position = torso.Position
-				local velocity = torso.AssemblyLinearVelocity
-				local errorToSentTarget = (position-record.TargetPosition).Magnitude
-				local checkpointMs = math.floor(checkpoint*1000+0.5)
-				if errorToSentTarget < record.SentTargetClosest.Error then
-					record.SentTargetClosest.Error = errorToSentTarget
-					record.SentTargetClosest.Checkpoint = checkpointMs
-				end
-				local hypoParts = {}
-				for _,ms in ipairs(HYPOTHETICAL_MS) do
-					local hp = record.HypotheticalTargets[ms]
-					local err = (position-hp).Magnitude
-					table.insert(hypoParts,string.format("%dms=%.3f",ms,err))
-					local closest = record.HypotheticalClosest[ms]
-					if closest and err < closest.Error then
-						closest.Error = err
-						closest.Checkpoint = checkpointMs
-					end
-					if err < record.BestHypotheticalError then
-						record.BestHypotheticalError = err
-						record.BestHypothetical = ms
-						record.BestHypotheticalCheckpoint = math.floor(checkpoint*1000+0.5)
-					end
-				end
+			local position = torso.Position
+			local velocity = torso.AssemblyLinearVelocity
+			local state = DiagnosticHumanoidState(humanoid)
+			local floor = humanoid and tostring(humanoid.FloorMaterial):gsub("Enum.Material.","") or "NONE"
+			local jump = humanoid and humanoid.Jump == true or false
+			local health = humanoid and humanoid.Health or -1
+			local elapsedMs = elapsed*1000
+			local errorToSentTarget = (position-record.TargetPosition).Magnitude
 
-				PushDiagnosticLog(string.format(
-					"+%dms H=%s Pos=%s Vel=%s State=%s Floor=%s Jump=%s ErrorToSentTarget=%.3f",
-					math.floor(checkpoint*1000+0.5),
-					humanoid and string.format("%.1f",humanoid.Health) or "?",
-					DiagnosticVector3(position),
-					DiagnosticVector3(velocity),
-					DiagnosticHumanoidState(humanoid),
-					humanoid and tostring(humanoid.FloorMaterial):gsub("Enum.Material.","") or "NONE",
-					tostring(humanoid and humanoid.Jump == true or false),
-					errorToSentTarget
-				))
-				PushDiagnosticLog("      HypotheticalErrors: "..table.concat(hypoParts," | "))
-			else
-				PushDiagnosticLog(string.format(
-					"+%dms Target part unavailable",
-					math.floor(checkpoint*1000+0.5)
-				))
+			-- Transition timestamps are observational only.
+			if not eventTimes.YRise and velocity.Y > 6 then
+				eventTimes.YRise = elapsedMs
+			end
+			if not eventTimes.FloorAir and floor == "Air" and initialFloor ~= "Air" then
+				eventTimes.FloorAir = elapsedMs
+			end
+			if not eventTimes.StateChange and state ~= initialState then
+				eventTimes.StateChange = elapsedMs
+				eventTimes.StateChangeTo = state
+			end
+			if not eventTimes.HealthChange and initialHealth >= 0 and health >= 0 and health < initialHealth then
+				eventTimes.HealthChange = elapsedMs
+			end
+			lastHealth = health
+
+			if errorToSentTarget < record.SentTargetClosest.Error then
+				record.SentTargetClosest.Error = errorToSentTarget
+				record.SentTargetClosest.Checkpoint = elapsedMs
+			end
+
+			local hypoParts = {}
+			for _,ms in ipairs(HYPOTHETICAL_MS) do
+				local hp = record.HypotheticalTargets[ms]
+				local err = (position-hp).Magnitude
+				table.insert(hypoParts,string.format("%dms=%.3f",ms,err))
+				local closest = record.HypotheticalClosest[ms]
+				if closest and err < closest.Error then
+					closest.Error = err
+					closest.Checkpoint = elapsedMs
+				end
+				if err < record.BestHypotheticalError then
+					record.BestHypotheticalError = err
+					record.BestHypothetical = ms
+					record.BestHypotheticalCheckpoint = elapsedMs
+				end
+			end
+
+			table.insert(denseSamples,{
+				Ms=elapsedMs, Position=position, Velocity=velocity, State=state,
+				Floor=floor, Jump=jump, Health=health, Error=errorToSentTarget,
+			})
+
+			PushDiagnosticLog(string.format(
+				"+%.1fms%s H=%s Pos=%s Vel=%s State=%s Floor=%s Jump=%s ErrorToSentTarget=%.3f",
+				elapsedMs,
+				tag and (" ["..tag.."]") or "",
+				health >= 0 and string.format("%.1f",health) or "?",
+				DiagnosticVector3(position), DiagnosticVector3(velocity),
+				state, floor, tostring(jump), errorToSentTarget
+			))
+			PushDiagnosticLog("      HypotheticalErrors: "..table.concat(hypoParts," | "))
+			return true
+		end
+
+		-- Sample immediately after FireServer returns, then every Heartbeat through 100 ms.
+		inspectSample(math.max(0,os.clock()-fireClock),"RETURN")
+		while os.clock()-fireClock < denseWindow do
+			RunService.Heartbeat:Wait()
+			inspectSample(os.clock()-fireClock,"FRAME")
+		end
+
+		-- Keep two later observations so outcome/death timing is not lost.
+		for _,checkpoint in ipairs(extraCheckpoints) do
+			local remaining = checkpoint-(os.clock()-fireClock)
+			if remaining > 0 then task.wait(remaining) end
+			if not inspectSample(os.clock()-fireClock,checkpoint == 0.150 and "150MS" or "200MS") then
+				PushDiagnosticLog(string.format("+%.1fms Target part unavailable",(os.clock()-fireClock)*1000))
 			end
 		end
 
-		local endHealth = record.Humanoid and record.Humanoid.Health or -1
+		local endHealth = record.Humanoid and record.Humanoid.Health or lastHealth or -1
 		local outcome = "UNKNOWN"
 		if record.StartHealth >= 0 and endHealth >= 0 then
 			outcome = endHealth < record.StartHealth and "HIT" or "NO HEALTH CHANGE"
@@ -716,22 +763,20 @@ local function MonitorExactFireDiagnostic(record)
 		PushDiagnosticLog("Phase="..tostring(record.Phase))
 		if record.BestHypothetical then
 			PushDiagnosticLog(string.format(
-				"BestHypothetical=%dms Error=%.3f studs At=+%dms",
-				record.BestHypothetical,
-				record.BestHypotheticalError,
+				"BestHypothetical=%dms Error=%.3f studs At=+%.1fms",
+				record.BestHypothetical, record.BestHypotheticalError,
 				record.BestHypotheticalCheckpoint or -1
 			))
 		else
 			PushDiagnosticLog("BestHypothetical=unavailable")
 		end
-		PushDiagnosticLog("CLOSEST APPROACH BY HYPOTHETICAL")
+
+		PushDiagnosticLog("CLOSEST APPROACH BY HYPOTHETICAL (dense 0-100ms + 150/200ms)")
 		local closestParts = {}
 		for _,ms in ipairs(HYPOTHETICAL_MS) do
 			local closest = record.HypotheticalClosest[ms]
 			if closest and closest.Checkpoint then
-				table.insert(closestParts,string.format(
-					"%dms=%.3f@+%dms",ms,closest.Error,closest.Checkpoint
-				))
+				table.insert(closestParts,string.format("%dms=%.3f@+%.1fms",ms,closest.Error,closest.Checkpoint))
 			else
 				table.insert(closestParts,string.format("%dms=unavailable",ms))
 			end
@@ -739,18 +784,29 @@ local function MonitorExactFireDiagnostic(record)
 		PushDiagnosticLog(table.concat(closestParts," | "))
 		if record.SentTargetClosest and record.SentTargetClosest.Checkpoint then
 			PushDiagnosticLog(string.format(
-				"Actual60msClosest=%.3f studs At=+%dms",
-				record.SentTargetClosest.Error,
-				record.SentTargetClosest.Checkpoint
+				"Actual60msClosest=%.3f studs At=+%.1fms",
+				record.SentTargetClosest.Error, record.SentTargetClosest.Checkpoint
 			))
 		end
-		PushDiagnosticLog("ActualPrediction=60ms XYZ")
+
+		local function eventText(v)
+			return v and string.format("+%.1fms",v) or "not observed"
+		end
+		PushDiagnosticLog("TRANSITION TIMELINE")
+		PushDiagnosticLog("------------------------------------------------------------")
+		PushDiagnosticLog("Fire=+0.0ms")
+		PushDiagnosticLog("YRise(>6)="..eventText(eventTimes.YRise))
+		PushDiagnosticLog("Floor->Air="..eventText(eventTimes.FloorAir))
+		PushDiagnosticLog("StateChange="..eventText(eventTimes.StateChange)..(eventTimes.StateChangeTo and (" -> "..eventTimes.StateChangeTo) or ""))
+		PushDiagnosticLog("HealthChange="..eventText(eventTimes.HealthChange))
+		PushDiagnosticLog("DenseFrames="..tostring(#denseSamples))
+		PushDiagnosticLog("ActualPrediction=60ms XYZ (UNCHANGED)")
 		PushDiagnosticLog("Outcome="..outcome)
 		PushDiagnosticLog("============================================================")
 		SetDiagnosticStatus(
 			"Shot #"..record.Id.." complete\n"
 			.."Outcome: "..outcome.."\n"
-			.."Tap COPY LOGS after several shots."
+			.."Dense 0-100ms timeline captured."
 		)
 	end)
 end
@@ -795,7 +851,7 @@ local function FireCombatGun(gun,targetPosition)
 		local fireVelocity = targetPart and targetPart.Parent and targetPart.AssemblyLinearVelocity or nil
 
 		PushDiagnosticLog("============================================================")
-		PushDiagnosticLog("PREDICTION PHASE DIAGNOSTIC SHOT #"..diagnostic.Id)
+		PushDiagnosticLog("DENSE JUMP TIMING DIAGNOSTIC SHOT #"..diagnostic.Id)
 		PushDiagnosticLog("Target="..tostring(diagnostic.Player and diagnostic.Player.Name or "?"))
 		PushDiagnosticLog("Prediction=60ms XYZ (vertical enabled)")
 		PushDiagnosticLog("OriginMode="..originMode)
@@ -890,7 +946,7 @@ local function FireCombatGun(gun,targetPosition)
 			"FireServerReturn=%.3fms",
 			(diagnostic.RemoteReturnClock-remoteStart)*1000
 		))
-		PushDiagnosticLog("POST-FIRE MOTION: 16/33/50/66/100/150/200ms")
+		PushDiagnosticLog("POST-FIRE MOTION: every Heartbeat through 100ms, then 150/200ms")
 		PushDiagnosticLog("------------------------------------------------------------")
 		ExactFireDiagnostic.Pending = nil
 		MonitorExactFireDiagnostic(diagnostic)
