@@ -394,7 +394,7 @@ DiagnosticTitle.Font = Enum.Font.GothamBold
 DiagnosticTitle.TextSize = 11
 DiagnosticTitle.TextXAlignment = Enum.TextXAlignment.Left
 DiagnosticTitle.TextColor3 = Color3.fromRGB(245,245,250)
-DiagnosticTitle.Text = "HITBOX / PART INTERSECTION DIAGNOSTIC"
+DiagnosticTitle.Text = "SERVER-FACING + HITBOX DIAGNOSTIC"
 DiagnosticTitle.Parent = DiagnosticFrame
 
 local DiagnosticStatus = Instance.new("TextLabel")
@@ -973,7 +973,7 @@ local function FireCombatGun(gun,targetPosition)
 		local fireVelocity = targetPart and targetPart.Parent and targetPart.AssemblyLinearVelocity or nil
 
 		PushDiagnosticLog("============================================================")
-		PushDiagnosticLog("HITBOX / PART INTERSECTION DIAGNOSTIC SHOT #"..diagnostic.Id)
+		PushDiagnosticLog("SERVER-FACING + HITBOX DIAGNOSTIC SHOT #"..diagnostic.Id)
 		PushDiagnosticLog("Target="..tostring(diagnostic.Player and diagnostic.Player.Name or "?"))
 		PushDiagnosticLog("Prediction=60ms XYZ (vertical enabled)")
 		PushDiagnosticLog("OriginMode="..originMode)
@@ -1067,11 +1067,53 @@ local function FireCombatGun(gun,targetPosition)
 		))
 	end
 
+	-- SERVER-FACING / PAYLOAD DIAGNOSTIC (read-only logging; shot unchanged)
+	if ExactFireDiagnostic.Enabled and diagnostic then
+		PushDiagnosticLog("SERVER-FACING FIRE SNAPSHOT")
+		PushDiagnosticLog("------------------------------------------------------------")
+		PushDiagnosticLog("RemotePath="..shoot:GetFullName())
+		PushDiagnosticLog("RemoteClass="..shoot.ClassName)
+		PushDiagnosticLog("RemoteParent="..(shoot.Parent and shoot.Parent:GetFullName() or "nil"))
+		PushDiagnosticLog("GunPath="..gun:GetFullName())
+		PushDiagnosticLog("GunParent="..(gun.Parent and gun.Parent:GetFullName() or "nil"))
+		PushDiagnosticLog("GunEquipped="..tostring(gun.Parent == character))
+		PushDiagnosticLog("ArgCount=2")
+		PushDiagnosticLog("Arg1Type="..typeof(originCFrame).." Arg1CFramePos="..DiagnosticVector3(originCFrame.Position))
+		PushDiagnosticLog("Arg1Look="..DiagnosticVector3(originCFrame.LookVector))
+		PushDiagnosticLog("Arg2Type="..typeof(destinationCFrame).." Arg2CFramePos="..DiagnosticVector3(destinationCFrame.Position))
+		PushDiagnosticLog("PayloadOriginToDestination="..string.format("%.3f",(originCFrame.Position-destinationCFrame.Position).Magnitude))
+
+		local attrs = gun:GetAttributes()
+		local attrNames = {}
+		for name in pairs(attrs) do table.insert(attrNames,name) end
+		table.sort(attrNames)
+		if #attrNames == 0 then
+			PushDiagnosticLog("GunAttributes=NONE")
+		else
+			for _,name in ipairs(attrNames) do
+				local value = attrs[name]
+				PushDiagnosticLog("GunAttribute["..tostring(name).."]="..tostring(value).." ("..typeof(value)..")")
+			end
+		end
+
+		local children = {}
+		for _,child in ipairs(gun:GetChildren()) do
+			table.insert(children,child.Name..":"..child.ClassName)
+		end
+		table.sort(children)
+		PushDiagnosticLog("GunChildren="..(#children > 0 and table.concat(children,",") or "NONE"))
+		PushDiagnosticLog("FireCallClock="..string.format("%.6f",os.clock()))
+	end
+
 	local remoteStart = os.clock()
 	shoot:FireServer(originCFrame,destinationCFrame)
 
 	if ExactFireDiagnostic.Enabled and diagnostic then
 		diagnostic.RemoteReturnClock = os.clock()
+		PushDiagnosticLog("SERVER-FACING FIRE RETURN")
+		PushDiagnosticLog("------------------------------------------------------------")
+		PushDiagnosticLog("RemoteStillParented="..tostring(shoot.Parent ~= nil))
+		PushDiagnosticLog("GunStillEquipped="..tostring(gun.Parent == character))
 		PushDiagnosticLog(string.format(
 			"FireServerReturn=%.3fms",
 			(diagnostic.RemoteReturnClock-remoteStart)*1000
