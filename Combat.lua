@@ -394,7 +394,7 @@ DiagnosticTitle.Font = Enum.Font.GothamBold
 DiagnosticTitle.TextSize = 11
 DiagnosticTitle.TextXAlignment = Enum.TextXAlignment.Left
 DiagnosticTitle.TextColor3 = Color3.fromRGB(245,245,250)
-DiagnosticTitle.Text = "SERVER ACCEPTANCE / ENDPOINT DIAGNOSTIC"
+DiagnosticTitle.Text = "VERTICAL-ONLY JUMP / SERVER-TIMING DIAGNOSTIC"
 DiagnosticTitle.Parent = DiagnosticFrame
 
 local DiagnosticStatus = Instance.new("TextLabel")
@@ -765,6 +765,11 @@ local function BeginExactFireDiagnostic(player,torso,entryClock,targetPosition)
 		BaseJump = humanoid and humanoid.Jump == true or false,
 	}
 	record.Phase = ClassifyDiagnosticPhase(record)
+	-- Vertical-only diagnostic controls. These are READ-ONLY and never alter the shot.
+	local bv = record.BaseVelocity
+	record.BaseHorizontalSpeed = Vector3.new(bv.X,0,bv.Z).Magnitude
+	record.BaseVerticalSpeed = bv.Y
+	record.VerticalOnlyAtFire = record.BaseHorizontalSpeed <= 2.0
 	record.HypotheticalTargets = BuildHypotheticalTargets(record.BasePosition,record.BaseVelocity)
 	record.BestHypothetical = nil
 	record.BestHypotheticalError = math.huge
@@ -892,12 +897,14 @@ local function MonitorExactFireDiagnostic(record)
 				Floor=floor, Jump=jump, Health=health, Error=errorToSentTarget,
 			})
 
+			local horizontalSpeed = Vector3.new(velocity.X,0,velocity.Z).Magnitude
 			PushDiagnosticLog(string.format(
-				"+%.1fms%s H=%s Pos=%s Vel=%s State=%s Floor=%s Jump=%s ErrorToSentTarget=%.3f",
+				"+%.1fms%s H=%s Pos=%s Vel=%s HSpeed=%.3f VY=%.3f State=%s Floor=%s Jump=%s ErrorToSentTarget=%.3f",
 				elapsedMs,
 				tag and (" ["..tag.."]") or "",
 				health >= 0 and string.format("%.1f",health) or "?",
 				DiagnosticVector3(position), DiagnosticVector3(velocity),
+				horizontalSpeed, velocity.Y,
 				state, floor, tostring(jump), errorToSentTarget
 			))
 			PushDiagnosticLog("      HypotheticalErrors: "..table.concat(hypoParts," | "))
@@ -943,6 +950,15 @@ local function MonitorExactFireDiagnostic(record)
 		PushDiagnosticLog("ANALYSIS SUMMARY")
 		PushDiagnosticLog("------------------------------------------------------------")
 		PushDiagnosticLog("Phase="..tostring(record.Phase))
+		PushDiagnosticLog(string.format(
+			"VerticalOnlyControl=%s HorizontalSpeedAtFire=%.3f VerticalSpeedAtFire=%.3f",
+			tostring(record.VerticalOnlyAtFire),
+			record.BaseHorizontalSpeed or -1,
+			record.BaseVerticalSpeed or 0
+		))
+		if not record.VerticalOnlyAtFire then
+			PushDiagnosticLog("CONTROL_WARNING=Horizontal motion exceeded 2 studs/s; do not use this shot as a clean vertical-only sample")
+		end
 		if record.BestHypothetical then
 			PushDiagnosticLog(string.format(
 				"BestHypothetical=%dms Error=%.3f studs At=+%.1fms",
@@ -1024,7 +1040,7 @@ local function MonitorExactFireDiagnostic(record)
 		SetDiagnosticStatus(
 			"Shot #"..record.Id.." complete\n"
 			.."Outcome: "..outcome.."\n"
-			.."Server-acceptance geometry captured."
+			.."Vertical-only jump timing captured."
 		)
 	end)
 end
@@ -1107,11 +1123,18 @@ local function FireCombatGun(gun,targetPosition)
 		local fireVelocity = targetPart and targetPart.Parent and targetPart.AssemblyLinearVelocity or nil
 
 		PushDiagnosticLog("============================================================")
-		PushDiagnosticLog("SERVER ACCEPTANCE / ENDPOINT DIAGNOSTIC SHOT #"..diagnostic.Id)
+		PushDiagnosticLog("VERTICAL-ONLY JUMP / SERVER-TIMING DIAGNOSTIC SHOT #"..diagnostic.Id)
 		PushDiagnosticLog("Target="..tostring(diagnostic.Player and diagnostic.Player.Name or "?"))
 		PushDiagnosticLog("Prediction=60ms XYZ (vertical enabled)")
 		PushDiagnosticLog("OriginMode="..originMode)
 		PushDiagnosticLog("Phase="..tostring(diagnostic.Phase))
+		PushDiagnosticLog(string.format(
+			"VERTICAL-ONLY CONTROL: HorizontalSpeed=%.3f VerticalSpeed=%.3f CleanVerticalOnly=%s",
+			diagnostic.BaseHorizontalSpeed or -1,
+			diagnostic.BaseVerticalSpeed or 0,
+			tostring(diagnostic.VerticalOnlyAtFire)
+		))
+		PushDiagnosticLog("Instruction=Target should jump in place; do not intentionally move horizontally")
 		PushDiagnosticLog("PRE-SHOT ROLLING BUFFER (oldest -> newest)")
 		PushDiagnosticLog("------------------------------------------------------------")
 		local pre = diagnostic.PreShotSamples or {}
