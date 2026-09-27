@@ -68,7 +68,6 @@ end
 
 UI.AddSection(UI.CombatPage, "Aim", "Crosshair and aiming features")
 UI.CreateToggle(UI.CombatPage, "TriggerBot", "Automatically fires when your crosshair is directly on the murderer", "TriggerBot")
-UI.CreateToggle(UI.CombatPage, "Diagnostic Auto VY Shot", "FINAL A/B: exactly 2 clean falling shots at fixed 20ms; Shot 1 = 0 Y offset, Shot 2 = +2 Y offset; strict VY -35 to -45", "DiagnosticAutoVYShot")
 UI.CreateToggle(UI.CombatPage, "Aim Lock", "While Shift Lock is on, tracks the murderer’s torso", "AimLock")
 
 UI.AddSection(UI.CombatPage, "Sheriff", "Legit and rage gun features")
@@ -201,6 +200,26 @@ local function GetManualShootTargetPosition(torso,useVerticalPrediction,predicti
 	local predictionVelocity = useVerticalPrediction and velocity or Vector3.new(velocity.X,0,velocity.Z)
 	local prediction = tonumber(predictionSeconds) or MANUAL_SHOOT_PREDICTION
 	return torso.Position + predictionVelocity * prediction
+end
+
+-- Production prediction selected from the completed falling diagnostics.
+-- Preserve the original 60 ms horizontal prediction normally. For the one
+-- condition we isolated cleanly (vertical-only fast descent, VY -35..-45),
+-- use the measured 20 ms full XYZ prediction with NO additional Y offset.
+local function GetProductionShootTargetPosition(torso)
+	local velocity = torso.AssemblyLinearVelocity
+	local horizontalSpeed = Vector3.new(velocity.X,0,velocity.Z).Magnitude
+	local fastVerticalFall = velocity.Y <= -35 and velocity.Y >= -45 and horizontalSpeed <= 1.0
+
+	if fastVerticalFall then
+		return torso.Position + velocity * 0.020
+	end
+
+	local horizontalVelocity = Vector3.new(velocity.X,0,velocity.Z)
+	if horizontalVelocity.Magnitude > 120 then
+		horizontalVelocity = horizontalVelocity.Unit * 120
+	end
+	return torso.Position + horizontalVelocity * MANUAL_SHOOT_PREDICTION
 end
 
 local function IsLivePlayer(player)
@@ -1422,7 +1441,7 @@ MM2.Functions.ShootMurderer = function()
 		if not torso then
 			return false,"No Gun or Murderer"
 		end
-		local targetPosition = GetManualShootTargetPosition(torso)
+		local targetPosition = GetProductionShootTargetPosition(torso)
 		local fired = FireCombatGun(gun,targetPosition)
 		if not fired then
 			return false,"Shot Failed"
@@ -1439,12 +1458,8 @@ MM2.Functions.ShootMurderer = function()
 end
 
 MM2.Functions.ShootMurdererLegit = function()
-	if Flags.DiagnosticAutoVYShot and ExactFireDiagnostic.ShotNumber >= 2 then
-		return false,"Final Diagnostic Complete"
-	end
 	if ShootBusy then return false,"Busy" end
 	local now = os.clock()
-	local diagnosticEntryClock = now
 	if now-LastManualShot < SHOT_COOLDOWN then return false,"Cooldown" end
 	ShootBusy = true
 	local ok,success,message = pcall(function()
@@ -1459,36 +1474,9 @@ MM2.Functions.ShootMurdererLegit = function()
 		torso = GetCombatTorso(murderer.Character)
 		if not torso then return false,"No Gun or Murderer" end
 		if not HasClearLineOfSight(torso) then return false,"Murderer Behind Wall" end
-		-- FINAL VY GATE:
-		-- Re-read velocity immediately before prediction/fire so a shot cannot
-		-- slip outside the diagnostic -45..-35 studs/s window while the earlier
-		-- LOS/gun/equip checks are running.
-		if Flags.DiagnosticAutoVYShot then
-			local finalVelocity = torso.AssemblyLinearVelocity
-			local finalHorizontalSpeed = Vector3.new(finalVelocity.X, 0, finalVelocity.Z).Magnitude
-			local finalInWindow = finalVelocity.Y <= -35 and finalVelocity.Y >= -45
-			local finalCleanVertical = finalHorizontalSpeed <= 1.0
 
-			if not finalInWindow or not finalCleanVertical then
-				return false, string.format(
-					"Final VY Gate Rejected (VY=%.3f HSpeed=%.3f)",
-					finalVelocity.Y,
-					finalHorizontalSpeed
-				)
-			end
-		end
-
-		local actualPredictionMs = DIAGNOSTIC_BASE_PREDICTION_MS
-		local endpointOffsetStuds = GetNextDiagnosticOffsetStuds()
-		local baseTargetPosition = GetManualShootTargetPosition(
-			torso,
-			DIAGNOSTIC_VERTICAL_PREDICTION,
-			actualPredictionMs/1000
-		)
-		local targetPosition = baseTargetPosition + Vector3.new(0,endpointOffsetStuds,0)
-		BeginExactFireDiagnostic(murderer,torso,diagnosticEntryClock,targetPosition,actualPredictionMs,endpointOffsetStuds)
+		local targetPosition = GetProductionShootTargetPosition(torso)
 		if not FireCombatGun(gun,targetPosition) then
-			ExactFireDiagnostic.Pending = nil
 			return false,"Shot Failed"
 		end
 		LastManualShot = os.clock()
@@ -1496,7 +1484,6 @@ MM2.Functions.ShootMurdererLegit = function()
 	end)
 	ShootBusy = false
 	if not ok then
-		ExactFireDiagnostic.Pending = nil
 		warn("[MM2 LEGIT SHOOT ERROR]",success)
 		return false,"Error"
 	end
@@ -1917,36 +1904,6 @@ local function UpdateCombatFeatures()
 	local camera = workspace.CurrentCamera
 	if not camera then return end
 
-	-- Separate diagnostic trigger. This does NOT use the normal TriggerBot or crosshair.
-	-- It arms again only after the murderer leaves the -35..-45 VY window.
-	if Flags.DiagnosticAutoVYShot then
-		local murderer = FindLiveMurderer()
-		local targetPart = murderer and GetCombatTorso(murderer.Character)
-		if targetPart and IsLivePlayer(murderer) then
-			local velocity = targetPart.AssemblyLinearVelocity
-			local horizontalSpeed = Vector3.new(velocity.X, 0, velocity.Z).Magnitude
-			local inWindow = velocity.Y <= -35 and velocity.Y >= -45
-			local cleanVertical = horizontalSpeed <= 1.0
-
-			if not inWindow then
-				DiagnosticVYWindowLatched = false
-			elseif cleanVertical and not DiagnosticVYWindowLatched then
-				-- Latch before calling so RenderStep cannot spam while the shot is processing.
-				DiagnosticVYWindowLatched = true
-				local success = MM2.Functions.ShootMurdererLegit()
-				-- If no shot happened (busy/cooldown/no gun/blocked LOS), allow another
-				-- attempt while still in the window. A successful shot stays latched
-				-- until the target leaves the window.
-				if not success then
-					DiagnosticVYWindowLatched = false
-				end
-			end
-		else
-			DiagnosticVYWindowLatched = false
-		end
-	else
-		DiagnosticVYWindowLatched = false
-	end
 	local active = Flags.TriggerBot or Flags.AimLock
 	CrosshairDot.Visible = active
 	if not active then
@@ -1980,18 +1937,7 @@ local function UpdateCombatFeatures()
 		return
 	end
 
-	local targetPosition = rayResult.Position
-	local velocity = targetPart.AssemblyLinearVelocity
-	local horizontalVelocity = Vector3.new(
-		velocity.X,
-		0,
-		velocity.Z
-	)
-	local predictionTime = 0.06
-	if horizontalVelocity.Magnitude > 120 then
-		horizontalVelocity = horizontalVelocity.Unit * 120
-	end
-	targetPosition += horizontalVelocity * predictionTime
+	local targetPosition = GetProductionShootTargetPosition(targetPart)
 	if FireCombatGun(gun,targetPosition) then
 		LastTriggerShot = os.clock()
 	end
