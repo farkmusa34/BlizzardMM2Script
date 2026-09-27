@@ -187,10 +187,13 @@ end
 local MANUAL_SHOOT_PREDICTION = 0.06
 local DIAGNOSTIC_VERTICAL_PREDICTION = true
 
-local function GetManualShootTargetPosition(torso,useVerticalPrediction)
+local ACTUAL_PREDICTION_SWEEP_MS = {20,30,40,50,60}
+
+local function GetManualShootTargetPosition(torso,useVerticalPrediction,predictionSeconds)
 	local velocity = torso.AssemblyLinearVelocity
 	local predictionVelocity = useVerticalPrediction and velocity or Vector3.new(velocity.X,0,velocity.Z)
-	return torso.Position + predictionVelocity * MANUAL_SHOOT_PREDICTION
+	local prediction = tonumber(predictionSeconds) or MANUAL_SHOOT_PREDICTION
+	return torso.Position + predictionVelocity * prediction
 end
 
 local function IsLivePlayer(player)
@@ -348,7 +351,7 @@ end
 
 --============================================================
 -- CFRAME-ORIGIN LEGIT SHOOT DIAGNOSTIC
--- Keeps the existing 60 ms prediction and tests HRP-based shot origin.
+-- Sends a REAL 20/30/40/50/60 ms prediction sweep using the same HRP-based origin.
 --============================================================
 
 local ExactFireDiagnostic = {
@@ -356,6 +359,11 @@ local ExactFireDiagnostic = {
 	ShotNumber = 0,
 	Pending = nil,
 }
+
+local function GetNextDiagnosticPredictionMs()
+	local nextShot = ExactFireDiagnostic.ShotNumber + 1
+	return ACTUAL_PREDICTION_SWEEP_MS[((nextShot - 1) % #ACTUAL_PREDICTION_SWEEP_MS) + 1]
+end
 
 local DiagnosticLogLines = {}
 
@@ -394,7 +402,7 @@ DiagnosticTitle.Font = Enum.Font.GothamBold
 DiagnosticTitle.TextSize = 11
 DiagnosticTitle.TextXAlignment = Enum.TextXAlignment.Left
 DiagnosticTitle.TextColor3 = Color3.fromRGB(245,245,250)
-DiagnosticTitle.Text = "VERTICAL-ONLY JUMP / SERVER-TIMING DIAGNOSTIC"
+DiagnosticTitle.Text = "ACTUAL PREDICTION SWEEP DIAGNOSTIC"
 DiagnosticTitle.Parent = DiagnosticFrame
 
 local DiagnosticStatus = Instance.new("TextLabel")
@@ -407,7 +415,7 @@ DiagnosticStatus.TextWrapped = false
 DiagnosticStatus.TextXAlignment = Enum.TextXAlignment.Left
 DiagnosticStatus.TextYAlignment = Enum.TextYAlignment.Top
 DiagnosticStatus.TextColor3 = Color3.fromRGB(220,220,225)
-DiagnosticStatus.Text = "Ready\nMode: Server Acceptance / Endpoint\nActual shot: 60ms XYZ\nTracking endpoint/body overlap + timing"
+DiagnosticStatus.Text = "Ready\nREAL sweep: 20/30/40/50/60ms\nUse fast descent: VY -35 to -45\nNext actual shot: 20ms"
 DiagnosticStatus.Parent = DiagnosticFrame
 
 local CopyLogsButton = Instance.new("TextButton")
@@ -474,7 +482,7 @@ ClearLogsButton.Activated:Connect(function()
 	table.clear(DiagnosticLogLines)
 	ExactFireDiagnostic.ShotNumber = 0
 	ExactFireDiagnostic.Pending = nil
-	SetDiagnosticStatus("Logs cleared\nMode: Server Acceptance / Endpoint\nActual shot: 60ms XYZ\nTracking endpoint/body overlap + timing")
+	SetDiagnosticStatus("Logs cleared\nREAL sweep: 20/30/40/50/60ms\nUse fast descent: VY -35 to -45\nNext actual shot: 20ms")
 	ClearLogsButton.Text = "CLEARED!"
 	task.delay(1.2,function()
 		if ClearLogsButton and ClearLogsButton.Parent then ClearLogsButton.Text = "CLEAR LOGS" end
@@ -740,7 +748,7 @@ local function JoinEndpointInsideNames(info)
     return table.concat(names,",")
 end
 
-local function BeginExactFireDiagnostic(player,torso,entryClock,targetPosition)
+local function BeginExactFireDiagnostic(player,torso,entryClock,targetPosition,actualPredictionMs)
 	if not ExactFireDiagnostic.Enabled or not player or not torso then
 		return nil
 	end
@@ -758,6 +766,7 @@ local function BeginExactFireDiagnostic(player,torso,entryClock,targetPosition)
 		BasePosition = torso.Position,
 		BaseVelocity = torso.AssemblyLinearVelocity,
 		TargetPosition = targetPosition,
+		ActualPredictionMs = tonumber(actualPredictionMs) or 60,
 		StartHealth = humanoid and humanoid.Health or -1,
 		PreShotSamples = SnapshotDiagnosticMotion(player,entryClock),
 		BaseState = DiagnosticHumanoidState(humanoid),
@@ -792,7 +801,7 @@ local function BeginExactFireDiagnostic(player,torso,entryClock,targetPosition)
 end
 
 local function MonitorExactFireDiagnostic(record)
-	-- Read-only dense sampler. The actual shot remains the existing 60 ms XYZ shot.
+	-- Dense sampler for the current REAL server-facing prediction value.
 	task.spawn(function()
 		local fireClock = record.FireClock or os.clock()
 		local denseWindow = 0.100
@@ -950,6 +959,13 @@ local function MonitorExactFireDiagnostic(record)
 		PushDiagnosticLog("ANALYSIS SUMMARY")
 		PushDiagnosticLog("------------------------------------------------------------")
 		PushDiagnosticLog("Phase="..tostring(record.Phase))
+		local fastDescentControl = record.VerticalOnlyAtFire
+			and record.BaseVerticalSpeed >= -45
+			and record.BaseVerticalSpeed <= -35
+		PushDiagnosticLog("FastDescentControl(VY -35..-45)="..tostring(fastDescentControl))
+		if not fastDescentControl then
+			PushDiagnosticLog("CONTROL_WARNING=For the clean A/B set, fire while VY is between -35 and -45 with near-zero horizontal speed")
+		end
 		PushDiagnosticLog(string.format(
 			"VerticalOnlyControl=%s HorizontalSpeedAtFire=%.3f VerticalSpeedAtFire=%.3f",
 			tostring(record.VerticalOnlyAtFire),
@@ -982,8 +998,8 @@ local function MonitorExactFireDiagnostic(record)
 		PushDiagnosticLog(table.concat(closestParts," | "))
 		if record.SentTargetClosest and record.SentTargetClosest.Checkpoint then
 			PushDiagnosticLog(string.format(
-				"Actual60msClosest=%.3f studs At=+%.1fms",
-				record.SentTargetClosest.Error, record.SentTargetClosest.Checkpoint
+				"Actual%dmsClosest=%.3f studs At=+%.1fms",
+				record.ActualPredictionMs or 60, record.SentTargetClosest.Error, record.SentTargetClosest.Checkpoint
 			))
 		end
 
@@ -1024,7 +1040,7 @@ local function MonitorExactFireDiagnostic(record)
 		PushDiagnosticLog("StateChange="..eventText(eventTimes.StateChange)..(eventTimes.StateChangeTo and (" -> "..eventTimes.StateChangeTo) or ""))
 		PushDiagnosticLog("HealthChange="..eventText(eventTimes.HealthChange))
 		PushDiagnosticLog("DenseFrames="..tostring(#denseSamples))
-		PushDiagnosticLog("ActualPrediction=60ms XYZ (UNCHANGED)")
+		PushDiagnosticLog(string.format("ActualPrediction=%dms XYZ (SERVER-FACING)",record.ActualPredictionMs or 60))
 		PushDiagnosticLog("SERVER ACCEPTANCE CONTROL SUMMARY")
 		PushDiagnosticLog("------------------------------------------------------------")
 		if record.PreFireState then
@@ -1037,10 +1053,11 @@ local function MonitorExactFireDiagnostic(record)
 		end
 		PushDiagnosticLog("Outcome="..outcome)
 		PushDiagnosticLog("============================================================")
+		local nextPredictionMs = ACTUAL_PREDICTION_SWEEP_MS[(record.Id % #ACTUAL_PREDICTION_SWEEP_MS) + 1]
 		SetDiagnosticStatus(
-			"Shot #"..record.Id.." complete\n"
-			.."Outcome: "..outcome.."\n"
-			.."Vertical-only jump timing captured."
+			"Shot #"..record.Id.." complete: "..outcome.."\n"
+			.."Actual: "..tostring(record.ActualPredictionMs or 60).."ms\n"
+			.."Next actual: "..tostring(nextPredictionMs).."ms"
 		)
 	end)
 end
@@ -1114,7 +1131,7 @@ local function FireCombatGun(gun,targetPosition)
 			"Shot #"..diagnostic.Id.." fired\n"
 			.."Target: "..tostring(diagnostic.Player and diagnostic.Player.Name or "?").."\n"
 			.."Origin: "..originMode.."\n"
-			.."Prediction: 60ms XYZ\n"
+			.."Prediction: "..tostring(diagnostic.ActualPredictionMs or 60).."ms XYZ (ACTUAL)\n"
 			.."Collecting result..."
 		)
 
@@ -1123,9 +1140,9 @@ local function FireCombatGun(gun,targetPosition)
 		local fireVelocity = targetPart and targetPart.Parent and targetPart.AssemblyLinearVelocity or nil
 
 		PushDiagnosticLog("============================================================")
-		PushDiagnosticLog("VERTICAL-ONLY JUMP / SERVER-TIMING DIAGNOSTIC SHOT #"..diagnostic.Id)
+		PushDiagnosticLog("ACTUAL PREDICTION SWEEP DIAGNOSTIC SHOT #"..diagnostic.Id)
 		PushDiagnosticLog("Target="..tostring(diagnostic.Player and diagnostic.Player.Name or "?"))
-		PushDiagnosticLog("Prediction=60ms XYZ (vertical enabled)")
+		PushDiagnosticLog(string.format("Prediction=%dms XYZ (ACTUAL SERVER-FACING; vertical enabled)",diagnostic.ActualPredictionMs or 60))
 		PushDiagnosticLog("OriginMode="..originMode)
 		PushDiagnosticLog("Phase="..tostring(diagnostic.Phase))
 		PushDiagnosticLog(string.format(
@@ -1157,7 +1174,7 @@ local function FireCombatGun(gun,targetPosition)
 		PushDiagnosticLog("BaseVelocity="..DiagnosticVector3(diagnostic.BaseVelocity))
 		PushDiagnosticLog("BaseState="..diagnostic.BaseState.." BaseFloor="..diagnostic.BaseFloor.." BaseJump="..tostring(diagnostic.BaseJump))
 		PushDiagnosticLog("SentTarget="..DiagnosticVector3(targetPosition))
-		PushDiagnosticLog("HYPOTHETICAL TARGETS (read-only; actual shot remains 60ms)")
+		PushDiagnosticLog(string.format("HYPOTHETICAL TARGETS (read-only; ACTUAL shot=%dms)",diagnostic.ActualPredictionMs or 60))
 		for _,ms in ipairs(HYPOTHETICAL_MS) do
 			PushDiagnosticLog(string.format("%dms=%s",ms,DiagnosticVector3(diagnostic.HypotheticalTargets[ms])))
 		end
@@ -1368,8 +1385,13 @@ MM2.Functions.ShootMurdererLegit = function()
 		torso = GetCombatTorso(murderer.Character)
 		if not torso then return false,"No Gun or Murderer" end
 		if not HasClearLineOfSight(torso) then return false,"Murderer Behind Wall" end
-		local targetPosition = GetManualShootTargetPosition(torso,DIAGNOSTIC_VERTICAL_PREDICTION)
-		BeginExactFireDiagnostic(murderer,torso,diagnosticEntryClock,targetPosition)
+		local actualPredictionMs = GetNextDiagnosticPredictionMs()
+		local targetPosition = GetManualShootTargetPosition(
+			torso,
+			DIAGNOSTIC_VERTICAL_PREDICTION,
+			actualPredictionMs/1000
+		)
+		BeginExactFireDiagnostic(murderer,torso,diagnosticEntryClock,targetPosition,actualPredictionMs)
 		if not FireCombatGun(gun,targetPosition) then
 			ExactFireDiagnostic.Pending = nil
 			return false,"Shot Failed"
