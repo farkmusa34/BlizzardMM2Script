@@ -96,7 +96,7 @@ local function CreateDiagnosticGui()
 		title.Font = Enum.Font.GothamBold
 		title.TextSize = 19
 		title.TextColor3 = Color3.new(1,1,1)
-		title.Text = "Blizzard AutoTrader — PC Diagnostic V3 SAFE"
+		title.Text = "Blizzard AutoTrader — PC Diagnostic V4 SAFE"
 		title.Parent = main
 
 		local logs = Instance.new("TextBox")
@@ -1627,6 +1627,63 @@ if typeof(StartTrade) == "Instance" then
 else
 	DLog("V3 SAFE: StartTrade is not an Instance")
 end
+
+--============================================================
+-- V4 SAFE: TRADE REMOTE DISCOVERY
+-- Diagnostic only: does not change any remote or trading behavior.
+--============================================================
+
+DLog("V4 SAFE: beginning trade remote discovery")
+
+local RS = game:GetService("ReplicatedStorage")
+local remoteCount = 0
+local tradeRemoteCount = 0
+
+local function HasTradeKeyword(name)
+	name = string.lower(tostring(name))
+	return string.find(name, "trade", 1, true)
+		or string.find(name, "offer", 1, true)
+		or string.find(name, "request", 1, true)
+		or string.find(name, "accept", 1, true)
+		or string.find(name, "decline", 1, true)
+end
+
+for _, obj in ipairs(RS:GetDescendants()) do
+	if obj:IsA("RemoteEvent") or obj:IsA("RemoteFunction") then
+		remoteCount += 1
+
+		local fullName = obj:GetFullName()
+
+		if HasTradeKeyword(obj.Name) or HasTradeKeyword(fullName) then
+			tradeRemoteCount += 1
+			DLog(
+				"V4 REMOTE #" .. tostring(tradeRemoteCount)
+				.. " | " .. tostring(obj.ClassName)
+				.. " | " .. tostring(fullName)
+			)
+		end
+	end
+end
+
+DLog("V4 SAFE: total remotes = " .. tostring(remoteCount))
+DLog("V4 SAFE: trade-related remotes = " .. tostring(tradeRemoteCount))
+
+-- Also inspect likely trade containers even when their children do not
+-- contain obvious trade keywords.
+for _, obj in ipairs(RS:GetDescendants()) do
+	local lowerName = string.lower(obj.Name)
+
+	if string.find(lowerName, "trade", 1, true) then
+		DLog(
+			"V4 TRADE OBJECT | "
+			.. tostring(obj.ClassName)
+			.. " | "
+			.. tostring(obj:GetFullName())
+		)
+	end
+end
+
+DLog("V4 SAFE: discovery complete; original V3/V2 flow continues below")
 
 --============================================================
 -- STARTTRADE EVENT
