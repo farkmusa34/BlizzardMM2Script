@@ -66,13 +66,13 @@ local function NotifyKillAllResult(success,message)
 	end
 end
 
-if UI.SetNextSectionSpacing then UI.SetNextSectionSpacing(UI.CombatPage, 24, 10) end
+if UI.SetNextSectionSpacing then UI.SetNextSectionSpacing(UI.CombatPage, 16, 7) end
 
 UI.AddSection(UI.CombatPage, "Aimbot", "")
 UI.CreateToggle(UI.CombatPage, "TriggerBot", "Automatically shoots the murderer when they are visible", "TriggerBot")
 UI.CreateToggle(UI.CombatPage, "Aim Lock", "While Shift Lock is on, tracks the murderer’s torso", "AimLock")
 
-if UI.SetNextSectionSpacing then UI.SetNextSectionSpacing(UI.CombatPage, 24, 10) end
+if UI.SetNextSectionSpacing then UI.SetNextSectionSpacing(UI.CombatPage, 16, 7) end
 
 UI.AddSection(UI.CombatPage, "Sheriff", "")
 Flags.TriggerBotDelay = math.clamp(tonumber(Flags.TriggerBotDelay) or 0.05,0,0.60)
@@ -103,7 +103,7 @@ UI.CreateToggle(UI.CombatPage, "Shoot Murderer (Rage)", "Shows a rage shoot butt
 end)
 UI.CreateToggle(UI.CombatPage, "Auto Grab Gun", "Automatically picks up the dropped gun without moving your character", "AutoGrab")
 
-if UI.SetNextSectionSpacing then UI.SetNextSectionSpacing(UI.CombatPage, 24, 10) end
+if UI.SetNextSectionSpacing then UI.SetNextSectionSpacing(UI.CombatPage, 16, 7) end
 
 UI.AddSection(UI.CombatPage, "Murderer", "")
 
@@ -180,7 +180,7 @@ end, "skull")
 -- CROSSHAIR
 --============================================================
 
-if UI.SetNextSectionSpacing then UI.SetNextSectionSpacing(UI.CombatPage, 24, 10) end
+if UI.SetNextSectionSpacing then UI.SetNextSectionSpacing(UI.CombatPage, 16, 7) end
 
 UI.AddSection(UI.CombatPage, "Crosshair", "")
 
@@ -312,36 +312,19 @@ end)
 
 local CROSSHAIR_STYLES = {"Classic","Dot","Dot + Lines","Spinner","Circle + Dot","X"}
 
--- Prefer the standard Blizzard/WindUI dropdown exposed by UI.lua.
-if UI.CreateDropdown then
-	UI.CreateDropdown(
-		UI.CombatPage,
-		"Crosshair Type",
-		"Select the crosshair style",
-		CROSSHAIR_STYLES,
-		function() return Flags.CrosshairType end,
-		function(value)
-			if value then
-				Flags.CrosshairType = tostring(value)
-				UpdateCrosshairVisual()
-			end
+UI.CreateDropdown(
+	UI.CombatPage,
+	"Crosshair Type",
+	"Select a crosshair style",
+	CROSSHAIR_STYLES,
+	Flags.CrosshairType,
+	function(crosshairType)
+		if crosshairType then
+			Flags.CrosshairType = tostring(crosshairType)
+			UpdateCrosshairVisual()
 		end
-	)
-elseif UI.CreateSelector then
-	UI.CreateSelector(
-		UI.CombatPage,
-		"Crosshair Type",
-		"Select the crosshair style",
-		CROSSHAIR_STYLES,
-		function() return Flags.CrosshairType end,
-		function(value)
-			if value then
-				Flags.CrosshairType = tostring(value)
-				UpdateCrosshairVisual()
-			end
-		end
-	)
-end
+	end
+)
 
 UI.CreateSlider(
 	UI.CombatPage,
