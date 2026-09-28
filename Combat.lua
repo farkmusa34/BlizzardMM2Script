@@ -66,11 +66,22 @@ local function NotifyKillAllResult(success,message)
 	end
 end
 
-UI.AddSection(UI.CombatPage, "Aim", "Crosshair and aiming features")
+UI.AddSection(UI.CombatPage, "Aimbot", "")
 UI.CreateToggle(UI.CombatPage, "TriggerBot", "Automatically shoots the murderer when they are visible", "TriggerBot")
 UI.CreateToggle(UI.CombatPage, "Aim Lock", "While Shift Lock is on, tracks the murderer’s torso", "AimLock")
 
-UI.AddSection(UI.CombatPage, "Sheriff", "Legit and rage gun features")
+UI.AddSection(UI.CombatPage, "Sheriff", "")
+Flags.TriggerBotDelay = math.clamp(tonumber(Flags.TriggerBotDelay) or 0.05,0,0.60)
+UI.CreateSlider(
+	UI.CombatPage,
+	"TriggerBot Delay",
+	"Delay before TriggerBot fires",
+	function() return Flags.TriggerBotDelay end,
+	function(value)
+		Flags.TriggerBotDelay = math.clamp(tonumber(value) or 0.05,0,0.60)
+	end,
+	0,0.60,0.01
+)
 UI.CreateToggle(UI.CombatPage, "Shoot Murderer (Legit)", "Shows a shoot button that only fires when the murderer is visible", "ShowLegitShootButton", function(on)
 	if MM2.UI.FloatingLegitShootHolder then
 		MM2.UI.FloatingLegitShootHolder.Visible = on
@@ -88,7 +99,7 @@ UI.CreateToggle(UI.CombatPage, "Shoot Murderer (Rage)", "Shows a rage shoot butt
 end)
 UI.CreateToggle(UI.CombatPage, "Auto Grab Gun", "Automatically picks up the dropped gun without moving your character", "AutoGrab")
 
-UI.AddSection(UI.CombatPage, "Murderer", "Legit and rage knife features")
+UI.AddSection(UI.CombatPage, "Murderer", "")
 
 local RenderLegitThrow
 local RenderRageThrow
@@ -128,16 +139,24 @@ local KNIFE_RANGE_MAX = 1000
 local KILL_ALL_RANGE = 10000
 Flags.KnifeRange = math.clamp(tonumber(Flags.KnifeRange) or 10,KNIFE_RANGE_MIN,KNIFE_RANGE_MAX)
 
+Flags.KnifeAura = Flags.KnifeAura == true
+UI.CreateToggle(UI.CombatPage, "Knife Aura", "Stabs nearby players when you use your knife", "KnifeAura")
+
 UI.CreateSlider(
 	UI.CombatPage,
-	"Knife Aura Studs",
-	"Stabs nearby players within the selected stud range when you use your knife",
+	"Knife Aura (Studs)",
+	"Sets the Knife Aura range",
 	function() return Flags.KnifeRange end,
 	function(value)
 		Flags.KnifeRange = math.clamp(tonumber(value) or 10,KNIFE_RANGE_MIN,KNIFE_RANGE_MAX)
 	end,
 	KNIFE_RANGE_MIN,KNIFE_RANGE_MAX,5
 )
+
+Flags.ShowKillAllButton = Flags.ShowKillAllButton == true
+UI.CreateToggle(UI.CombatPage, "Show Kill All Button", "Shows the floating Kill All button", "ShowKillAllButton", function(on)
+	if MM2.UI.FloatingKillAllHolder then MM2.UI.FloatingKillAllHolder.Visible = on end
+end)
 
 UI.CreateActionFeature(UI.CombatPage, "Kill All", "Stabs every player as murderer", function()
 	if MM2.Functions.KillAllOnce then
@@ -151,21 +170,346 @@ UI.CreateActionFeature(UI.CombatPage, "Kill All", "Stabs every player as murdere
 	end
 end, "skull")
 
-Flags.ShowKillAllButton = Flags.ShowKillAllButton == true
-UI.CreateToggle(UI.CombatPage, "Show Kill All Button", "Shows the floating Kill All button", "ShowKillAllButton", function(on)
-	if MM2.UI.FloatingKillAllHolder then MM2.UI.FloatingKillAllHolder.Visible = on end
+--============================================================
+-- CROSSHAIR
+--============================================================
+
+UI.AddSection(UI.CombatPage, "Crosshair", "")
+
+Flags.CustomCrosshair = Flags.CustomCrosshair == true
+Flags.CrosshairType = tostring(Flags.CrosshairType or "Classic")
+Flags.CrosshairSize = math.clamp(tonumber(Flags.CrosshairSize) or 10,4,24)
+Flags.CrosshairGap = math.clamp(tonumber(Flags.CrosshairGap) or 5,0,16)
+Flags.CrosshairThickness = math.clamp(tonumber(Flags.CrosshairThickness) or 2,1,6)
+Flags.CrosshairOpacity = math.clamp(tonumber(Flags.CrosshairOpacity) or 100,20,100)
+Flags.CrosshairSpinSpeed = math.clamp(tonumber(Flags.CrosshairSpinSpeed) or 1.25,0.25,3)
+
+local CrosshairRoot = Instance.new("Frame")
+CrosshairRoot.Name = "BlizzardCustomCrosshair"
+CrosshairRoot.AnchorPoint = Vector2.new(0.5,0.5)
+CrosshairRoot.Position = UDim2.fromScale(0.5,0.5)
+CrosshairRoot.Size = UDim2.fromOffset(100,100)
+CrosshairRoot.BackgroundTransparency = 1
+CrosshairRoot.Visible = Flags.CustomCrosshair
+CrosshairRoot.ZIndex = 100
+CrosshairRoot.Parent = CombatOverlay
+
+local CrosshairRotor = Instance.new("Frame")
+CrosshairRotor.Name = "Rotor"
+CrosshairRotor.AnchorPoint = Vector2.new(0.5,0.5)
+CrosshairRotor.Position = UDim2.fromScale(0.5,0.5)
+CrosshairRotor.Size = UDim2.fromScale(1,1)
+CrosshairRotor.BackgroundTransparency = 1
+CrosshairRotor.ZIndex = 100
+CrosshairRotor.Parent = CrosshairRoot
+
+local CrosshairPieces = {}
+
+local function NewCrosshairPiece(name)
+	local f = Instance.new("Frame")
+	f.Name = name
+	f.AnchorPoint = Vector2.new(0.5,0.5)
+	f.BackgroundColor3 = Color3.fromRGB(255,255,255)
+	f.BorderSizePixel = 0
+	f.ZIndex = 102
+	f.Parent = CrosshairRotor
+	CrosshairPieces[name] = f
+	return f
+end
+
+local CHTop = NewCrosshairPiece("Top")
+local CHBottom = NewCrosshairPiece("Bottom")
+local CHLeft = NewCrosshairPiece("Left")
+local CHRight = NewCrosshairPiece("Right")
+
+local CHDot = Instance.new("Frame")
+CHDot.Name = "CenterDot"
+CHDot.AnchorPoint = Vector2.new(0.5,0.5)
+CHDot.Position = UDim2.fromScale(0.5,0.5)
+CHDot.BorderSizePixel = 0
+CHDot.BackgroundColor3 = Color3.fromRGB(255,255,255)
+CHDot.ZIndex = 103
+CHDot.Parent = CrosshairRoot
+local CHDotCorner = Instance.new("UICorner")
+CHDotCorner.CornerRadius = UDim.new(1,0)
+CHDotCorner.Parent = CHDot
+
+local CHCircle = Instance.new("Frame")
+CHCircle.Name = "Circle"
+CHCircle.AnchorPoint = Vector2.new(0.5,0.5)
+CHCircle.Position = UDim2.fromScale(0.5,0.5)
+CHCircle.BackgroundTransparency = 1
+CHCircle.ZIndex = 101
+CHCircle.Parent = CrosshairRoot
+local CHCircleCorner = Instance.new("UICorner")
+CHCircleCorner.CornerRadius = UDim.new(1,0)
+CHCircleCorner.Parent = CHCircle
+local CHCircleStroke = Instance.new("UIStroke")
+CHCircleStroke.Color = Color3.fromRGB(255,255,255)
+CHCircleStroke.Parent = CHCircle
+
+local function UpdateCrosshairVisual()
+	local style = tostring(Flags.CrosshairType or "Classic")
+	local size = math.floor(tonumber(Flags.CrosshairSize) or 10)
+	local gap = math.floor(tonumber(Flags.CrosshairGap) or 5)
+	local thick = math.floor(tonumber(Flags.CrosshairThickness) or 2)
+	local alpha = 1-(math.clamp(tonumber(Flags.CrosshairOpacity) or 100,20,100)/100)
+	local diagonal = style == "X"
+
+	CrosshairRoot.Visible = Flags.CustomCrosshair == true
+	for _,piece in pairs(CrosshairPieces) do
+		piece.Visible = false
+		piece.BackgroundTransparency = alpha
+		piece.Rotation = 0
+	end
+	CHDot.Visible = false
+	CHDot.BackgroundTransparency = alpha
+	CHCircle.Visible = false
+	CHCircleStroke.Transparency = alpha
+	CHCircleStroke.Thickness = thick
+	CrosshairRotor.Rotation = 0
+
+	local showLines = style == "Classic" or style == "Dot + Lines" or style == "Spinner" or style == "X"
+	if showLines then
+		for _,piece in pairs(CrosshairPieces) do piece.Visible = true end
+		CHTop.Size = UDim2.fromOffset(thick,size)
+		CHBottom.Size = UDim2.fromOffset(thick,size)
+		CHLeft.Size = UDim2.fromOffset(size,thick)
+		CHRight.Size = UDim2.fromOffset(size,thick)
+		CHTop.Position = UDim2.new(0.5,0,0.5,-gap-size/2)
+		CHBottom.Position = UDim2.new(0.5,0,0.5,gap+size/2)
+		CHLeft.Position = UDim2.new(0.5,-gap-size/2,0.5,0)
+		CHRight.Position = UDim2.new(0.5,gap+size/2,0.5,0)
+	end
+
+	if diagonal then
+		CrosshairRotor.Rotation = 45
+	end
+
+	if style == "Dot" or style == "Dot + Lines" or style == "Spinner" or style == "Circle + Dot" then
+		CHDot.Visible = true
+		local dotSize = math.max(2,thick+1)
+		CHDot.Size = UDim2.fromOffset(dotSize,dotSize)
+	end
+
+	if style == "Circle + Dot" then
+		CHCircle.Visible = true
+		local diameter = math.max(10,(gap+size)*2)
+		CHCircle.Size = UDim2.fromOffset(diameter,diameter)
+	end
+end
+
+UI.CreateToggle(UI.CombatPage, "Enable Crosshair", "Shows the custom Blizzard crosshair", "CustomCrosshair", function()
+	UpdateCrosshairVisual()
 end)
 
-local CrosshairDot = Instance.new("Frame")
-CrosshairDot.Name = "CrosshairDot"
-CrosshairDot.AnchorPoint = Vector2.new(0.5,0.5)
-CrosshairDot.Position = UDim2.new(0.5,0,0.5,0)
-CrosshairDot.Size = UDim2.fromOffset(4,4)
-CrosshairDot.BackgroundColor3 = Color3.fromRGB(255,255,255)
-CrosshairDot.BorderSizePixel = 0
-CrosshairDot.Visible = false
-CrosshairDot.ZIndex = 100
-CrosshairDot.Parent = CombatOverlay
+local CrosshairPickerOpen = false
+local CrosshairPicker = Instance.new("Frame")
+CrosshairPicker.Name = "CrosshairVisualDropdown"
+CrosshairPicker.AnchorPoint = Vector2.new(0.5,0.5)
+CrosshairPicker.Position = UDim2.fromScale(0.5,0.5)
+CrosshairPicker.Size = UDim2.fromOffset(300,330)
+CrosshairPicker.BackgroundColor3 = UI.COLORS.Card
+CrosshairPicker.BackgroundTransparency = 0.04
+CrosshairPicker.BorderSizePixel = 0
+CrosshairPicker.Visible = false
+CrosshairPicker.ZIndex = 500
+CrosshairPicker.Parent = UI.ScreenGui
+local PickerCorner = Instance.new("UICorner")
+PickerCorner.CornerRadius = UDim.new(0,18)
+PickerCorner.Parent = CrosshairPicker
+local PickerStroke = Instance.new("UIStroke")
+PickerStroke.Color = UI.COLORS.Accent
+PickerStroke.Transparency = 0.25
+PickerStroke.Parent = CrosshairPicker
+
+local PickerTitle = Instance.new("TextLabel")
+PickerTitle.BackgroundTransparency = 1
+PickerTitle.Position = UDim2.fromOffset(18,12)
+PickerTitle.Size = UDim2.new(1,-60,0,34)
+PickerTitle.Text = "Crosshair Type"
+PickerTitle.TextXAlignment = Enum.TextXAlignment.Left
+PickerTitle.Font = Enum.Font.GothamBold
+PickerTitle.TextSize = 17
+PickerTitle.TextColor3 = UI.COLORS.Text
+PickerTitle.ZIndex = 501
+PickerTitle.Parent = CrosshairPicker
+
+local PickerClose = Instance.new("TextButton")
+PickerClose.AnchorPoint = Vector2.new(1,0)
+PickerClose.Position = UDim2.new(1,-12,0,12)
+PickerClose.Size = UDim2.fromOffset(34,34)
+PickerClose.BackgroundTransparency = 1
+PickerClose.Text = "×"
+PickerClose.Font = Enum.Font.GothamBold
+PickerClose.TextSize = 24
+PickerClose.TextColor3 = UI.COLORS.Text
+PickerClose.ZIndex = 502
+PickerClose.Parent = CrosshairPicker
+
+local PickerList = Instance.new("Frame")
+PickerList.BackgroundTransparency = 1
+PickerList.Position = UDim2.fromOffset(14,54)
+PickerList.Size = UDim2.new(1,-28,1,-68)
+PickerList.ZIndex = 501
+PickerList.Parent = CrosshairPicker
+local PickerLayout = Instance.new("UIListLayout")
+PickerLayout.Padding = UDim.new(0,6)
+PickerLayout.Parent = PickerList
+
+local CROSSHAIR_STYLES = {"Classic","Dot","Dot + Lines","Spinner","Circle + Dot","X"}
+
+local function DrawMiniPreview(holder,style)
+	local centerX,centerY = 26,20
+	local function bar(x,y,w,h,rot)
+		local b = Instance.new("Frame")
+		b.AnchorPoint = Vector2.new(0.5,0.5)
+		b.Position = UDim2.fromOffset(x,y)
+		b.Size = UDim2.fromOffset(w,h)
+		b.BackgroundColor3 = UI.COLORS.Text
+		b.BorderSizePixel = 0
+		b.Rotation = rot or 0
+		b.ZIndex = 504
+		b.Parent = holder
+		return b
+	end
+	if style == "Dot" or style == "Dot + Lines" or style == "Spinner" or style == "Circle + Dot" then
+		local d = bar(centerX,centerY,4,4)
+		local dc = Instance.new("UICorner")
+		dc.CornerRadius = UDim.new(1,0)
+		dc.Parent = d
+	end
+	if style == "Circle + Dot" then
+		local ring = Instance.new("Frame")
+		ring.AnchorPoint = Vector2.new(0.5,0.5)
+		ring.Position = UDim2.fromOffset(centerX,centerY)
+		ring.Size = UDim2.fromOffset(22,22)
+		ring.BackgroundTransparency = 1
+		ring.ZIndex = 503
+		ring.Parent = holder
+		local rc = Instance.new("UICorner")
+		rc.CornerRadius = UDim.new(1,0)
+		rc.Parent = ring
+		local rs = Instance.new("UIStroke")
+		rs.Color = UI.COLORS.Text
+		rs.Thickness = 2
+		rs.Parent = ring
+	elseif style ~= "Dot" then
+		local rotor = Instance.new("Frame")
+		rotor.BackgroundTransparency = 1
+		rotor.Size = UDim2.fromScale(1,1)
+		rotor.ZIndex = 503
+		rotor.Parent = holder
+		bar(centerX,8,2,8).Parent = rotor
+		bar(centerX,32,2,8).Parent = rotor
+		bar(14,centerY,8,2).Parent = rotor
+		bar(38,centerY,8,2).Parent = rotor
+		if style == "X" then rotor.Rotation = 45 end
+		if style == "Spinner" then
+			task.spawn(function()
+				while rotor.Parent and holder.Parent do
+					local dt = RunService.RenderStepped:Wait()
+					rotor.Rotation = (rotor.Rotation + dt*180) % 360
+				end
+			end)
+		end
+	end
+end
+
+local function RefreshPickerSelection()
+	for _,child in ipairs(PickerList:GetChildren()) do
+		if child:IsA("TextButton") then
+			local stroke = child:FindFirstChild("SelectedStroke")
+			if stroke then
+				stroke.Transparency = child:GetAttribute("StyleName") == Flags.CrosshairType and 0 or 1
+			end
+		end
+	end
+end
+
+for _,style in ipairs(CROSSHAIR_STYLES) do
+	local option = Instance.new("TextButton")
+	option.Name = style:gsub("%W","").."Option"
+	option:SetAttribute("StyleName",style)
+	option.Size = UDim2.new(1,0,0,40)
+	option.BackgroundColor3 = UI.COLORS.Card
+	option.BackgroundTransparency = 0.12
+	option.BorderSizePixel = 0
+	option.Text = "          "..style
+	option.TextXAlignment = Enum.TextXAlignment.Left
+	option.Font = Enum.Font.GothamMedium
+	option.TextSize = 14
+	option.TextColor3 = UI.COLORS.Text
+	option.ZIndex = 502
+	option.Parent = PickerList
+	local oc = Instance.new("UICorner")
+	oc.CornerRadius = UDim.new(0,10)
+	oc.Parent = option
+	local os = Instance.new("UIStroke")
+	os.Name = "SelectedStroke"
+	os.Color = UI.COLORS.Accent
+	os.Thickness = 1.5
+	os.Transparency = 1
+	os.Parent = option
+	local preview = Instance.new("Frame")
+	preview.BackgroundTransparency = 1
+	preview.Position = UDim2.fromOffset(6,0)
+	preview.Size = UDim2.fromOffset(52,40)
+	preview.ZIndex = 503
+	preview.Parent = option
+	DrawMiniPreview(preview,style)
+	Track(option.MouseButton1Click:Connect(function()
+		Flags.CrosshairType = style
+		UpdateCrosshairVisual()
+		RefreshPickerSelection()
+		CrosshairPicker.Visible = false
+		CrosshairPickerOpen = false
+	end))
+end
+
+Track(PickerClose.MouseButton1Click:Connect(function()
+	CrosshairPickerOpen = false
+	CrosshairPicker.Visible = false
+end))
+
+UI.CreateActionFeature(UI.CombatPage, "Crosshair Type", "Opens the visual crosshair picker", function()
+	CrosshairPickerOpen = not CrosshairPickerOpen
+	CrosshairPicker.Visible = CrosshairPickerOpen
+	RefreshPickerSelection()
+end)
+
+UI.CreateSlider(UI.CombatPage, "Crosshair Size", "Length of the crosshair lines",
+	function() return Flags.CrosshairSize end,
+	function(v) Flags.CrosshairSize = v UpdateCrosshairVisual() end,4,24,1)
+
+UI.CreateSlider(UI.CombatPage, "Crosshair Gap", "Space around the center",
+	function() return Flags.CrosshairGap end,
+	function(v) Flags.CrosshairGap = v UpdateCrosshairVisual() end,0,16,1)
+
+UI.CreateSlider(UI.CombatPage, "Crosshair Thickness", "Thickness of the crosshair lines",
+	function() return Flags.CrosshairThickness end,
+	function(v) Flags.CrosshairThickness = v UpdateCrosshairVisual() end,1,6,1)
+
+UI.CreateSlider(UI.CombatPage, "Crosshair Opacity", "Crosshair visibility",
+	function() return Flags.CrosshairOpacity end,
+	function(v) Flags.CrosshairOpacity = v UpdateCrosshairVisual() end,20,100,5)
+
+UI.CreateSlider(UI.CombatPage, "Spinner Speed", "Seconds per full Spinner rotation",
+	function() return Flags.CrosshairSpinSpeed end,
+	function(v) Flags.CrosshairSpinSpeed = v end,0.25,3,0.25)
+
+UpdateCrosshairVisual()
+
+local CrosshairSpinAngle = 0
+Track(RunService.RenderStepped:Connect(function(dt)
+	if Flags.CustomCrosshair and Flags.CrosshairType == "Spinner" then
+		local seconds = math.max(0.25,tonumber(Flags.CrosshairSpinSpeed) or 1.25)
+		CrosshairSpinAngle = (CrosshairSpinAngle + (360/seconds)*dt) % 360
+		CrosshairRotor.Rotation = CrosshairSpinAngle
+	elseif Flags.CrosshairType ~= "X" then
+		CrosshairRotor.Rotation = 0
+	end
+end))
 
 local AIMLOCK_FOV = 150
 local COMBAT_MAX_DISTANCE = 2000
@@ -2130,7 +2474,7 @@ local function BindKnifeRangeActivation(knife)
 	end
 	KnifeRangeBoundKnife = knife
 	KnifeRangeActivatedConnection = knife.Activated:Connect(function()
-		if KnifeRangeSuppressActivated then return end
+		if KnifeRangeSuppressActivated or not Flags.KnifeAura then return end
 		task.spawn(function()
 			ProcessKnifeRange(knife,Flags.KnifeRange)
 		end)
@@ -2229,7 +2573,6 @@ local function UpdateCombatFeatures()
 	if not camera then return end
 
 	local active = Flags.TriggerBot or Flags.AimLock
-	CrosshairDot.Visible = active
 	if not active then
 		return
 	end
@@ -2254,7 +2597,14 @@ local function UpdateCombatFeatures()
 	TriggerBotBusy = true
 	task.spawn(function()
 		local ok = pcall(function()
-			-- Revalidate after equipping because the target may move behind a wall.
+			local delaySeconds = math.clamp(tonumber(Flags.TriggerBotDelay) or 0.05,0,0.60)
+			if delaySeconds > 0 then
+				task.wait(delaySeconds)
+			end
+			if not Flags.TriggerBot or not IsLivePlayer(murderer) then return end
+			targetPart = GetCombatTorso(murderer.Character)
+			if not targetPart or not HasClearLineOfSight(targetPart) then return end
+			-- Revalidate again after equipping because the target may move behind a wall.
 			local gun = EnsureCombatGun()
 			if not gun or not Flags.TriggerBot or not IsLivePlayer(murderer) then return end
 			targetPart = GetCombatTorso(murderer.Character)
