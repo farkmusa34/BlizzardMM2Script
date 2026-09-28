@@ -1576,6 +1576,40 @@ local function FireCombatGun(gun,targetPosition)
 	return true
 end
 
+--============================================================
+-- RAGE SHOOT - restored from the older working implementation
+-- Uses the old target-local CFrame construction and has NO LOS requirement.
+-- Kept separate from FireCombatGun so Legit/diagnostic behavior stays intact.
+--============================================================
+
+local function FireRageCombatGun(gun,targetPosition)
+	if not gun or typeof(targetPosition) ~= "Vector3" then
+		return false
+	end
+	local character = LocalPlayer.Character
+	if not character or gun.Parent ~= character then
+		return false
+	end
+	local hrp = character:FindFirstChild("HumanoidRootPart")
+	if not hrp then return false end
+	local shoot = gun:FindFirstChild("Shoot")
+	if not shoot or not shoot:IsA("RemoteEvent") then
+		return false
+	end
+	local direction = targetPosition-hrp.Position
+	if direction.Magnitude <= 0.1 then
+		return false
+	end
+	local unitDirection = direction.Unit
+	local originCFrame = CFrame.new(
+		targetPosition-unitDirection*2,
+		targetPosition
+	)
+	local destinationCFrame = CFrame.new(targetPosition)
+	shoot:FireServer(originCFrame,destinationCFrame)
+	return true
+end
+
 MM2.Functions.ShootMurderer = function()
 	if ShootBusy then
 		return false,"Busy"
@@ -1588,26 +1622,29 @@ MM2.Functions.ShootMurderer = function()
 	local ok, success, message = pcall(function()
 		local murderer = FindLiveMurderer()
 		if not murderer then
-			return false,"No Gun or Murderer"
+			return false,"No Murderer"
 		end
 		local torso = GetCombatTorso(murderer.Character)
 		if not torso then
-			return false,"No Gun or Murderer"
+			return false,"No Target"
 		end
 		local gun = EnsureCombatGun()
 		if not gun then
-			return false,"No Gun or Murderer"
+			return false,"No Gun"
 		end
+
+		task.wait(0.12)
+
 		if not IsLivePlayer(murderer) then
-			return false,"No Gun or Murderer"
+			return false,"No Murderer"
 		end
 		torso = GetCombatTorso(murderer.Character)
 		if not torso then
-			return false,"No Gun or Murderer"
+			return false,"No Target"
 		end
+
 		local targetPosition = GetProductionShootTargetPosition(torso)
-		local fired = FireCombatGun(gun,targetPosition)
-		if not fired then
+		if not FireRageCombatGun(gun,targetPosition) then
 			return false,"Shot Failed"
 		end
 		LastManualShot = os.clock()
@@ -1615,7 +1652,7 @@ MM2.Functions.ShootMurderer = function()
 	end)
 	ShootBusy = false
 	if not ok then
-		warn("[MM2 V8.6.1 SHOOT ERROR]",success)
+		warn("[MM2 RAGE SHOOT ERROR]",success)
 		return false,"Error"
 	end
 	return success,message
