@@ -9,6 +9,42 @@ local Flags = MM2.Flags
 local UI = MM2.UI
 local Track = MM2.Track
 
+-- Compact Combat section spacing without changing the shared UI framework.
+-- This only trims the outer top/bottom padding of each WindUI section;
+-- control/card internals are left untouched.
+local function AddCompactCombatSection(titleText)
+	if UI.SetNextSectionSpacing then
+		UI.SetNextSectionSpacing(UI.CombatPage, 0, 0)
+	end
+
+	local section = UI.AddSection(UI.CombatPage, titleText, "")
+
+	local function compact()
+		if not section or not section.ElementFrame then return end
+		local frame = section.ElementFrame
+
+		-- UI.lua may add this helper padding. Keep it at zero for Combat.
+		local helper = frame:FindFirstChild("BlizzardSectionPadding")
+		if helper and helper:IsA("UIPadding") then
+			helper.PaddingTop = UDim.new(0, 0)
+			helper.PaddingBottom = UDim.new(0, 0)
+		end
+
+		-- If WindUI itself exposes one direct section padding object, trim only
+		-- its vertical envelope. Do not touch padding inside feature cards.
+		for _, child in ipairs(frame:GetChildren()) do
+			if child:IsA("UIPadding") then
+				child.PaddingTop = UDim.new(0, 2)
+				child.PaddingBottom = UDim.new(0, 2)
+			end
+		end
+	end
+
+	pcall(compact)
+	task.defer(function() pcall(compact) end)
+	return section
+end
+
 -- Combat UI should still load even if Visuals.lua has not created TracerGui yet.
 local CombatOverlay = UI.TracerGui or UI.ScreenGui
 assert(CombatOverlay, "Combat overlay GUI not found")
@@ -67,12 +103,12 @@ local function NotifyKillAllResult(success,message)
 end
 
 
-UI.AddSection(UI.CombatPage, "Aimbot", "")
+AddCompactCombatSection("Aimbot")
 UI.CreateToggle(UI.CombatPage, "TriggerBot", "Automatically shoots the murderer when they are visible", "TriggerBot")
 UI.CreateToggle(UI.CombatPage, "Aim Lock", "While Shift Lock is on, tracks the murderer’s torso", "AimLock")
 
 
-UI.AddSection(UI.CombatPage, "Sheriff", "")
+AddCompactCombatSection("Sheriff")
 Flags.TriggerBotDelay = math.clamp(tonumber(Flags.TriggerBotDelay) or 0.05,0,0.60)
 UI.CreateSlider(
 	UI.CombatPage,
@@ -102,7 +138,7 @@ end)
 UI.CreateToggle(UI.CombatPage, "Auto Grab Gun", "Automatically picks up the dropped gun without moving your character", "AutoGrab")
 
 
-UI.AddSection(UI.CombatPage, "Murderer", "")
+AddCompactCombatSection("Murderer")
 
 local RenderLegitThrow
 local RenderRageThrow
@@ -178,7 +214,7 @@ end, "skull")
 --============================================================
 
 
-UI.AddSection(UI.CombatPage, "Crosshair", "")
+AddCompactCombatSection("Crosshair")
 
 Flags.CustomCrosshair = Flags.CustomCrosshair == true
 Flags.CrosshairType = tostring(Flags.CrosshairType or "Classic")
