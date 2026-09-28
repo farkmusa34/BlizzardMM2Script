@@ -67,7 +67,7 @@ local function NotifyKillAllResult(success,message)
 end
 
 UI.AddSection(UI.CombatPage, "Aim", "Crosshair and aiming features")
-UI.CreateToggle(UI.CombatPage, "TriggerBot", "Automatically fires when your crosshair is directly on the murderer", "TriggerBot")
+UI.CreateToggle(UI.CombatPage, "TriggerBot", "Automatically shoots the murderer when they are visible", "TriggerBot")
 UI.CreateToggle(UI.CombatPage, "Aim Lock", "While Shift Lock is on, tracks the murderer’s torso", "AimLock")
 
 UI.AddSection(UI.CombatPage, "Sheriff", "Legit and rage gun features")
@@ -616,7 +616,16 @@ local function RefreshDiagnosticPrediction()
         GeneralDiagnosticPredictionMs = math.clamp(ms,0,250)
     end
     PredictionMsBox.Text = tostring(GeneralDiagnosticPredictionMs)
+    return GeneralDiagnosticPredictionMs
 end
+
+-- Keep the stored value in sync while typing, not only after FocusLost.
+PredictionMsBox:GetPropertyChangedSignal("Text"):Connect(function()
+    local ms = tonumber((PredictionMsBox.Text or ""):gsub("%s+",""))
+    if ms then
+        GeneralDiagnosticPredictionMs = math.clamp(ms,0,250)
+    end
+end)
 PredictionMsBox.FocusLost:Connect(RefreshDiagnosticPrediction)
 
 local CopyLogsButton = Instance.new("TextButton")
@@ -1647,7 +1656,11 @@ MM2.Functions.ShootMurdererLegit = function()
 		if Flags.GeneralPredictionDiagnostic and GeneralDiagnosticRequestedCase then
 			-- Diagnostic A/B mode: the chooser controls the ACTUAL server-facing
 			-- XYZ prediction for this diagnostic shot only. Production is unchanged.
-			local actualMs = math.clamp(tonumber(GeneralDiagnosticPredictionMs) or 60,0,250)
+			-- Read the TextBox again at the exact fire point. This prevents a typed
+			-- value (for example 30) from being missed if FocusLost has not fired yet.
+			local typedMs = tonumber((PredictionMsBox.Text or ""):gsub("%s+",""))
+			local actualMs = math.clamp(typedMs or tonumber(GeneralDiagnosticPredictionMs) or 60,0,250)
+			GeneralDiagnosticPredictionMs = actualMs
 			targetPosition = GetManualShootTargetPosition(torso,true,actualMs/1000)
 			if not ExactFireDiagnostic.Pending then
 				BeginExactFireDiagnostic(murderer,torso,os.clock(),targetPosition,actualMs,0)
@@ -2155,6 +2168,8 @@ task.spawn(function()
 	DisconnectKnifeRangeActivation()
 end)
 
+local TriggerBotBusy = false
+
 local function UpdateCombatFeatures()
 	local camera = workspace.CurrentCamera
 	if not camera then return end
@@ -2167,35 +2182,42 @@ local function UpdateCombatFeatures()
 	if Flags.AimLock and IsAimLockAllowed() then
 		local _,targetPart = GetBestCombatTarget()
 		if targetPart then
-			camera.CFrame = CFrame.new(
-				camera.CFrame.Position,
-				targetPart.Position
-			)
+			camera.CFrame = CFrame.new(camera.CFrame.Position,targetPart.Position)
 		end
 	end
-	if not Flags.TriggerBot then return end
+
+	-- TriggerBot is visibility based, not crosshair based:
+	-- visible murderer -> equip gun if needed -> predicted shot -> cooldown.
+	if not Flags.TriggerBot or TriggerBotBusy or ShootBusy then return end
 	local now = os.clock()
-	if now-LastTriggerShot < SHOT_COOLDOWN then
-		return
-	end
-	local gun = GetCombatGun()
-	if not gun then return end
-	local rayResult = GetCombatCrosshairHit()
-	if not rayResult then return end
-	local targetPlayer = ResolveCombatPlayer(rayResult.Instance)
-	if not targetPlayer or not IsMurderer(targetPlayer) then
-		return
-	end
-	local targetPart = GetCombatTorso(targetPlayer.Character)
+	if now-LastTriggerShot < SHOT_COOLDOWN or now-LastManualShot < SHOT_COOLDOWN then return end
 
-	if not targetPart then
-		return
-	end
+	local murderer = FindLiveMurderer()
+	local targetPart = murderer and GetCombatTorso(murderer.Character)
+	if not murderer or not targetPart or not IsLivePlayer(murderer) then return end
+	if not HasClearLineOfSight(targetPart) then return end
 
-	local targetPosition = GetProductionShootTargetPosition(targetPart)
-	if FireCombatGun(gun,targetPosition) then
-		LastTriggerShot = os.clock()
-	end
+	TriggerBotBusy = true
+	task.spawn(function()
+		local ok = pcall(function()
+			-- Revalidate after equipping because the target may move behind a wall.
+			local gun = EnsureCombatGun()
+			if not gun or not Flags.TriggerBot or not IsLivePlayer(murderer) then return end
+			targetPart = GetCombatTorso(murderer.Character)
+			if not targetPart or not HasClearLineOfSight(targetPart) then return end
+			local fireNow = os.clock()
+			if fireNow-LastTriggerShot < SHOT_COOLDOWN or fireNow-LastManualShot < SHOT_COOLDOWN then return end
+			local targetPosition = GetProductionShootTargetPosition(targetPart)
+			if FireCombatGun(gun,targetPosition) then
+				LastTriggerShot = os.clock()
+				LastManualShot = LastTriggerShot
+			end
+		end)
+		if not ok then
+			warn("[MM2 TRIGGERBOT] shot task failed")
+		end
+		TriggerBotBusy = false
+	end)
 end
 
 RunService:BindToRenderStep(
