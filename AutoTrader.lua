@@ -96,7 +96,7 @@ local function CreateDiagnosticGui()
 		title.Font = Enum.Font.GothamBold
 		title.TextSize = 19
 		title.TextColor3 = Color3.new(1,1,1)
-		title.Text = "Blizzard AutoTrader — PC Diagnostic V6 SAFE"
+		title.Text = "Blizzard AutoTrader — PC Diagnostic V7 FINAL"
 		title.Parent = main
 
 		local logs = Instance.new("TextBox")
@@ -1816,6 +1816,20 @@ end
 -- without assuming they exist as globals.
 DLog("V6 SAFE: direct hierarchy inspection complete")
 DLog("V6 SAFE: original remote variables remain untouched")
+
+--============================================================
+-- V7 SAFE: ORIGINAL REMOTE ASSIGNMENT TRACE
+-- Diagnostic only. No rebinding/invocation.
+--============================================================
+
+DLog("V7 SAFE: tracing original remote assignment context")
+DLog("V7 CURRENT StartTrade=" .. tostring(StartTrade))
+DLog("V7 CURRENT SendRequest=" .. tostring(SendRequest))
+DLog("V7 CURRENT OfferItem=" .. tostring(OfferItem))
+DLog("V7 CURRENT UpdateTrade=" .. tostring(UpdateTrade))
+DLog("V7 CURRENT AcceptTrade=" .. tostring(AcceptTrade))
+DLog("V7 CURRENT DeclineTrade=" .. tostring(DeclineTrade))
+DLog("V7 SAFE: assignment trace complete")
 
 
 
