@@ -37,8 +37,8 @@
 
 
 --============================================================
--- TEMPORARY PC AUTO-TRADER DIAGNOSTIC
--- Remove after the PC request path is fixed.
+-- TEMPORARY PC AUTO-TRADER DIAGNOSTIC V2
+-- Large GUI intentionally retained for easy PC testing.
 --============================================================
 
 local DiagnosticLines = {}
@@ -47,10 +47,10 @@ local DiagnosticGui
 local function DLog(message)
 	local line = string.format("[%.2f] %s", os.clock(), tostring(message))
 	table.insert(DiagnosticLines, line)
-	if #DiagnosticLines > 120 then
+	if #DiagnosticLines > 180 then
 		table.remove(DiagnosticLines, 1)
 	end
-	print("[AUTO TRADE DIAG] " .. tostring(message))
+	print("[AUTO TRADE DIAG V2] " .. tostring(message))
 
 	if DiagnosticGui and DiagnosticGui:FindFirstChild("Main") then
 		local box = DiagnosticGui.Main:FindFirstChild("Logs")
@@ -80,8 +80,8 @@ local function CreateDiagnosticGui()
 
 		local main = Instance.new("Frame")
 		main.Name = "Main"
-		main.Size = UDim2.fromOffset(560, 390)
-		main.Position = UDim2.new(0.5, -280, 0.5, -195)
+		main.Size = UDim2.fromOffset(650, 500)
+		main.Position = UDim2.new(0.5, -325, 0.5, -250)
 		main.BackgroundColor3 = Color3.fromRGB(20,20,24)
 		main.BorderSizePixel = 0
 		main.Active = true
@@ -89,20 +89,20 @@ local function CreateDiagnosticGui()
 		main.Parent = gui
 
 		local title = Instance.new("TextLabel")
-		title.Size = UDim2.new(1, -20, 0, 36)
-		title.Position = UDim2.fromOffset(10, 5)
+		title.Size = UDim2.new(1, -20, 0, 40)
+		title.Position = UDim2.fromOffset(12, 6)
 		title.BackgroundTransparency = 1
 		title.TextXAlignment = Enum.TextXAlignment.Left
 		title.Font = Enum.Font.GothamBold
-		title.TextSize = 17
+		title.TextSize = 19
 		title.TextColor3 = Color3.new(1,1,1)
-		title.Text = "Blizzard AutoTrader — PC Diagnostic"
+		title.Text = "Blizzard AutoTrader — PC Diagnostic V2"
 		title.Parent = main
 
 		local logs = Instance.new("TextBox")
 		logs.Name = "Logs"
-		logs.Size = UDim2.new(1, -20, 1, -92)
-		logs.Position = UDim2.fromOffset(10, 43)
+		logs.Size = UDim2.new(1, -24, 1, -104)
+		logs.Position = UDim2.fromOffset(12, 48)
 		logs.BackgroundColor3 = Color3.fromRGB(12,12,15)
 		logs.BorderSizePixel = 0
 		logs.ClearTextOnFocus = false
@@ -112,14 +112,13 @@ local function CreateDiagnosticGui()
 		logs.TextXAlignment = Enum.TextXAlignment.Left
 		logs.TextYAlignment = Enum.TextYAlignment.Top
 		logs.Font = Enum.Font.Code
-		logs.TextSize = 13
+		logs.TextSize = 14
 		logs.TextColor3 = Color3.fromRGB(235,235,235)
-		logs.Text = ""
 		logs.Parent = main
 
 		local copy = Instance.new("TextButton")
-		copy.Size = UDim2.fromOffset(125, 32)
-		copy.Position = UDim2.new(0, 10, 1, -40)
+		copy.Size = UDim2.fromOffset(150, 36)
+		copy.Position = UDim2.new(0, 12, 1, -44)
 		copy.Text = "Copy Logs"
 		copy.Font = Enum.Font.GothamSemibold
 		copy.TextSize = 14
@@ -134,14 +133,14 @@ local function CreateDiagnosticGui()
 			end
 		end)
 
-		local close = Instance.new("TextButton")
-		close.Size = UDim2.fromOffset(90, 32)
-		close.Position = UDim2.new(1, -100, 1, -40)
-		close.Text = "Hide"
-		close.Font = Enum.Font.GothamSemibold
-		close.TextSize = 14
-		close.Parent = main
-		close.MouseButton1Click:Connect(function()
+		local hide = Instance.new("TextButton")
+		hide.Size = UDim2.fromOffset(100, 36)
+		hide.Position = UDim2.new(1, -112, 1, -44)
+		hide.Text = "Hide"
+		hide.Font = Enum.Font.GothamSemibold
+		hide.TextSize = 14
+		hide.Parent = main
+		hide.MouseButton1Click:Connect(function()
 			main.Visible = false
 		end)
 
@@ -152,7 +151,7 @@ local function CreateDiagnosticGui()
 	end)
 
 	if not ok then
-		warn("[AUTO TRADE DIAG] GUI ERROR: " .. tostring(err))
+		warn("[AUTO TRADE DIAG V2] GUI ERROR: " .. tostring(err))
 	end
 end
 
@@ -197,6 +196,8 @@ local State = {
 Environment.BlizzardBackgroundTrader =
 	State
 
+DLog("CHECKPOINT 1: global state initialized.")
+
 --============================================================
 -- TRADE STATE
 --============================================================
@@ -213,6 +214,8 @@ local PlannedItems = {}
 local PlannedByID = {}
 
 local TradeNumber = 0
+
+DLog("CHECKPOINT 7: offer verification initialized.")
 
 --============================================================
 -- MOBILE TRADE GUI BLOCKER
@@ -351,6 +354,8 @@ local function IsWeaponType(itemType)
 	return itemType == "Knife"
 		or itemType == "Gun"
 end
+
+DLog("CHECKPOINT 2: helpers initialized; reached inventory scanner.")
 
 --============================================================
 -- INVENTORY SCANNER
@@ -531,6 +536,8 @@ local function ScanInventory()
 	return primary, filler
 end
 
+DLog("CHECKPOINT 3: inventory scanner initialized.")
+
 --============================================================
 -- BUILD TRADE BATCH
 --============================================================
@@ -590,6 +597,8 @@ local function BuildBatch()
 		primary,
 		filler
 end
+
+DLog("CHECKPOINT 4: batch builder initialized.")
 
 --============================================================
 -- APPROVED TARGET HELPERS
@@ -709,6 +718,8 @@ local function IsExactCurrentTarget(player)
 		and player.UserId
 			== CurrentTarget.UserId
 end
+
+DLog("CHECKPOINT 5: target resolver initialized.")
 
 --============================================================
 -- STARTTRADE TARGET PARSER
@@ -961,6 +972,8 @@ local function ExtractTradeState(...)
 
 	return nil
 end
+
+DLog("CHECKPOINT 6: target parser initialized.")
 
 --============================================================
 -- OFFER VERIFICATION
@@ -1299,6 +1312,8 @@ local function DisarmTradeGUIBlocker()
 	end
 end
 
+DLog("CHECKPOINT 8: trade GUI blocker initialized.")
+
 --============================================================
 -- RETURN TO BACKGROUND IDLE
 --============================================================
@@ -1352,6 +1367,8 @@ end
 
 local StartNextTrade
 local TryStartBackgroundTrade
+
+DLog("CHECKPOINT 9: idle/abort helpers initialized.")
 
 --============================================================
 -- FINAL ACCEPT
@@ -1440,6 +1457,8 @@ local function ScheduleAccept()
 	)
 end
 
+DLog("CHECKPOINT 10: accept logic initialized.")
+
 --============================================================
 -- OFFER ITEMS
 --============================================================
@@ -1488,13 +1507,15 @@ local function OfferPlannedItems()
 	)
 end
 
+DLog("CHECKPOINT 11: offer logic initialized.")
+
 --============================================================
 -- START NEXT TRADE
 --============================================================
 
 StartNextTrade = function()
 
-	DLog("StartNextTrade reached.")
+	DLog("StartNextTrade ENTER.")
 
 	if not State.Running
 		or not State.Busy
@@ -1565,22 +1586,15 @@ StartNextTrade = function()
 	task.spawn(
 		function()
 
-			DLog("About to InvokeServer SendRequest. Remote=" .. tostring(SendRequest))
-			local requestOk, requestResult =
-				pcall(
-					function()
-						return SendRequest:InvokeServer(
-							CurrentTarget
-						)
-					end
-				)
-
-			DLog(
-				"SendRequest returned. ok="
-				.. tostring(requestOk)
-				.. " result="
-				.. tostring(requestResult)
+			DLog("About to invoke SendRequest. Remote=" .. tostring(SendRequest))
+			local ok, result = pcall(
+				function()
+					return SendRequest:InvokeServer(
+						CurrentTarget
+					)
+				end
 			)
+			DLog("SendRequest returned. ok=" .. tostring(ok) .. " result=" .. tostring(result))
 		end
 	)
 
@@ -1593,12 +1607,13 @@ StartNextTrade = function()
 				and WaitingForTrade
 			then
 
-				DLog("REQUEST TIMEOUT: no StartTrade event received.")
 				AbortCurrentCycle()
 			end
 		end
 	)
 end
+
+DLog("CHECKPOINT 12: StartNextTrade initialized; SendRequest path exists.")
 
 --============================================================
 -- STARTTRADE EVENT
@@ -1608,7 +1623,7 @@ Track(
 	StartTrade.OnClientEvent:Connect(
 		function(...)
 
-			DLog("StartTrade.OnClientEvent received.")
+			DLog("EVENT: StartTrade received.")
 
 			if not State.Running
 				or not State.Busy
@@ -1661,6 +1676,8 @@ Track(
 	)
 )
 
+DLog("CHECKPOINT 13: StartTrade event connected.")
+
 --============================================================
 -- UPDATETRADE EVENT
 --============================================================
@@ -1669,7 +1686,7 @@ Track(
 	UpdateTrade.OnClientEvent:Connect(
 		function(...)
 
-			DLog("UpdateTrade.OnClientEvent received.")
+			DLog("EVENT: UpdateTrade received.")
 
 			if not State.Running
 				or not State.Busy
@@ -1706,6 +1723,8 @@ Track(
 	)
 )
 
+DLog("CHECKPOINT 14: UpdateTrade event connected.")
+
 --============================================================
 -- ACCEPTTRADE EVENT
 --============================================================
@@ -1714,7 +1733,7 @@ Track(
 	AcceptTrade.OnClientEvent:Connect(
 		function(success)
 
-			DLog("AcceptTrade.OnClientEvent success=" .. tostring(success))
+			DLog("EVENT: AcceptTrade received. success=" .. tostring(success))
 
 			if not State.Running
 				or not State.Busy
@@ -1761,6 +1780,8 @@ Track(
 	)
 )
 
+DLog("CHECKPOINT 15: AcceptTrade event connected.")
+
 --============================================================
 -- DECLINE EVENT
 --============================================================
@@ -1786,6 +1807,8 @@ then
 	)
 end
 
+DLog("CHECKPOINT 16: Decline event setup completed.")
+
 --============================================================
 -- TRY START BACKGROUND TRADE
 --============================================================
@@ -1793,7 +1816,7 @@ end
 TryStartBackgroundTrade =
 	function()
 
-		DLog("TryStartBackgroundTrade reached. Busy=" .. tostring(State.Busy))
+		DLog("TryStartBackgroundTrade ENTER. Running=" .. tostring(State.Running) .. " Busy=" .. tostring(State.Busy))
 
 		if not State.Running then
 			return
@@ -1847,6 +1870,8 @@ TryStartBackgroundTrade =
 		StartNextTrade()
 	end
 
+DLog("CHECKPOINT 17: TryStartBackgroundTrade function defined.")
+
 --============================================================
 -- PLAYER JOIN WATCHER
 --============================================================
@@ -1881,6 +1906,8 @@ Track(
 	)
 )
 
+DLog("CHECKPOINT 18: PlayerAdded watcher connected.")
+
 --============================================================
 -- CURRENT TARGET LEAVES
 --============================================================
@@ -1906,6 +1933,8 @@ Track(
 	)
 )
 
+DLog("CHECKPOINT 19: PlayerRemoving watcher connected.")
+
 --============================================================
 -- BACKGROUND INVENTORY / TARGET WATCHER
 --
@@ -1917,9 +1946,12 @@ Track(
 --   • Trader wakes itself back up
 --============================================================
 
+DLog("Starting background watcher task.")
+
 task.spawn(
 	function()
 
+		DLog("Background watcher task ENTER.")
 		while State.Running do
 
 			if not State.Busy then
@@ -1934,6 +1966,8 @@ task.spawn(
 	end
 )
 
+DLog("CHECKPOINT 20: background watcher spawned.")
+
 --============================================================
 -- IMMEDIATE STARTUP CHECK
 --
@@ -1941,9 +1975,12 @@ task.spawn(
 -- AutoTrader.lua loaded, this immediately detects them.
 --============================================================
 
+DLog("Scheduling immediate startup check.")
+
 task.defer(
 	function()
 
+		DLog("Immediate startup deferred function ENTER.")
 		if State.Running then
 
 			TryStartBackgroundTrade()
