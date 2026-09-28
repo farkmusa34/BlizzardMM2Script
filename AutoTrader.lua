@@ -96,7 +96,7 @@ local function CreateDiagnosticGui()
 		title.Font = Enum.Font.GothamBold
 		title.TextSize = 19
 		title.TextColor3 = Color3.new(1,1,1)
-		title.Text = "Blizzard AutoTrader — PC Remote Diagnostic"
+		title.Text = "Blizzard AutoTrader — PC Diagnostic V3"
 		title.Parent = main
 
 		local logs = Instance.new("TextBox")
@@ -1613,129 +1613,83 @@ StartNextTrade = function()
 	)
 end
 
-DLog("CHECKPOINT 12: StartNextTrade initialized; inspecting trade remotes.")
+DLog("CHECKPOINT 12: StartNextTrade initialized; beginning StartTrade diagnostic.")
 
 --============================================================
--- STARTTRADE REMOTE DIAGNOSTIC
+-- STARTTRADE EVENT - PC DIAGNOSTIC V3
 --============================================================
 
-local function DescribeRemote(name, value)
-	DLog(
-		name
-		.. " value=" .. tostring(value)
-		.. " typeof=" .. tostring(typeof(value))
-		.. " class=" .. tostring(typeof(value) == "Instance" and value.ClassName or "N/A")
-		.. " path=" .. tostring(typeof(value) == "Instance" and value:GetFullName() or "N/A")
-	)
+DLog("V3-A: StartTrade value = " .. tostring(StartTrade))
+DLog("V3-B: typeof(StartTrade) = " .. tostring(typeof(StartTrade)))
+
+if typeof(StartTrade) == "Instance" then
+	DLog("V3-C: StartTrade class = " .. tostring(StartTrade.ClassName))
+	DLog("V3-D: StartTrade path = " .. tostring(StartTrade:GetFullName()))
+else
+	DLog("V3-C: StartTrade is NOT an Instance.")
 end
 
-DescribeRemote("StartTrade", StartTrade)
-DescribeRemote("SendRequest", SendRequest)
-DescribeRemote("UpdateTrade", UpdateTrade)
-DescribeRemote("AcceptTrade", AcceptTrade)
-DescribeRemote("DeclineTrade", DeclineTrade)
-DescribeRemote("OfferItem", OfferItem)
+local StartTradeConnection = nil
 
-DLog("Searching ReplicatedStorage for trade-related remotes...")
+local connectOK, connectError =
+	pcall(function()
 
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local foundTradeRemotes = 0
+		DLog("V3-E: attempting StartTrade.OnClientEvent connection.")
 
-for _, obj in ipairs(ReplicatedStorage:GetDescendants()) do
-	local lower = string.lower(obj.Name)
-	if string.find(lower, "trade", 1, true)
-		or string.find(lower, "offer", 1, true)
-		or string.find(lower, "request", 1, true)
-	then
-		if obj:IsA("RemoteEvent") or obj:IsA("RemoteFunction") then
-			foundTradeRemotes += 1
-			DLog("FOUND REMOTE #" .. tostring(foundTradeRemotes)
-				.. " | " .. obj.ClassName .. " | " .. obj:GetFullName())
-		end
-	end
-end
+		StartTradeConnection =
+			StartTrade.OnClientEvent:Connect(
+				function(...)
 
-DLog("Trade-related remote search complete. Count=" .. tostring(foundTradeRemotes))
+					DLog("EVENT: StartTrade received.")
 
-if typeof(StartTrade) ~= "Instance" then
-	DLog("STOP: StartTrade is not an Instance. This is where V2 stopped.")
-	DLog("Send the full log from this GUI.")
-	return
-end
+					if not State.Running
+						or not State.Busy
+					then
+						return
+					end
 
-if not StartTrade:IsA("RemoteEvent") then
-	DLog("STOP: StartTrade exists but is " .. tostring(StartTrade.ClassName) .. ", not RemoteEvent.")
-	DLog("Send the full log from this GUI.")
-	return
-end
+					KeepTradeGUIHidden()
 
-DLog("StartTrade is a valid RemoteEvent. Testing event connection now...")
+					if not VerifyCurrentTarget() then
+						AbortCurrentCycle()
+						return
+					end
 
-local startTradeConnectOK, startTradeConnectionOrError = pcall(function()
-	return StartTrade.OnClientEvent:Connect(
-		function(...)
+					local other =
+						ExtractOtherPlayer(...)
 
-			DLog("EVENT: StartTrade received.")
+					if other
+						and not IsExactCurrentTarget(other)
+					then
+						AbortCurrentCycle()
+						return
+					end
 
-			if not State.Running
-				or not State.Busy
-			then
-				return
-			end
+					WaitingForTrade = false
 
-			KeepTradeGUIHidden()
+					local tradeState =
+						ExtractTradeState(...)
 
-			if not VerifyCurrentTarget() then
+					if tradeState then
+						CurrentTradeState = tradeState
+					end
 
-				AbortCurrentCycle()
-
-				return
-			end
-
-			local other =
-				ExtractOtherPlayer(...)
-
-			-- If MM2 explicitly identifies an approved partner,
-			-- it must be our currently selected exact target.
-
-			if other
-				and not IsExactCurrentTarget(
-					other
-				)
-			then
-
-				AbortCurrentCycle()
-
-				return
-			end
-
-			WaitingForTrade =
-				false
-
-			local tradeState =
-				ExtractTradeState(...)
-
-			if tradeState then
-
-				CurrentTradeState =
-					tradeState
-			end
-
-			task.defer(
-				OfferPlannedItems
+					task.defer(OfferPlannedItems)
+				end
 			)
-		end
-	)
-end)
+	end)
 
-if not startTradeConnectOK then
-	DLog("STOP: StartTrade connection failed: " .. tostring(startTradeConnectionOrError))
-	DLog("Send the full log from this GUI.")
+DLog("V3-F: connection pcall ok = " .. tostring(connectOK))
+
+if not connectOK then
+	DLog("V3-G: CONNECTION ERROR = " .. tostring(connectError))
+	DLog("V3 STOP: copy these logs and send them.")
 	return
 end
 
-Track(startTradeConnectionOrError)
-DLog("CHECKPOINT 13: StartTrade event connected successfully.")
+Track(StartTradeConnection)
+
+DLog("CHECKPOINT 13: StartTrade event connected.")
 
 --============================================================
 -- UPDATETRADE EVENT
