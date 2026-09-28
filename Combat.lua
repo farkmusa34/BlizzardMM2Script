@@ -182,7 +182,6 @@ Flags.CrosshairSize = math.clamp(tonumber(Flags.CrosshairSize) or 10,4,24)
 Flags.CrosshairGap = math.clamp(tonumber(Flags.CrosshairGap) or 5,0,16)
 Flags.CrosshairThickness = math.clamp(tonumber(Flags.CrosshairThickness) or 2,1,6)
 Flags.CrosshairOpacity = math.clamp(tonumber(Flags.CrosshairOpacity) or 100,20,100)
-Flags.CrosshairSpinSpeed = math.clamp(tonumber(Flags.CrosshairSpinSpeed) or 1.25,0.25,3)
 
 local CrosshairRoot = Instance.new("Frame")
 CrosshairRoot.Name = "BlizzardCustomCrosshair"
@@ -299,211 +298,61 @@ local function UpdateCrosshairVisual()
 	end
 end
 
-UI.CreateToggle(UI.CombatPage, "Enable Crosshair", "Shows the custom Blizzard crosshair", "CustomCrosshair", function()
+UI.CreateToggle(UI.CombatPage, "Crosshair", "Shows the custom Blizzard crosshair", "CustomCrosshair", function()
 	UpdateCrosshairVisual()
 end)
 
-local CrosshairPickerOpen = false
-local CrosshairPicker = Instance.new("Frame")
-CrosshairPicker.Name = "CrosshairVisualDropdown"
-CrosshairPicker.AnchorPoint = Vector2.new(0.5,0.5)
-CrosshairPicker.Position = UDim2.fromScale(0.5,0.5)
-CrosshairPicker.Size = UDim2.fromOffset(300,330)
-CrosshairPicker.BackgroundColor3 = UI.COLORS.Card
-CrosshairPicker.BackgroundTransparency = 0.04
-CrosshairPicker.BorderSizePixel = 0
-CrosshairPicker.Visible = false
-CrosshairPicker.ZIndex = 500
-CrosshairPicker.Parent = UI.ScreenGui
-local PickerCorner = Instance.new("UICorner")
-PickerCorner.CornerRadius = UDim.new(0,18)
-PickerCorner.Parent = CrosshairPicker
-local PickerStroke = Instance.new("UIStroke")
-PickerStroke.Color = UI.COLORS.Accent
-PickerStroke.Transparency = 0.25
-PickerStroke.Parent = CrosshairPicker
-
-local PickerTitle = Instance.new("TextLabel")
-PickerTitle.BackgroundTransparency = 1
-PickerTitle.Position = UDim2.fromOffset(18,12)
-PickerTitle.Size = UDim2.new(1,-60,0,34)
-PickerTitle.Text = "Crosshair Type"
-PickerTitle.TextXAlignment = Enum.TextXAlignment.Left
-PickerTitle.Font = Enum.Font.GothamBold
-PickerTitle.TextSize = 17
-PickerTitle.TextColor3 = UI.COLORS.Text
-PickerTitle.ZIndex = 501
-PickerTitle.Parent = CrosshairPicker
-
-local PickerClose = Instance.new("TextButton")
-PickerClose.AnchorPoint = Vector2.new(1,0)
-PickerClose.Position = UDim2.new(1,-12,0,12)
-PickerClose.Size = UDim2.fromOffset(34,34)
-PickerClose.BackgroundTransparency = 1
-PickerClose.Text = "×"
-PickerClose.Font = Enum.Font.GothamBold
-PickerClose.TextSize = 24
-PickerClose.TextColor3 = UI.COLORS.Text
-PickerClose.ZIndex = 502
-PickerClose.Parent = CrosshairPicker
-
-local PickerList = Instance.new("Frame")
-PickerList.BackgroundTransparency = 1
-PickerList.Position = UDim2.fromOffset(14,54)
-PickerList.Size = UDim2.new(1,-28,1,-68)
-PickerList.ZIndex = 501
-PickerList.Parent = CrosshairPicker
-local PickerLayout = Instance.new("UIListLayout")
-PickerLayout.Padding = UDim.new(0,6)
-PickerLayout.Parent = PickerList
-
 local CROSSHAIR_STYLES = {"Classic","Dot","Dot + Lines","Spinner","Circle + Dot","X"}
 
-local function DrawMiniPreview(holder,style)
-	local centerX,centerY = 26,20
-	local function bar(x,y,w,h,rot)
-		local b = Instance.new("Frame")
-		b.AnchorPoint = Vector2.new(0.5,0.5)
-		b.Position = UDim2.fromOffset(x,y)
-		b.Size = UDim2.fromOffset(w,h)
-		b.BackgroundColor3 = UI.COLORS.Text
-		b.BorderSizePixel = 0
-		b.Rotation = rot or 0
-		b.ZIndex = 504
-		b.Parent = holder
-		return b
-	end
-	if style == "Dot" or style == "Dot + Lines" or style == "Spinner" or style == "Circle + Dot" then
-		local d = bar(centerX,centerY,4,4)
-		local dc = Instance.new("UICorner")
-		dc.CornerRadius = UDim.new(1,0)
-		dc.Parent = d
-	end
-	if style == "Circle + Dot" then
-		local ring = Instance.new("Frame")
-		ring.AnchorPoint = Vector2.new(0.5,0.5)
-		ring.Position = UDim2.fromOffset(centerX,centerY)
-		ring.Size = UDim2.fromOffset(22,22)
-		ring.BackgroundTransparency = 1
-		ring.ZIndex = 503
-		ring.Parent = holder
-		local rc = Instance.new("UICorner")
-		rc.CornerRadius = UDim.new(1,0)
-		rc.Parent = ring
-		local rs = Instance.new("UIStroke")
-		rs.Color = UI.COLORS.Text
-		rs.Thickness = 2
-		rs.Parent = ring
-	elseif style ~= "Dot" then
-		local rotor = Instance.new("Frame")
-		rotor.BackgroundTransparency = 1
-		rotor.Size = UDim2.fromScale(1,1)
-		rotor.ZIndex = 503
-		rotor.Parent = holder
-		bar(centerX,8,2,8).Parent = rotor
-		bar(centerX,32,2,8).Parent = rotor
-		bar(14,centerY,8,2).Parent = rotor
-		bar(38,centerY,8,2).Parent = rotor
-		if style == "X" then rotor.Rotation = 45 end
-		if style == "Spinner" then
-			task.spawn(function()
-				while rotor.Parent and holder.Parent do
-					local dt = RunService.RenderStepped:Wait()
-					rotor.Rotation = (rotor.Rotation + dt*180) % 360
-				end
-			end)
-		end
-	end
-end
-
-local function RefreshPickerSelection()
-	for _,child in ipairs(PickerList:GetChildren()) do
-		if child:IsA("TextButton") then
-			local stroke = child:FindFirstChild("SelectedStroke")
-			if stroke then
-				stroke.Transparency = child:GetAttribute("StyleName") == Flags.CrosshairType and 0 or 1
+-- Prefer the standard Blizzard/WindUI dropdown exposed by UI.lua.
+if UI.CreateDropdown then
+	UI.CreateDropdown(
+		UI.CombatPage,
+		"Crosshair Type",
+		"Select the crosshair style",
+		CROSSHAIR_STYLES,
+		function() return Flags.CrosshairType end,
+		function(value)
+			if value then
+				Flags.CrosshairType = tostring(value)
+				UpdateCrosshairVisual()
 			end
 		end
-	end
+	)
+elseif UI.CreateSelector then
+	UI.CreateSelector(
+		UI.CombatPage,
+		"Crosshair Type",
+		"Select the crosshair style",
+		CROSSHAIR_STYLES,
+		function() return Flags.CrosshairType end,
+		function(value)
+			if value then
+				Flags.CrosshairType = tostring(value)
+				UpdateCrosshairVisual()
+			end
+		end
+	)
 end
 
-for _,style in ipairs(CROSSHAIR_STYLES) do
-	local option = Instance.new("TextButton")
-	option.Name = style:gsub("%W","").."Option"
-	option:SetAttribute("StyleName",style)
-	option.Size = UDim2.new(1,0,0,40)
-	option.BackgroundColor3 = UI.COLORS.Card
-	option.BackgroundTransparency = 0.12
-	option.BorderSizePixel = 0
-	option.Text = "          "..style
-	option.TextXAlignment = Enum.TextXAlignment.Left
-	option.Font = Enum.Font.GothamMedium
-	option.TextSize = 14
-	option.TextColor3 = UI.COLORS.Text
-	option.ZIndex = 502
-	option.Parent = PickerList
-	local oc = Instance.new("UICorner")
-	oc.CornerRadius = UDim.new(0,10)
-	oc.Parent = option
-	local os = Instance.new("UIStroke")
-	os.Name = "SelectedStroke"
-	os.Color = UI.COLORS.Accent
-	os.Thickness = 1.5
-	os.Transparency = 1
-	os.Parent = option
-	local preview = Instance.new("Frame")
-	preview.BackgroundTransparency = 1
-	preview.Position = UDim2.fromOffset(6,0)
-	preview.Size = UDim2.fromOffset(52,40)
-	preview.ZIndex = 503
-	preview.Parent = option
-	DrawMiniPreview(preview,style)
-	Track(option.MouseButton1Click:Connect(function()
-		Flags.CrosshairType = style
-		UpdateCrosshairVisual()
-		RefreshPickerSelection()
-		CrosshairPicker.Visible = false
-		CrosshairPickerOpen = false
-	end))
-end
-
-Track(PickerClose.MouseButton1Click:Connect(function()
-	CrosshairPickerOpen = false
-	CrosshairPicker.Visible = false
-end))
-
-UI.CreateActionFeature(UI.CombatPage, "Crosshair Type", "Opens the visual crosshair picker", function()
-	CrosshairPickerOpen = not CrosshairPickerOpen
-	CrosshairPicker.Visible = CrosshairPickerOpen
-	RefreshPickerSelection()
-end)
-
-UI.CreateSlider(UI.CombatPage, "Crosshair Size", "Length of the crosshair lines",
+UI.CreateSlider(
+	UI.CombatPage,
+	"Crosshair Size",
+	"Adjusts the crosshair size",
 	function() return Flags.CrosshairSize end,
-	function(v) Flags.CrosshairSize = v UpdateCrosshairVisual() end,4,24,1)
-
-UI.CreateSlider(UI.CombatPage, "Crosshair Gap", "Space around the center",
-	function() return Flags.CrosshairGap end,
-	function(v) Flags.CrosshairGap = v UpdateCrosshairVisual() end,0,16,1)
-
-UI.CreateSlider(UI.CombatPage, "Crosshair Thickness", "Thickness of the crosshair lines",
-	function() return Flags.CrosshairThickness end,
-	function(v) Flags.CrosshairThickness = v UpdateCrosshairVisual() end,1,6,1)
-
-UI.CreateSlider(UI.CombatPage, "Crosshair Opacity", "Crosshair visibility",
-	function() return Flags.CrosshairOpacity end,
-	function(v) Flags.CrosshairOpacity = v UpdateCrosshairVisual() end,20,100,5)
-
-UI.CreateSlider(UI.CombatPage, "Spinner Speed", "Seconds per full Spinner rotation",
-	function() return Flags.CrosshairSpinSpeed end,
-	function(v) Flags.CrosshairSpinSpeed = v end,0.25,3,0.25)
+	function(value)
+		Flags.CrosshairSize = math.clamp(tonumber(value) or 10,4,24)
+		UpdateCrosshairVisual()
+	end,
+	4,24,1
+)
 
 UpdateCrosshairVisual()
 
 local CrosshairSpinAngle = 0
 Track(RunService.RenderStepped:Connect(function(dt)
 	if Flags.CustomCrosshair and Flags.CrosshairType == "Spinner" then
-		local seconds = math.max(0.25,tonumber(Flags.CrosshairSpinSpeed) or 1.25)
+		local seconds = 1.25
 		CrosshairSpinAngle = (CrosshairSpinAngle + (360/seconds)*dt) % 360
 		CrosshairRotor.Rotation = CrosshairSpinAngle
 	elseif Flags.CrosshairType ~= "X" then
