@@ -96,7 +96,7 @@ local function CreateDiagnosticGui()
 		title.Font = Enum.Font.GothamBold
 		title.TextSize = 19
 		title.TextColor3 = Color3.new(1,1,1)
-		title.Text = "Blizzard AutoTrader — PC Diagnostic V4 SAFE"
+		title.Text = "Blizzard AutoTrader — PC Diagnostic V5 SAFE"
 		title.Parent = main
 
 		local logs = Instance.new("TextBox")
@@ -1684,6 +1684,48 @@ for _, obj in ipairs(RS:GetDescendants()) do
 end
 
 DLog("V4 SAFE: discovery complete; original V3/V2 flow continues below")
+
+--============================================================
+-- V5 SAFE: ORIGINAL VARIABLES VS DIRECT PC LOOKUPS
+-- Diagnostic only. Does not replace or invoke any remote.
+--============================================================
+
+DLog("V5 SAFE: comparing AutoTrader variables with direct Trade children")
+
+local V5TradeContainer = game:GetService("ReplicatedStorage"):FindFirstChild("Trade")
+
+DLog("V5: Trade container = " .. tostring(V5TradeContainer))
+DLog("V5: Trade container typeof = " .. tostring(typeof(V5TradeContainer)))
+
+local function V5Describe(label, originalValue, childName)
+	local directValue = nil
+
+	if V5TradeContainer then
+		directValue = V5TradeContainer:FindFirstChild(childName)
+	end
+
+	DLog(
+		"V5 " .. label
+		.. " | original=" .. tostring(originalValue)
+		.. " | originalType=" .. tostring(typeof(originalValue))
+		.. " | direct=" .. tostring(directValue)
+		.. " | directType=" .. tostring(typeof(directValue))
+		.. " | directClass=" .. tostring(
+			typeof(directValue) == "Instance" and directValue.ClassName or "nil"
+		)
+		.. " | same=" .. tostring(originalValue == directValue)
+	)
+end
+
+V5Describe("StartTrade", StartTrade, "StartTrade")
+V5Describe("SendRequest", SendRequest, "SendRequest")
+V5Describe("OfferItem", OfferItem, "OfferItem")
+V5Describe("UpdateTrade", UpdateTrade, "UpdateTrade")
+V5Describe("AcceptTrade", AcceptTrade, "AcceptTrade")
+V5Describe("DeclineTrade", DeclineTrade, "DeclineTrade")
+
+DLog("V5 SAFE: comparison complete")
+
 
 --============================================================
 -- STARTTRADE EVENT
