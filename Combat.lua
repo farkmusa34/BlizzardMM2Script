@@ -175,6 +175,13 @@ local DiagnosticVYWindowLatched = false
 local GeneralDiagnosticRequestedCase = nil
 local GeneralDiagnosticCaseIndex = 1
 local GeneralDiagnosticSelectedIndex = 1
+-- Optional exact movement window layered on top of ANY selected diagnostic case.
+-- nil means AUTO (use only the case's normal matcher).
+local GeneralDiagnosticCustomWindowEnabled = false
+local GeneralDiagnosticVYMin = nil
+local GeneralDiagnosticVYMax = nil
+local GeneralDiagnosticHSMin = nil
+local GeneralDiagnosticHSMax = nil
 local GENERAL_DIAGNOSTIC_CASES = {"GROUNDED_HORIZONTAL","EARLY_RISE","LATE_RISE","APEX","NORMAL_FALL","FAST_FALL","DIAGONAL_RISE","DIAGONAL_FALL","DIRECTION_CHANGE","JUMP_SPAM"}
 local LastManualShot = 0
 local ShootBusy = false
@@ -408,7 +415,7 @@ DiagnosticGui.Parent = MM2.PlayerGui
 
 local DiagnosticFrame = Instance.new("Frame")
 DiagnosticFrame.Name = "Main"
-DiagnosticFrame.Size = UDim2.fromOffset(238,232)
+DiagnosticFrame.Size = UDim2.fromOffset(238,338)
 DiagnosticFrame.Position = UDim2.new(0.5,-119,0.16,0)
 DiagnosticFrame.BackgroundColor3 = Color3.fromRGB(18,18,22)
 DiagnosticFrame.BackgroundTransparency = 0.08
@@ -503,6 +510,75 @@ CaseSelectButton.Activated:Connect(function()
     if GeneralDiagnosticSelectedIndex > #GENERAL_DIAGNOSTIC_CASES then GeneralDiagnosticSelectedIndex = 1 end
     RefreshDiagnosticCaseSelection()
 end)
+
+-- Generic exact-window chooser. Works with FAST_FALL, DIAGONAL_FALL, rises, etc.
+local WindowModeButton = Instance.new("TextButton")
+WindowModeButton.Size = UDim2.new(1,-12,0,25)
+WindowModeButton.Position = UDim2.fromOffset(6,127)
+WindowModeButton.BackgroundColor3 = Color3.fromRGB(32,32,39)
+WindowModeButton.BorderSizePixel = 0
+WindowModeButton.Font = Enum.Font.GothamSemibold
+WindowModeButton.TextSize = 10
+WindowModeButton.TextColor3 = Color3.fromRGB(245,245,250)
+WindowModeButton.Text = "WINDOW: AUTO"
+WindowModeButton.Parent = DiagnosticFrame
+
+local function MakeWindowBox(label,x,y)
+    local box = Instance.new("TextBox")
+    box.Size = UDim2.fromOffset(109,25)
+    box.Position = UDim2.fromOffset(x,y)
+    box.BackgroundColor3 = Color3.fromRGB(32,32,39)
+    box.BorderSizePixel = 0
+    box.ClearTextOnFocus = false
+    box.Font = Enum.Font.Code
+    box.TextSize = 10
+    box.TextColor3 = Color3.fromRGB(245,245,250)
+    box.PlaceholderColor3 = Color3.fromRGB(145,145,155)
+    box.PlaceholderText = label
+    box.Text = ""
+    box.Parent = DiagnosticFrame
+    return box
+end
+
+local VYMinBox = MakeWindowBox("VY MIN e.g. -37",6,158)
+local VYMaxBox = MakeWindowBox("VY MAX e.g. -36",123,158)
+local HSMinBox = MakeWindowBox("HS MIN e.g. 15",6,189)
+local HSMaxBox = MakeWindowBox("HS MAX e.g. 17",123,189)
+
+local WindowHint = Instance.new("TextLabel")
+WindowHint.Size = UDim2.new(1,-12,0,34)
+WindowHint.Position = UDim2.fromOffset(6,220)
+WindowHint.BackgroundTransparency = 1
+WindowHint.Font = Enum.Font.Code
+WindowHint.TextSize = 9
+WindowHint.TextWrapped = true
+WindowHint.TextXAlignment = Enum.TextXAlignment.Left
+WindowHint.TextYAlignment = Enum.TextYAlignment.Top
+WindowHint.TextColor3 = Color3.fromRGB(180,180,190)
+WindowHint.Text = "CUSTOM = selected case + these limits. Blank field = no extra limit."
+WindowHint.Parent = DiagnosticFrame
+
+local function ParseWindowBox(box)
+    local t = tostring(box.Text or ""):gsub("%s+","")
+    if t == "" then return nil end
+    return tonumber(t)
+end
+
+local function RefreshCustomWindow()
+    GeneralDiagnosticVYMin = ParseWindowBox(VYMinBox)
+    GeneralDiagnosticVYMax = ParseWindowBox(VYMaxBox)
+    GeneralDiagnosticHSMin = ParseWindowBox(HSMinBox)
+    GeneralDiagnosticHSMax = ParseWindowBox(HSMaxBox)
+    WindowModeButton.Text = GeneralDiagnosticCustomWindowEnabled and "WINDOW: CUSTOM" or "WINDOW: AUTO"
+end
+
+WindowModeButton.Activated:Connect(function()
+    GeneralDiagnosticCustomWindowEnabled = not GeneralDiagnosticCustomWindowEnabled
+    RefreshCustomWindow()
+end)
+for _,box in ipairs({VYMinBox,VYMaxBox,HSMinBox,HSMaxBox}) do
+    box.FocusLost:Connect(RefreshCustomWindow)
+end
 
 local CopyLogsButton = Instance.new("TextButton")
 CopyLogsButton.Size = UDim2.new(1,-12,0,27)
@@ -1555,7 +1631,7 @@ end
 -- Fires only through ShootMurdererLegit, so normal visibility/cooldown/gun checks remain intact.
 -- The diagnostic does NOT alter production prediction; it only chooses when to sample/fire.
 --============================================================
-GeneralDiagnosticMatches = function(caseName,torso,humanoid)
+local function GeneralDiagnosticBaseMatches(caseName,torso,humanoid)
 	if not torso or not humanoid or humanoid.Health <= 0 then return false end
 	local v = torso.AssemblyLinearVelocity
 	local hs = Vector3.new(v.X,0,v.Z).Magnitude
@@ -1591,6 +1667,19 @@ GeneralDiagnosticMatches = function(caseName,torso,humanoid)
 	return false
 end
 
+
+GeneralDiagnosticMatches = function(caseName,torso,humanoid)
+    if not GeneralDiagnosticBaseMatches(caseName,torso,humanoid) then return false end
+    if not GeneralDiagnosticCustomWindowEnabled then return true end
+    local v = torso.AssemblyLinearVelocity
+    local hs = Vector3.new(v.X,0,v.Z).Magnitude
+    if GeneralDiagnosticVYMin ~= nil and v.Y < GeneralDiagnosticVYMin then return false end
+    if GeneralDiagnosticVYMax ~= nil and v.Y > GeneralDiagnosticVYMax then return false end
+    if GeneralDiagnosticHSMin ~= nil and hs < GeneralDiagnosticHSMin then return false end
+    if GeneralDiagnosticHSMax ~= nil and hs > GeneralDiagnosticHSMax then return false end
+    return true
+end
+
 task.spawn(function()
 	while task.wait(0.01) do
 		if Flags.GeneralPredictionDiagnostic and ExactFireDiagnostic.Enabled then
@@ -1601,7 +1690,8 @@ task.spawn(function()
 			if torso and humanoid then
 				local v = torso.AssemblyLinearVelocity
 				local hs = Vector3.new(v.X,0,v.Z).Magnitude
-				SetDiagnosticStatus(string.format("SELECTED: %s\nHSpeed %.1f | VY %.1f\nExact-window auto-fire; diagnostic stays ON",wanted,hs,v.Y))
+				local windowText = GeneralDiagnosticCustomWindowEnabled and string.format("CUSTOM VY[%s,%s] HS[%s,%s]", tostring(GeneralDiagnosticVYMin or "*"), tostring(GeneralDiagnosticVYMax or "*"), tostring(GeneralDiagnosticHSMin or "*"), tostring(GeneralDiagnosticHSMax or "*")) or "AUTO WINDOW"
+				SetDiagnosticStatus(string.format("SELECTED: %s\nHSpeed %.1f | VY %.1f\n%s",wanted,hs,v.Y,windowText))
 				if not ShootBusy and os.clock()-LastManualShot >= SHOT_COOLDOWN and HasClearLineOfSight(torso) and GeneralDiagnosticMatches(wanted,torso,humanoid) then
 					GeneralDiagnosticRequestedCase = wanted
 					local ok = MM2.Functions.ShootMurdererLegit()
