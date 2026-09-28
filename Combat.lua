@@ -66,13 +66,11 @@ local function NotifyKillAllResult(success,message)
 	end
 end
 
-if UI.SetNextSectionSpacing then UI.SetNextSectionSpacing(UI.CombatPage, 16, 7) end
 
 UI.AddSection(UI.CombatPage, "Aimbot", "")
 UI.CreateToggle(UI.CombatPage, "TriggerBot", "Automatically shoots the murderer when they are visible", "TriggerBot")
 UI.CreateToggle(UI.CombatPage, "Aim Lock", "While Shift Lock is on, tracks the murderer’s torso", "AimLock")
 
-if UI.SetNextSectionSpacing then UI.SetNextSectionSpacing(UI.CombatPage, 16, 7) end
 
 UI.AddSection(UI.CombatPage, "Sheriff", "")
 Flags.TriggerBotDelay = math.clamp(tonumber(Flags.TriggerBotDelay) or 0.05,0,0.60)
@@ -103,7 +101,6 @@ UI.CreateToggle(UI.CombatPage, "Shoot Murderer (Rage)", "Shows a rage shoot butt
 end)
 UI.CreateToggle(UI.CombatPage, "Auto Grab Gun", "Automatically picks up the dropped gun without moving your character", "AutoGrab")
 
-if UI.SetNextSectionSpacing then UI.SetNextSectionSpacing(UI.CombatPage, 16, 7) end
 
 UI.AddSection(UI.CombatPage, "Murderer", "")
 
@@ -180,7 +177,6 @@ end, "skull")
 -- CROSSHAIR
 --============================================================
 
-if UI.SetNextSectionSpacing then UI.SetNextSectionSpacing(UI.CombatPage, 16, 7) end
 
 UI.AddSection(UI.CombatPage, "Crosshair", "")
 
@@ -336,6 +332,18 @@ UI.CreateSlider(
 		UpdateCrosshairVisual()
 	end,
 	4,24,1
+)
+
+UI.CreateSlider(
+	UI.CombatPage,
+	"Crosshair Thickness",
+	"Adjusts the crosshair line thickness",
+	function() return Flags.CrosshairThickness end,
+	function(value)
+		Flags.CrosshairThickness = math.clamp(tonumber(value) or 2,1,6)
+		UpdateCrosshairVisual()
+	end,
+	1,6,1
 )
 
 UpdateCrosshairVisual()
