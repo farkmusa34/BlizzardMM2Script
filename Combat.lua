@@ -182,6 +182,9 @@ local GeneralDiagnosticVYMin = nil
 local GeneralDiagnosticVYMax = nil
 local GeneralDiagnosticHSMin = nil
 local GeneralDiagnosticHSMax = nil
+-- Server-facing prediction used only while the general diagnostic is active.
+-- Production/manual prediction remains untouched.
+local GeneralDiagnosticPredictionMs = 60
 local GENERAL_DIAGNOSTIC_CASES = {"GROUNDED_HORIZONTAL","EARLY_RISE","LATE_RISE","APEX","NORMAL_FALL","FAST_FALL","DIAGONAL_RISE","DIAGONAL_FALL","DIRECTION_CHANGE","JUMP_SPAM"}
 local LastManualShot = 0
 local ShootBusy = false
@@ -415,7 +418,7 @@ DiagnosticGui.Parent = MM2.PlayerGui
 
 local DiagnosticFrame = Instance.new("Frame")
 DiagnosticFrame.Name = "Main"
-DiagnosticFrame.Size = UDim2.fromOffset(238,338)
+DiagnosticFrame.Size = UDim2.fromOffset(238,382)
 DiagnosticFrame.Position = UDim2.new(0.5,-119,0.16,0)
 DiagnosticFrame.BackgroundColor3 = Color3.fromRGB(18,18,22)
 DiagnosticFrame.BackgroundTransparency = 0.08
@@ -558,6 +561,33 @@ WindowHint.TextColor3 = Color3.fromRGB(180,180,190)
 WindowHint.Text = "CUSTOM = selected case + these limits. Blank field = no extra limit."
 WindowHint.Parent = DiagnosticFrame
 
+-- Diagnostic-only server-facing prediction chooser.
+local PredictionMsBox = Instance.new("TextBox")
+PredictionMsBox.Size = UDim2.new(1,-12,0,27)
+PredictionMsBox.Position = UDim2.fromOffset(6,258)
+PredictionMsBox.BackgroundColor3 = Color3.fromRGB(32,32,39)
+PredictionMsBox.BorderSizePixel = 0
+PredictionMsBox.ClearTextOnFocus = false
+PredictionMsBox.Font = Enum.Font.Code
+PredictionMsBox.TextSize = 10
+PredictionMsBox.TextColor3 = Color3.fromRGB(245,245,250)
+PredictionMsBox.PlaceholderColor3 = Color3.fromRGB(145,145,155)
+PredictionMsBox.PlaceholderText = "DIAGNOSTIC PREDICTION MS (e.g. 30)"
+PredictionMsBox.Text = tostring(GeneralDiagnosticPredictionMs)
+PredictionMsBox.Parent = DiagnosticFrame
+
+local PredictionHint = Instance.new("TextLabel")
+PredictionHint.Size = UDim2.new(1,-12,0,24)
+PredictionHint.Position = UDim2.fromOffset(6,288)
+PredictionHint.BackgroundTransparency = 1
+PredictionHint.Font = Enum.Font.Code
+PredictionHint.TextSize = 9
+PredictionHint.TextWrapped = true
+PredictionHint.TextXAlignment = Enum.TextXAlignment.Left
+PredictionHint.TextColor3 = Color3.fromRGB(180,180,190)
+PredictionHint.Text = "Changes diagnostic shots only; production prediction is untouched."
+PredictionHint.Parent = DiagnosticFrame
+
 local function ParseWindowBox(box)
     local t = tostring(box.Text or ""):gsub("%s+","")
     if t == "" then return nil end
@@ -579,6 +609,15 @@ end)
 for _,box in ipairs({VYMinBox,VYMaxBox,HSMinBox,HSMaxBox}) do
     box.FocusLost:Connect(RefreshCustomWindow)
 end
+
+local function RefreshDiagnosticPrediction()
+    local ms = tonumber((PredictionMsBox.Text or ""):gsub("%s+",""))
+    if ms then
+        GeneralDiagnosticPredictionMs = math.clamp(ms,0,250)
+    end
+    PredictionMsBox.Text = tostring(GeneralDiagnosticPredictionMs)
+end
+PredictionMsBox.FocusLost:Connect(RefreshDiagnosticPrediction)
 
 local CopyLogsButton = Instance.new("TextButton")
 CopyLogsButton.Size = UDim2.new(1,-12,0,27)
@@ -1605,11 +1644,14 @@ MM2.Functions.ShootMurdererLegit = function()
 		end
 
 		local targetPosition = GetProductionShootTargetPosition(torso)
-		if Flags.GeneralPredictionDiagnostic and GeneralDiagnosticRequestedCase and not ExactFireDiagnostic.Pending then
-			-- Diagnostic is read-only: always report the real production prediction.
-			-- Do not substitute a special FAST_FALL timing here.
-			local actualMs = math.floor(MANUAL_SHOOT_PREDICTION*1000 + 0.5)
-			BeginExactFireDiagnostic(murderer,torso,os.clock(),targetPosition,actualMs,0)
+		if Flags.GeneralPredictionDiagnostic and GeneralDiagnosticRequestedCase then
+			-- Diagnostic A/B mode: the chooser controls the ACTUAL server-facing
+			-- XYZ prediction for this diagnostic shot only. Production is unchanged.
+			local actualMs = math.clamp(tonumber(GeneralDiagnosticPredictionMs) or 60,0,250)
+			targetPosition = GetManualShootTargetPosition(torso,true,actualMs/1000)
+			if not ExactFireDiagnostic.Pending then
+				BeginExactFireDiagnostic(murderer,torso,os.clock(),targetPosition,actualMs,0)
+			end
 		end
 		if not FireCombatGun(gun,targetPosition) then
 			return false,"Shot Failed"
@@ -1629,7 +1671,7 @@ end
 --============================================================
 -- GENERAL PREDICTION DIAGNOSTIC AUTO-TRIGGER
 -- Fires only through ShootMurdererLegit, so normal visibility/cooldown/gun checks remain intact.
--- The diagnostic does NOT alter production prediction; it only chooses when to sample/fire.
+-- The diagnostic can override prediction for diagnostic shots only; production prediction remains unchanged.
 --============================================================
 local function GeneralDiagnosticBaseMatches(caseName,torso,humanoid)
 	if not torso or not humanoid or humanoid.Health <= 0 then return false end
