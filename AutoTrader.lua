@@ -96,7 +96,7 @@ local function CreateDiagnosticGui()
 		title.Font = Enum.Font.GothamBold
 		title.TextSize = 19
 		title.TextColor3 = Color3.new(1,1,1)
-		title.Text = "Blizzard AutoTrader — PC Diagnostic V5 SAFE"
+		title.Text = "Blizzard AutoTrader — PC Diagnostic V6 SAFE"
 		title.Parent = main
 
 		local logs = Instance.new("TextBox")
@@ -1725,6 +1725,98 @@ V5Describe("AcceptTrade", AcceptTrade, "AcceptTrade")
 V5Describe("DeclineTrade", DeclineTrade, "DeclineTrade")
 
 DLog("V5 SAFE: comparison complete")
+
+--============================================================
+-- V6 SAFE: TRACE ORIGINAL REMOTE INITIALIZATION SOURCE
+-- Diagnostic only. Does NOT replace any AutoTrader remote.
+--============================================================
+
+DLog("V6 SAFE: tracing original remote initialization source")
+
+local V6RS = game:GetService("ReplicatedStorage")
+local V6DirectTrade = V6RS:FindFirstChild("Trade")
+
+local function V6Describe(label, value)
+	local className = "N/A"
+	local fullName = "N/A"
+	local parentName = "N/A"
+
+	if typeof(value) == "Instance" then
+		className = value.ClassName
+		fullName = value:GetFullName()
+		parentName = value.Parent and value.Parent:GetFullName() or "nil"
+	end
+
+	DLog(
+		"V6 " .. label
+		.. " | value=" .. tostring(value)
+		.. " | typeof=" .. tostring(typeof(value))
+		.. " | class=" .. tostring(className)
+		.. " | path=" .. tostring(fullName)
+		.. " | parent=" .. tostring(parentName)
+	)
+end
+
+V6Describe("ReplicatedStorage", V6RS)
+V6Describe("Direct Trade child", V6DirectTrade)
+
+-- Inspect all direct children named Trade, in case indexing/lookup differs.
+local V6TradeNamedChildren = 0
+for _, child in ipairs(V6RS:GetChildren()) do
+	if child.Name == "Trade" then
+		V6TradeNamedChildren += 1
+		V6Describe("Direct child named Trade #" .. tostring(V6TradeNamedChildren), child)
+	end
+end
+DLog("V6 direct children named Trade = " .. tostring(V6TradeNamedChildren))
+
+-- Compare normal property indexing and FindFirstChild without modifying state.
+local V6IndexOK, V6IndexedTrade = pcall(function()
+	return V6RS.Trade
+end)
+
+DLog(
+	"V6 ReplicatedStorage.Trade indexing"
+	.. " | ok=" .. tostring(V6IndexOK)
+	.. " | value=" .. tostring(V6IndexedTrade)
+	.. " | sameAsFindFirstChild=" .. tostring(V6IndexedTrade == V6DirectTrade)
+)
+
+if V6DirectTrade then
+	local expected = {
+		{"StartTrade", "RemoteEvent"},
+		{"SendRequest", "RemoteFunction"},
+		{"OfferItem", "RemoteEvent"},
+		{"UpdateTrade", "RemoteEvent"},
+		{"AcceptTrade", "RemoteEvent"},
+		{"DeclineTrade", "RemoteEvent"},
+	}
+
+	for _, entry in ipairs(expected) do
+		local childName = entry[1]
+		local expectedClass = entry[2]
+		local direct = V6DirectTrade:FindFirstChild(childName)
+
+		V6Describe("Trade." .. childName, direct)
+
+		DLog(
+			"V6 CLASSCHECK " .. childName
+			.. " | expected=" .. expectedClass
+			.. " | actual=" .. tostring(
+				typeof(direct) == "Instance" and direct.ClassName or "nil"
+			)
+			.. " | matches=" .. tostring(
+				typeof(direct) == "Instance" and direct.ClassName == expectedClass
+			)
+		)
+	end
+end
+
+-- Log likely source/container variables already present in this AutoTrader
+-- without assuming they exist as globals.
+DLog("V6 SAFE: direct hierarchy inspection complete")
+DLog("V6 SAFE: original remote variables remain untouched")
+
 
 
 --============================================================
