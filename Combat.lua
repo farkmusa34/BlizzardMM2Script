@@ -1765,10 +1765,27 @@ GeneralDiagnosticMatches = function(caseName,torso,humanoid)
     if not GeneralDiagnosticCustomWindowEnabled then return true end
     local v = torso.AssemblyLinearVelocity
     local hs = Vector3.new(v.X,0,v.Z).Magnitude
-    if GeneralDiagnosticVYMin ~= nil and v.Y < GeneralDiagnosticVYMin then return false end
-    if GeneralDiagnosticVYMax ~= nil and v.Y > GeneralDiagnosticVYMax then return false end
-    if GeneralDiagnosticHSMin ~= nil and hs < GeneralDiagnosticHSMin then return false end
-    if GeneralDiagnosticHSMax ~= nil and hs > GeneralDiagnosticHSMax then return false end
+    -- Normalize custom bounds so either entry order works.
+    -- Example: VY Min=-35 / VY Max=-45 means the valid interval is -45..-35.
+    if GeneralDiagnosticVYMin ~= nil and GeneralDiagnosticVYMax ~= nil then
+        local vyLow = math.min(GeneralDiagnosticVYMin,GeneralDiagnosticVYMax)
+        local vyHigh = math.max(GeneralDiagnosticVYMin,GeneralDiagnosticVYMax)
+        if v.Y < vyLow or v.Y > vyHigh then return false end
+    elseif GeneralDiagnosticVYMin ~= nil and v.Y < GeneralDiagnosticVYMin then
+        return false
+    elseif GeneralDiagnosticVYMax ~= nil and v.Y > GeneralDiagnosticVYMax then
+        return false
+    end
+
+    if GeneralDiagnosticHSMin ~= nil and GeneralDiagnosticHSMax ~= nil then
+        local hsLow = math.min(GeneralDiagnosticHSMin,GeneralDiagnosticHSMax)
+        local hsHigh = math.max(GeneralDiagnosticHSMin,GeneralDiagnosticHSMax)
+        if hs < hsLow or hs > hsHigh then return false end
+    elseif GeneralDiagnosticHSMin ~= nil and hs < GeneralDiagnosticHSMin then
+        return false
+    elseif GeneralDiagnosticHSMax ~= nil and hs > GeneralDiagnosticHSMax then
+        return false
+    end
     return true
 end
 
