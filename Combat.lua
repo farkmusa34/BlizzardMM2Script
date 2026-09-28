@@ -66,9 +66,13 @@ local function NotifyKillAllResult(success,message)
 	end
 end
 
+if UI.SetNextSectionSpacing then UI.SetNextSectionSpacing(UI.CombatPage, 24, 10) end
+
 UI.AddSection(UI.CombatPage, "Aimbot", "")
 UI.CreateToggle(UI.CombatPage, "TriggerBot", "Automatically shoots the murderer when they are visible", "TriggerBot")
 UI.CreateToggle(UI.CombatPage, "Aim Lock", "While Shift Lock is on, tracks the murderer’s torso", "AimLock")
+
+if UI.SetNextSectionSpacing then UI.SetNextSectionSpacing(UI.CombatPage, 24, 10) end
 
 UI.AddSection(UI.CombatPage, "Sheriff", "")
 Flags.TriggerBotDelay = math.clamp(tonumber(Flags.TriggerBotDelay) or 0.05,0,0.60)
@@ -98,6 +102,8 @@ UI.CreateToggle(UI.CombatPage, "Shoot Murderer (Rage)", "Shows a rage shoot butt
 	end
 end)
 UI.CreateToggle(UI.CombatPage, "Auto Grab Gun", "Automatically picks up the dropped gun without moving your character", "AutoGrab")
+
+if UI.SetNextSectionSpacing then UI.SetNextSectionSpacing(UI.CombatPage, 24, 10) end
 
 UI.AddSection(UI.CombatPage, "Murderer", "")
 
@@ -173,6 +179,8 @@ end, "skull")
 --============================================================
 -- CROSSHAIR
 --============================================================
+
+if UI.SetNextSectionSpacing then UI.SetNextSectionSpacing(UI.CombatPage, 24, 10) end
 
 UI.AddSection(UI.CombatPage, "Crosshair", "")
 
