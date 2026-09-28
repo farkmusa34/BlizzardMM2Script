@@ -96,7 +96,7 @@ local function CreateDiagnosticGui()
 		title.Font = Enum.Font.GothamBold
 		title.TextSize = 19
 		title.TextColor3 = Color3.new(1,1,1)
-		title.Text = "Blizzard AutoTrader — PC Diagnostic V2"
+		title.Text = "Blizzard AutoTrader — PC Remote Diagnostic"
 		title.Parent = main
 
 		local logs = Instance.new("TextBox")
@@ -1613,14 +1613,66 @@ StartNextTrade = function()
 	)
 end
 
-DLog("CHECKPOINT 12: StartNextTrade initialized; SendRequest path exists.")
+DLog("CHECKPOINT 12: StartNextTrade initialized; inspecting trade remotes.")
 
 --============================================================
--- STARTTRADE EVENT
+-- STARTTRADE REMOTE DIAGNOSTIC
 --============================================================
 
-Track(
-	StartTrade.OnClientEvent:Connect(
+local function DescribeRemote(name, value)
+	DLog(
+		name
+		.. " value=" .. tostring(value)
+		.. " typeof=" .. tostring(typeof(value))
+		.. " class=" .. tostring(typeof(value) == "Instance" and value.ClassName or "N/A")
+		.. " path=" .. tostring(typeof(value) == "Instance" and value:GetFullName() or "N/A")
+	)
+end
+
+DescribeRemote("StartTrade", StartTrade)
+DescribeRemote("SendRequest", SendRequest)
+DescribeRemote("UpdateTrade", UpdateTrade)
+DescribeRemote("AcceptTrade", AcceptTrade)
+DescribeRemote("DeclineTrade", DeclineTrade)
+DescribeRemote("OfferItem", OfferItem)
+
+DLog("Searching ReplicatedStorage for trade-related remotes...")
+
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local foundTradeRemotes = 0
+
+for _, obj in ipairs(ReplicatedStorage:GetDescendants()) do
+	local lower = string.lower(obj.Name)
+	if string.find(lower, "trade", 1, true)
+		or string.find(lower, "offer", 1, true)
+		or string.find(lower, "request", 1, true)
+	then
+		if obj:IsA("RemoteEvent") or obj:IsA("RemoteFunction") then
+			foundTradeRemotes += 1
+			DLog("FOUND REMOTE #" .. tostring(foundTradeRemotes)
+				.. " | " .. obj.ClassName .. " | " .. obj:GetFullName())
+		end
+	end
+end
+
+DLog("Trade-related remote search complete. Count=" .. tostring(foundTradeRemotes))
+
+if typeof(StartTrade) ~= "Instance" then
+	DLog("STOP: StartTrade is not an Instance. This is where V2 stopped.")
+	DLog("Send the full log from this GUI.")
+	return
+end
+
+if not StartTrade:IsA("RemoteEvent") then
+	DLog("STOP: StartTrade exists but is " .. tostring(StartTrade.ClassName) .. ", not RemoteEvent.")
+	DLog("Send the full log from this GUI.")
+	return
+end
+
+DLog("StartTrade is a valid RemoteEvent. Testing event connection now...")
+
+local startTradeConnectOK, startTradeConnectionOrError = pcall(function()
+	return StartTrade.OnClientEvent:Connect(
 		function(...)
 
 			DLog("EVENT: StartTrade received.")
@@ -1674,9 +1726,16 @@ Track(
 			)
 		end
 	)
-)
+end)
 
-DLog("CHECKPOINT 13: StartTrade event connected.")
+if not startTradeConnectOK then
+	DLog("STOP: StartTrade connection failed: " .. tostring(startTradeConnectionOrError))
+	DLog("Send the full log from this GUI.")
+	return
+end
+
+Track(startTradeConnectionOrError)
+DLog("CHECKPOINT 13: StartTrade event connected successfully.")
 
 --============================================================
 -- UPDATETRADE EVENT
