@@ -35,6 +35,130 @@
 --   • Does NOT kick player
 --============================================================
 
+
+--============================================================
+-- TEMPORARY PC AUTO-TRADER DIAGNOSTIC
+-- Remove after the PC request path is fixed.
+--============================================================
+
+local DiagnosticLines = {}
+local DiagnosticGui
+
+local function DLog(message)
+	local line = string.format("[%.2f] %s", os.clock(), tostring(message))
+	table.insert(DiagnosticLines, line)
+	if #DiagnosticLines > 120 then
+		table.remove(DiagnosticLines, 1)
+	end
+	print("[AUTO TRADE DIAG] " .. tostring(message))
+
+	if DiagnosticGui and DiagnosticGui:FindFirstChild("Main") then
+		local box = DiagnosticGui.Main:FindFirstChild("Logs")
+		if box then
+			box.Text = table.concat(DiagnosticLines, "\n")
+			box.CursorPosition = #box.Text + 1
+		end
+	end
+end
+
+local function CreateDiagnosticGui()
+	local ok, err = pcall(function()
+		local PlayersService = game:GetService("Players")
+		local UIS = game:GetService("UserInputService")
+		local player = PlayersService.LocalPlayer
+		local playerGui = player:WaitForChild("PlayerGui")
+
+		local old = playerGui:FindFirstChild("BlizzardAutoTradePCDiagnostic")
+		if old then old:Destroy() end
+
+		local gui = Instance.new("ScreenGui")
+		gui.Name = "BlizzardAutoTradePCDiagnostic"
+		gui.ResetOnSpawn = false
+		gui.DisplayOrder = 999999
+		gui.Parent = playerGui
+		DiagnosticGui = gui
+
+		local main = Instance.new("Frame")
+		main.Name = "Main"
+		main.Size = UDim2.fromOffset(560, 390)
+		main.Position = UDim2.new(0.5, -280, 0.5, -195)
+		main.BackgroundColor3 = Color3.fromRGB(20,20,24)
+		main.BorderSizePixel = 0
+		main.Active = true
+		main.Draggable = true
+		main.Parent = gui
+
+		local title = Instance.new("TextLabel")
+		title.Size = UDim2.new(1, -20, 0, 36)
+		title.Position = UDim2.fromOffset(10, 5)
+		title.BackgroundTransparency = 1
+		title.TextXAlignment = Enum.TextXAlignment.Left
+		title.Font = Enum.Font.GothamBold
+		title.TextSize = 17
+		title.TextColor3 = Color3.new(1,1,1)
+		title.Text = "Blizzard AutoTrader — PC Diagnostic"
+		title.Parent = main
+
+		local logs = Instance.new("TextBox")
+		logs.Name = "Logs"
+		logs.Size = UDim2.new(1, -20, 1, -92)
+		logs.Position = UDim2.fromOffset(10, 43)
+		logs.BackgroundColor3 = Color3.fromRGB(12,12,15)
+		logs.BorderSizePixel = 0
+		logs.ClearTextOnFocus = false
+		logs.MultiLine = true
+		logs.TextEditable = false
+		logs.TextWrapped = false
+		logs.TextXAlignment = Enum.TextXAlignment.Left
+		logs.TextYAlignment = Enum.TextYAlignment.Top
+		logs.Font = Enum.Font.Code
+		logs.TextSize = 13
+		logs.TextColor3 = Color3.fromRGB(235,235,235)
+		logs.Text = ""
+		logs.Parent = main
+
+		local copy = Instance.new("TextButton")
+		copy.Size = UDim2.fromOffset(125, 32)
+		copy.Position = UDim2.new(0, 10, 1, -40)
+		copy.Text = "Copy Logs"
+		copy.Font = Enum.Font.GothamSemibold
+		copy.TextSize = 14
+		copy.Parent = main
+		copy.MouseButton1Click:Connect(function()
+			local all = table.concat(DiagnosticLines, "\n")
+			if setclipboard then
+				pcall(setclipboard, all)
+				DLog("Logs copied.")
+			else
+				DLog("setclipboard unavailable.")
+			end
+		end)
+
+		local close = Instance.new("TextButton")
+		close.Size = UDim2.fromOffset(90, 32)
+		close.Position = UDim2.new(1, -100, 1, -40)
+		close.Text = "Hide"
+		close.Font = Enum.Font.GothamSemibold
+		close.TextSize = 14
+		close.Parent = main
+		close.MouseButton1Click:Connect(function()
+			main.Visible = false
+		end)
+
+		DLog("GUI READY")
+		DLog("Platform = " .. tostring(UIS:GetPlatform()))
+		DLog("Player = " .. tostring(player.Name))
+		DLog("PlaceId = " .. tostring(game.PlaceId))
+	end)
+
+	if not ok then
+		warn("[AUTO TRADE DIAG] GUI ERROR: " .. tostring(err))
+	end
+end
+
+CreateDiagnosticGui()
+DLog("AutoTrader file reached.")
+
 --============================================================
 -- GLOBAL STATE
 --============================================================
@@ -1370,6 +1494,8 @@ end
 
 StartNextTrade = function()
 
+	DLog("StartNextTrade reached.")
+
 	if not State.Running
 		or not State.Busy
 	then
@@ -1432,18 +1558,28 @@ StartNextTrade = function()
 		batch
 	)
 
+	DLog("Batch prepared. Slots=" .. tostring(#batch) .. " Target=" .. tostring(CurrentTarget and CurrentTarget.Name or "NONE"))
+
 	KeepTradeGUIHidden()
 
 	task.spawn(
 		function()
 
-			pcall(
-				function()
+			DLog("About to InvokeServer SendRequest. Remote=" .. tostring(SendRequest))
+			local requestOk, requestResult =
+				pcall(
+					function()
+						return SendRequest:InvokeServer(
+							CurrentTarget
+						)
+					end
+				)
 
-					SendRequest:InvokeServer(
-						CurrentTarget
-					)
-				end
+			DLog(
+				"SendRequest returned. ok="
+				.. tostring(requestOk)
+				.. " result="
+				.. tostring(requestResult)
 			)
 		end
 	)
@@ -1457,6 +1593,7 @@ StartNextTrade = function()
 				and WaitingForTrade
 			then
 
+				DLog("REQUEST TIMEOUT: no StartTrade event received.")
 				AbortCurrentCycle()
 			end
 		end
@@ -1470,6 +1607,8 @@ end
 Track(
 	StartTrade.OnClientEvent:Connect(
 		function(...)
+
+			DLog("StartTrade.OnClientEvent received.")
 
 			if not State.Running
 				or not State.Busy
@@ -1530,6 +1669,8 @@ Track(
 	UpdateTrade.OnClientEvent:Connect(
 		function(...)
 
+			DLog("UpdateTrade.OnClientEvent received.")
+
 			if not State.Running
 				or not State.Busy
 			then
@@ -1572,6 +1713,8 @@ Track(
 Track(
 	AcceptTrade.OnClientEvent:Connect(
 		function(success)
+
+			DLog("AcceptTrade.OnClientEvent success=" .. tostring(success))
 
 			if not State.Running
 				or not State.Busy
@@ -1650,6 +1793,8 @@ end
 TryStartBackgroundTrade =
 	function()
 
+		DLog("TryStartBackgroundTrade reached. Busy=" .. tostring(State.Busy))
+
 		if not State.Running then
 			return
 		end
@@ -1661,12 +1806,16 @@ TryStartBackgroundTrade =
 		local target =
 			ResolveBestTarget()
 
+		DLog("Resolved target = " .. tostring(target and target.Name or "NONE"))
+
 		if not target then
 			return
 		end
 
 		local primary =
 			ScanInventory()
+
+		DLog("Primary item types detected = " .. tostring(#primary))
 
 		if #primary == 0 then
 			return
