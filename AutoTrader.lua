@@ -96,7 +96,7 @@ local function CreateDiagnosticGui()
 		title.Font = Enum.Font.GothamBold
 		title.TextSize = 19
 		title.TextColor3 = Color3.new(1,1,1)
-		title.Text = "Blizzard AutoTrader — PC Diagnostic V3"
+		title.Text = "Blizzard AutoTrader — PC Diagnostic V3 SAFE"
 		title.Parent = main
 
 		local logs = Instance.new("TextBox")
@@ -1613,81 +1613,81 @@ StartNextTrade = function()
 	)
 end
 
-DLog("CHECKPOINT 12: StartNextTrade initialized; beginning StartTrade diagnostic.")
+DLog("CHECKPOINT 12: StartNextTrade initialized; SendRequest path exists.")
 
---============================================================
--- STARTTRADE EVENT - PC DIAGNOSTIC V3
---============================================================
-
-DLog("V3-A: StartTrade value = " .. tostring(StartTrade))
-DLog("V3-B: typeof(StartTrade) = " .. tostring(typeof(StartTrade)))
+-- V3 SAFE DIAGNOSTIC:
+-- Logging only. The known-working V2 StartTrade connection below is untouched.
+DLog("V3 SAFE: BEFORE StartTrade connection")
+DLog("V3 SAFE: StartTrade = " .. tostring(StartTrade))
+DLog("V3 SAFE: typeof(StartTrade) = " .. tostring(typeof(StartTrade)))
 
 if typeof(StartTrade) == "Instance" then
-	DLog("V3-C: StartTrade class = " .. tostring(StartTrade.ClassName))
-	DLog("V3-D: StartTrade path = " .. tostring(StartTrade:GetFullName()))
+	DLog("V3 SAFE: class = " .. tostring(StartTrade.ClassName))
+	DLog("V3 SAFE: path = " .. tostring(StartTrade:GetFullName()))
 else
-	DLog("V3-C: StartTrade is NOT an Instance.")
+	DLog("V3 SAFE: StartTrade is not an Instance")
 end
 
-local StartTradeConnection = nil
+--============================================================
+-- STARTTRADE EVENT
+--============================================================
 
-local connectOK, connectError =
-	pcall(function()
+Track(
+	StartTrade.OnClientEvent:Connect(
+		function(...)
 
-		DLog("V3-E: attempting StartTrade.OnClientEvent connection.")
+			DLog("EVENT: StartTrade received.")
 
-		StartTradeConnection =
-			StartTrade.OnClientEvent:Connect(
-				function(...)
+			if not State.Running
+				or not State.Busy
+			then
+				return
+			end
 
-					DLog("EVENT: StartTrade received.")
+			KeepTradeGUIHidden()
 
-					if not State.Running
-						or not State.Busy
-					then
-						return
-					end
+			if not VerifyCurrentTarget() then
 
-					KeepTradeGUIHidden()
+				AbortCurrentCycle()
 
-					if not VerifyCurrentTarget() then
-						AbortCurrentCycle()
-						return
-					end
+				return
+			end
 
-					local other =
-						ExtractOtherPlayer(...)
+			local other =
+				ExtractOtherPlayer(...)
 
-					if other
-						and not IsExactCurrentTarget(other)
-					then
-						AbortCurrentCycle()
-						return
-					end
+			-- If MM2 explicitly identifies an approved partner,
+			-- it must be our currently selected exact target.
 
-					WaitingForTrade = false
+			if other
+				and not IsExactCurrentTarget(
+					other
+				)
+			then
 
-					local tradeState =
-						ExtractTradeState(...)
+				AbortCurrentCycle()
 
-					if tradeState then
-						CurrentTradeState = tradeState
-					end
+				return
+			end
 
-					task.defer(OfferPlannedItems)
-				end
+			WaitingForTrade =
+				false
+
+			local tradeState =
+				ExtractTradeState(...)
+
+			if tradeState then
+
+				CurrentTradeState =
+					tradeState
+			end
+
+			task.defer(
+				OfferPlannedItems
 			)
-	end)
-
-DLog("V3-F: connection pcall ok = " .. tostring(connectOK))
-
-if not connectOK then
-	DLog("V3-G: CONNECTION ERROR = " .. tostring(connectError))
-	DLog("V3 STOP: copy these logs and send them.")
-	return
-end
-
-Track(StartTradeConnection)
+		end
+	)
+)
 
 DLog("CHECKPOINT 13: StartTrade event connected.")
 
