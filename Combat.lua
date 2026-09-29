@@ -49,6 +49,198 @@ end
 local CombatOverlay = UI.TracerGui or UI.ScreenGui
 assert(CombatOverlay, "Combat overlay GUI not found")
 
+--============================================================
+-- TEMPORARY COMBAT GUI DIAGNOSTIC V4
+-- ADDITIVE / READ-ONLY: DOES NOT REMOVE OR REPLACE FEATURES
+--============================================================
+
+do
+	local DiagnosticToken = "COMBAT-GUI-V4-KEEP-FEATURES"
+	local DiagnosticLines = {}
+	local DiagnosticGui
+	local DiagnosticBox
+
+	local function DLog(message)
+		local line = string.format("[%.2f] %s", os.clock(), tostring(message))
+		table.insert(DiagnosticLines, line)
+		if DiagnosticBox then
+			DiagnosticBox.Text = table.concat(DiagnosticLines, "\n")
+		end
+		print("[COMBAT GUI V4] "..tostring(message))
+	end
+
+	local function Describe(value)
+		local t = typeof(value)
+		if t == "Instance" then
+			return value:GetFullName().." <"..value.ClassName..">"
+		end
+		return tostring(value).." <"..t..">"
+	end
+
+	local function InspectObject(label, value)
+		DLog(label.." = "..Describe(value))
+		if typeof(value) == "Instance" then
+			local okPos, pos = pcall(function() return value.AbsolutePosition end)
+			local okSize, size = pcall(function() return value.AbsoluteSize end)
+			if okPos and okSize then
+				DLog(string.format(
+					"  geometry pos=(%d,%d) size=(%d,%d)",
+					math.floor(pos.X+.5), math.floor(pos.Y+.5),
+					math.floor(size.X+.5), math.floor(size.Y+.5)
+				))
+			end
+			for _, child in ipairs(value:GetChildren()) do
+				if child:IsA("UIListLayout") then
+					DLog(string.format(
+						"  UIListLayout %s padding=(%.3f,%d) content=(%d,%d)",
+						child.Name, child.Padding.Scale, child.Padding.Offset,
+						math.floor(child.AbsoluteContentSize.X+.5),
+						math.floor(child.AbsoluteContentSize.Y+.5)
+					))
+				elseif child:IsA("UIPadding") then
+					DLog(string.format(
+						"  UIPadding %s T=%d B=%d L=%d R=%d",
+						child.Name,
+						child.PaddingTop.Offset, child.PaddingBottom.Offset,
+						child.PaddingLeft.Offset, child.PaddingRight.Offset
+					))
+				end
+			end
+		end
+	end
+
+	local function RunScan()
+		table.clear(DiagnosticLines)
+		DLog("=== BLIZZARD COMBAT GUI DIAGNOSTIC V4 ===")
+		DLog("TOKEN="..DiagnosticToken)
+		DLog("READ-ONLY / FEATURES PRESERVED")
+		InspectObject("UI.CombatPage", UI.CombatPage)
+		InspectObject("UI.ScreenGui", UI.ScreenGui)
+		InspectObject("UI.TracerGui", UI.TracerGui)
+		InspectObject("CombatOverlay", CombatOverlay)
+
+		DLog("--- UI FUNCTION AVAILABILITY ---")
+		for _, name in ipairs({
+			"Section","AddSection","CreateToggle","CreateSlider",
+			"CreateButton","CreateDropdown","CreateColorPicker"
+		}) do
+			DLog("UI."..name.." = "..tostring(type(UI[name])))
+		end
+
+		DLog("--- COMBAT PAGE TABLE/INSTANCE DETAILS ---")
+		if type(UI.CombatPage) == "table" then
+			local count = 0
+			for k,v in pairs(UI.CombatPage) do
+				count += 1
+				if count <= 80 then
+					DLog("CombatPage["..tostring(k).."] = "..Describe(v))
+				end
+			end
+			DLog("CombatPage table entries scanned="..tostring(count))
+		elseif typeof(UI.CombatPage) == "Instance" then
+			local descendants = UI.CombatPage:GetDescendants()
+			DLog("CombatPage descendants="..tostring(#descendants))
+			for i,obj in ipairs(descendants) do
+				if i > 120 then break end
+				if obj:IsA("GuiObject") or obj:IsA("UIListLayout") or obj:IsA("UIPadding") then
+					DLog(string.format(
+						"%03d %s <%s>",
+						i, obj:GetFullName(), obj.ClassName
+					))
+				end
+			end
+		end
+
+		DLog("--- KNOWN FEATURE FLAGS ---")
+		for _, flag in ipairs({
+			"TriggerBot","AimLock","ShowLegitShootButton",
+			"GeneralPredictionDiagnostic","ShowShootButton","AutoGrab",
+			"LegitThrow","RageThrow","KnifeAura","KillAll",
+			"CrosshairEnabled"
+		}) do
+			DLog(flag.." = "..tostring(Flags[flag]))
+		end
+
+		DLog("=== END V4 REPORT ===")
+	end
+
+	local parent = CombatOverlay
+	if typeof(parent) ~= "Instance" then
+		parent = LocalPlayer:WaitForChild("PlayerGui")
+	end
+
+	DiagnosticGui = Instance.new("ScreenGui")
+	DiagnosticGui.Name = "BlizzardCombatGuiDiagnosticV4"
+	DiagnosticGui.ResetOnSpawn = false
+	DiagnosticGui.DisplayOrder = 1000003
+	DiagnosticGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
+
+	local Open = Instance.new("TextButton")
+	Open.Size = UDim2.fromOffset(130,42)
+	Open.Position = UDim2.new(1,-142,0,82)
+	Open.Text = "GUI DIAG V4"
+	Open.TextSize = 15
+	Open.Parent = DiagnosticGui
+
+	local Panel = Instance.new("Frame")
+	Panel.Size = UDim2.new(.94,0,.78,0)
+	Panel.Position = UDim2.new(.03,0,.11,0)
+	Panel.Visible = false
+	Panel.Parent = DiagnosticGui
+
+	DiagnosticBox = Instance.new("TextBox")
+	DiagnosticBox.Size = UDim2.new(1,-12,1,-58)
+	DiagnosticBox.Position = UDim2.fromOffset(6,6)
+	DiagnosticBox.MultiLine = true
+	DiagnosticBox.ClearTextOnFocus = false
+	DiagnosticBox.TextEditable = false
+	DiagnosticBox.TextWrapped = false
+	DiagnosticBox.TextXAlignment = Enum.TextXAlignment.Left
+	DiagnosticBox.TextYAlignment = Enum.TextYAlignment.Top
+	DiagnosticBox.Font = Enum.Font.Code
+	DiagnosticBox.TextSize = 12
+	DiagnosticBox.Text = "V4 ready. Press SCAN."
+	DiagnosticBox.Parent = Panel
+
+	local Scan = Instance.new("TextButton")
+	Scan.Size = UDim2.new(.31,0,0,38)
+	Scan.Position = UDim2.new(.02,0,1,-44)
+	Scan.Text = "SCAN V4"
+	Scan.Parent = Panel
+
+	local Copy = Instance.new("TextButton")
+	Copy.Size = UDim2.new(.31,0,0,38)
+	Copy.Position = UDim2.new(.345,0,1,-44)
+	Copy.Text = "COPY"
+	Copy.Parent = Panel
+
+	local Close = Instance.new("TextButton")
+	Close.Size = UDim2.new(.31,0,0,38)
+	Close.Position = UDim2.new(.67,0,1,-44)
+	Close.Text = "CLOSE"
+	Close.Parent = Panel
+
+	Open.MouseButton1Click:Connect(function()
+		Panel.Visible = not Panel.Visible
+	end)
+	Scan.MouseButton1Click:Connect(RunScan)
+	Copy.MouseButton1Click:Connect(function()
+		local output = table.concat(DiagnosticLines, "\n")
+		if setclipboard then
+			pcall(setclipboard, output)
+		elseif toclipboard then
+			pcall(toclipboard, output)
+		end
+	end)
+	Close.MouseButton1Click:Connect(function()
+		Panel.Visible = false
+	end)
+
+	MM2.UI.CombatGuiDiagnosticV4 = DiagnosticGui
+	print("[COMBAT GUI V4] FILE REACHED | "..DiagnosticToken)
+end
+
+
 local function CombatNotify(title,content,icon,duration)
 	local wind = UI.WindUI
 	if wind and wind.Notify then
@@ -103,12 +295,12 @@ local function NotifyKillAllResult(success,message)
 end
 
 
-AddCombatSection("Aimbot")
+AddCompactCombatSection("Aimbot")
 UI.CreateToggle(UI.CombatPage, "TriggerBot", "Automatically shoots the murderer when they are visible", "TriggerBot")
 UI.CreateToggle(UI.CombatPage, "Aim Lock", "While Shift Lock is on, tracks the murderer’s torso", "AimLock")
 
 
-AddCombatSection("Sheriff")
+AddCompactCombatSection("Sheriff")
 Flags.TriggerBotDelay = math.clamp(tonumber(Flags.TriggerBotDelay) or 0.05,0,0.60)
 UI.CreateSlider(
 	UI.CombatPage,
@@ -138,7 +330,7 @@ end)
 UI.CreateToggle(UI.CombatPage, "Auto Grab Gun", "Automatically picks up the dropped gun without moving your character", "AutoGrab")
 
 
-AddCombatSection("Murderer")
+AddCompactCombatSection("Murderer")
 
 local RenderLegitThrow
 local RenderRageThrow
@@ -214,7 +406,7 @@ end, "skull")
 --============================================================
 
 
-AddCombatSection("Crosshair")
+AddCompactCombatSection("Crosshair")
 
 Flags.CustomCrosshair = Flags.CustomCrosshair == true
 Flags.CrosshairType = tostring(Flags.CrosshairType or "Classic")
