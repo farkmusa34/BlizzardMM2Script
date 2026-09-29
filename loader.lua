@@ -19,9 +19,10 @@ local LocalPlayer =
 	Players.LocalPlayer
 
 --============================================================
--- DESKTOP / PC ACCESS
+-- DESKTOP / PC ACCESS BLOCK
 --
--- TEMPORARY PC-COMPATIBILITY BUILD
+-- Windows + macOS desktop Roblox are currently unsupported.
+-- Mobile continues normally.
 --============================================================
 
 local Platform =
@@ -32,9 +33,16 @@ local IsDesktop =
 	or Platform == Enum.Platform.OSX
 
 if IsDesktop then
-	print(
-		"[MM2 LOADER] Temporary PC build: desktop access allowed."
+
+	warn(
+		"[MM2 LOADER] Desktop Roblox detected. Blizzard blocked."
 	)
+
+	LocalPlayer:Kick(
+		"The script does not work on PC yet, use it on mobile for now."
+	)
+
+	return
 end
 
 --============================================================
