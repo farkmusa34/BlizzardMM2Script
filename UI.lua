@@ -829,6 +829,51 @@ local function LockSectionOpenAndHideArrow(section)
 	end
 end
 
+--============================================================
+-- SECTION SPACING OVERRIDE
+--============================================================
+
+UI.NextSectionSpacing = UI.NextSectionSpacing or {}
+
+function UI.SetNextSectionSpacing(page, topPixels, bottomPixels)
+	UI.NextSectionSpacing[page] = {
+		Top = math.max(0, tonumber(topPixels) or 0),
+		Bottom = math.max(0, tonumber(bottomPixels) or 0),
+	}
+end
+
+local function ApplySectionSpacing(section, spacing)
+	if not section or not spacing then return end
+
+	local function apply()
+		local frame = section.ElementFrame
+		if typeof(frame) ~= "Instance" then return end
+
+		local helper = frame:FindFirstChild("BlizzardSectionPadding")
+		if not helper then
+			helper = Instance.new("UIPadding")
+			helper.Name = "BlizzardSectionPadding"
+			helper.Parent = frame
+		end
+
+		helper.PaddingTop = UDim.new(0, spacing.Top)
+		helper.PaddingBottom = UDim.new(0, spacing.Bottom)
+
+		for _, child in ipairs(frame:GetChildren()) do
+			if child:IsA("UIPadding") and child ~= helper then
+				child.PaddingTop = UDim.new(0, math.min(child.PaddingTop.Offset, 2))
+				child.PaddingBottom = UDim.new(0, math.min(child.PaddingBottom.Offset, 2))
+			elseif child:IsA("UIListLayout") then
+				child.Padding = UDim.new(0, math.min(child.Padding.Offset, 6))
+			end
+		end
+	end
+
+	pcall(apply)
+	task.defer(function() pcall(apply) end)
+	task.delay(0.15, function() pcall(apply) end)
+end
+
 function UI.AddSection(page,titleText,subtitleText)
 
 	local tab = UI.PageMap[page]
@@ -906,6 +951,12 @@ function UI.AddSection(page,titleText,subtitleText)
 	end
 
 	UI.ActiveSection[page] = section
+
+	local spacing = UI.NextSectionSpacing[page]
+	UI.NextSectionSpacing[page] = nil
+	if spacing and section ~= tab then
+		ApplySectionSpacing(section, spacing)
+	end
 
 	return section
 end
