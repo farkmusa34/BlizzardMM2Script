@@ -1,6 +1,6 @@
 --============================================================
 -- Blizzard MM2 v1.85.4 - UI.lua
--- MONO / BLACK-GRAY WINDUI BRIDGE.
+-- MONO / BLACK-GRAY WINDUI BRIDGE
 --
 -- WindUI owns the visible menu and toolbar.
 -- WindUI sections keep their original appearance,
@@ -832,10 +832,9 @@ end
 local NextSectionSpacing = {}
 
 function UI.SetNextSectionSpacing(page,above,below)
-	NextSectionSpacing[page] = {
-		Above = tonumber(above) or 16,
-		Below = tonumber(below) or 7,
-	}
+	-- Compatibility only. Do not add UIPadding to WindUI sections.
+	-- WindUI already provides the native spacing around section headings.
+	NextSectionSpacing[page] = true
 end
 
 function UI.AddSection(page,titleText,subtitleText)
@@ -856,20 +855,20 @@ function UI.AddSection(page,titleText,subtitleText)
 
 	local ok,result =
 		pcall(function()
-
-			return tab:Section({
-				Title =
-					tostring(
-						titleText or ""
-					),
-
-				Desc =
-					tostring(
-						subtitleText or ""
-					),
-
+			local config = {
+				Title = tostring(titleText or ""),
 				Opened = true,
-			})
+			}
+
+			-- IMPORTANT: do not pass Desc = "". In WindUI builds that support
+			-- section descriptions, an empty Desc can still reserve subtitle space.
+			-- Only create Desc when there is actual subtitle text.
+			local desc = tostring(subtitleText or "")
+			if desc ~= "" then
+				config.Desc = desc
+			end
+
+			return tab:Section(config)
 		end)
 
 	if ok and result then
@@ -914,25 +913,8 @@ function UI.AddSection(page,titleText,subtitleText)
 		)
 	end
 
-	local requestedSpacing = NextSectionSpacing[page]
+	-- Consume legacy spacing requests without changing WindUI geometry.
 	NextSectionSpacing[page] = nil
-
-	if requestedSpacing and section and section.ElementFrame then
-		pcall(function()
-			local frame = section.ElementFrame
-			local layout = frame.Parent and frame.Parent:FindFirstChildOfClass("UIListLayout")
-			-- WindUI owns the actual list layout. Keep its card spacing intact;
-			-- only give this section a compact top/bottom envelope where supported.
-			local pad = frame:FindFirstChild("BlizzardSectionPadding")
-			if not pad then
-				pad = Instance.new("UIPadding")
-				pad.Name = "BlizzardSectionPadding"
-				pad.Parent = frame
-			end
-			pad.PaddingTop = UDim.new(0, requestedSpacing.Above)
-			pad.PaddingBottom = UDim.new(0, requestedSpacing.Below)
-		end)
-	end
 
 	UI.ActiveSection[page] = section
 
