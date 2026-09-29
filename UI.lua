@@ -831,14 +831,19 @@ end
 
 --============================================================
 -- SECTION SPACING OVERRIDE
+--
+-- Reference hierarchy:
+--   medium space before heading
+--   larger space from heading to first card
+--   small, consistent spacing between cards
 --============================================================
 
 UI.NextSectionSpacing = UI.NextSectionSpacing or {}
 
 function UI.SetNextSectionSpacing(page, topPixels, bottomPixels)
 	UI.NextSectionSpacing[page] = {
-		Top = math.max(0, tonumber(topPixels) or 0),
-		Bottom = math.max(0, tonumber(bottomPixels) or 0),
+		Top = math.max(10, tonumber(topPixels) or 0),
+		Bottom = math.max(18, tonumber(bottomPixels) or 0),
 	}
 end
 
@@ -849,22 +854,20 @@ local function ApplySectionSpacing(section, spacing)
 		local frame = section.ElementFrame
 		if typeof(frame) ~= "Instance" then return end
 
-		local helper = frame:FindFirstChild("BlizzardSectionPadding")
-		if not helper then
-			helper = Instance.new("UIPadding")
-			helper.Name = "BlizzardSectionPadding"
-			helper.Parent = frame
+		local padding = frame:FindFirstChild("BlizzardSectionPadding")
+		if not padding then
+			padding = Instance.new("UIPadding")
+			padding.Name = "BlizzardSectionPadding"
+			padding.Parent = frame
 		end
 
-		helper.PaddingTop = UDim.new(0, spacing.Top)
-		helper.PaddingBottom = UDim.new(0, spacing.Bottom)
+		padding.PaddingTop = UDim.new(0, spacing.Top)
+		padding.PaddingBottom = UDim.new(0, spacing.Bottom)
 
+		-- Only touch the section wrapper layout; card internals stay unchanged.
 		for _, child in ipairs(frame:GetChildren()) do
-			if child:IsA("UIPadding") and child ~= helper then
-				child.PaddingTop = UDim.new(0, math.min(child.PaddingTop.Offset, 2))
-				child.PaddingBottom = UDim.new(0, math.min(child.PaddingBottom.Offset, 2))
-			elseif child:IsA("UIListLayout") then
-				child.Padding = UDim.new(0, math.min(child.Padding.Offset, 6))
+			if child:IsA("UIListLayout") then
+				child.Padding = UDim.new(0, 8)
 			end
 		end
 	end
