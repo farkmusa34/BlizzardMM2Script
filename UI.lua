@@ -933,19 +933,27 @@ function UI.AddSection(page,titleText,subtitleText)
 	local ok,result =
 		pcall(function()
 
-			return tab:Section({
+			local sectionOptions = {
 				Title =
 					tostring(
 						titleText or ""
 					),
 
-				Desc =
-					tostring(
-						subtitleText or ""
-					),
-
 				Opened = true,
-			})
+			}
+
+			local subtitle =
+				tostring(
+					subtitleText or ""
+				)
+
+			if subtitle ~= "" then
+				sectionOptions.Desc = subtitle
+			end
+
+			return tab:Section(
+				sectionOptions
+			)
 		end)
 
 	if ok and result then
