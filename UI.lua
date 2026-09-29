@@ -1,6 +1,6 @@
 --============================================================
 -- Blizzard MM2 v1.85.4 - UI.lua
--- MONO / BLACK-GRAY WINDUI BRIDGE
+-- MONO / BLACK-GRAY WINDUI BRIDGE.
 --
 -- WindUI owns the visible menu and toolbar.
 -- WindUI sections keep their original appearance,
