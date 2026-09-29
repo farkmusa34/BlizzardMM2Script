@@ -13,36 +13,12 @@ local Track = MM2.Track
 -- This only trims the outer top/bottom padding of each WindUI section;
 -- control/card internals are left untouched.
 local function AddCompactCombatSection(titleText)
+	-- UI.lua owns WindUI spacing. Combat.lua only creates the section.
 	if UI.SetNextSectionSpacing then
 		UI.SetNextSectionSpacing(UI.CombatPage, 0, 0)
 	end
 
-	local section = UI.AddSection(UI.CombatPage, titleText, "")
-
-	local function compact()
-		if not section or not section.ElementFrame then return end
-		local frame = section.ElementFrame
-
-		-- UI.lua may add this helper padding. Keep it at zero for Combat.
-		local helper = frame:FindFirstChild("BlizzardSectionPadding")
-		if helper and helper:IsA("UIPadding") then
-			helper.PaddingTop = UDim.new(0, 0)
-			helper.PaddingBottom = UDim.new(0, 0)
-		end
-
-		-- If WindUI itself exposes one direct section padding object, trim only
-		-- its vertical envelope. Do not touch padding inside feature cards.
-		for _, child in ipairs(frame:GetChildren()) do
-			if child:IsA("UIPadding") then
-				child.PaddingTop = UDim.new(0, 2)
-				child.PaddingBottom = UDim.new(0, 2)
-			end
-		end
-	end
-
-	pcall(compact)
-	task.defer(function() pcall(compact) end)
-	return section
+	return UI.AddSection(UI.CombatPage, titleText, "")
 end
 
 -- Combat UI should still load even if Visuals.lua has not created TracerGui yet.

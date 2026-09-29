@@ -879,36 +879,39 @@ local function FitWrappedControl(control)
 		local root = control.ElementFrame or control.Frame or control.Root
 		if typeof(root) ~= "Instance" or not root:IsA("GuiObject") then return end
 
-		local rootTop = root.AbsolutePosition.Y
-		local rootBottom = rootTop + root.AbsoluteSize.Y
-		local neededBottom = rootBottom
+		local currentHeight = root.AbsoluteSize.Y
+		if currentHeight <= 0 then return end
 
+		local extraNeeded = 0
 		for _, obj in ipairs(root:GetDescendants()) do
-			if obj:IsA("TextLabel") and obj.Visible and obj.TextWrapped then
-				local bottom = obj.AbsolutePosition.Y + obj.AbsoluteSize.Y
-				if obj.TextBounds.Y > obj.AbsoluteSize.Y then
-					bottom = obj.AbsolutePosition.Y + obj.TextBounds.Y
-				end
-				if bottom > neededBottom then
-					neededBottom = bottom
+			if obj:IsA("TextLabel")
+				and obj.Visible
+				and obj.TextWrapped
+				and obj.AbsoluteSize.Y > 0
+			then
+				local relativeTop = obj.AbsolutePosition.Y - root.AbsolutePosition.Y
+				if relativeTop >= -2 and relativeTop <= currentHeight + 2 then
+					local overflow = math.ceil(obj.TextBounds.Y - obj.AbsoluteSize.Y)
+					if overflow > extraNeeded then
+						extraNeeded = overflow
+					end
 				end
 			end
 		end
 
-		local overflow = math.ceil(neededBottom - rootBottom)
-		if overflow > 0 then
+		extraNeeded = math.clamp(extraNeeded, 0, 28)
+		if extraNeeded > 0 then
 			root.Size = UDim2.new(
 				root.Size.X.Scale,
 				root.Size.X.Offset,
 				root.Size.Y.Scale,
-				root.Size.Y.Offset + overflow + 10
+				root.Size.Y.Offset + extraNeeded + 4
 			)
 		end
 	end
 
 	task.defer(function() pcall(fit) end)
-	task.delay(0.08, function() pcall(fit) end)
-	task.delay(0.25, function() pcall(fit) end)
+	task.delay(0.10, function() pcall(fit) end)
 end
 
 function UI.AddSection(page,titleText,subtitleText)
