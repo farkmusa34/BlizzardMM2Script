@@ -49,6 +49,216 @@ end
 local CombatOverlay = UI.TracerGui or UI.ScreenGui
 assert(CombatOverlay, "Combat overlay GUI not found")
 
+--============================================================
+-- TEMPORARY COMBAT UI SPACING DIAGNOSTIC
+-- Read-only: does not alter spacing.
+--============================================================
+
+do
+	local OldDiagnostic = CombatOverlay:FindFirstChild("BlizzardCombatSpacingDiagnostic")
+	if OldDiagnostic then OldDiagnostic:Destroy() end
+
+	local DiagnosticGui = Instance.new("ScreenGui")
+	DiagnosticGui.Name = "BlizzardCombatSpacingDiagnostic"
+	DiagnosticGui.ResetOnSpawn = false
+	DiagnosticGui.IgnoreGuiInset = true
+	DiagnosticGui.DisplayOrder = 1000000
+	DiagnosticGui.Parent = CombatOverlay
+
+	local OpenButton = Instance.new("TextButton")
+	OpenButton.Size = UDim2.fromOffset(104,42)
+	OpenButton.Position = UDim2.new(1,-118,0,86)
+	OpenButton.BackgroundColor3 = Color3.fromRGB(24,24,28)
+	OpenButton.BorderSizePixel = 0
+	OpenButton.Text = "UI DIAG"
+	OpenButton.TextColor3 = Color3.new(1,1,1)
+	OpenButton.TextSize = 16
+	OpenButton.Font = Enum.Font.GothamBold
+	OpenButton.Parent = DiagnosticGui
+	Instance.new("UICorner",OpenButton).CornerRadius = UDim.new(0,12)
+
+	local Panel = Instance.new("Frame")
+	Panel.Size = UDim2.new(0.90,0,0.72,0)
+	Panel.Position = UDim2.new(0.05,0,0.14,0)
+	Panel.BackgroundColor3 = Color3.fromRGB(15,15,18)
+	Panel.BorderSizePixel = 0
+	Panel.Visible = false
+	Panel.Parent = DiagnosticGui
+	Instance.new("UICorner",Panel).CornerRadius = UDim.new(0,14)
+
+	local Title = Instance.new("TextLabel")
+	Title.Size = UDim2.new(1,-20,0,38)
+	Title.Position = UDim2.fromOffset(10,6)
+	Title.BackgroundTransparency = 1
+	Title.Text = "COMBAT SPACING DIAGNOSTIC"
+	Title.TextColor3 = Color3.new(1,1,1)
+	Title.TextSize = 18
+	Title.Font = Enum.Font.GothamBold
+	Title.TextXAlignment = Enum.TextXAlignment.Left
+	Title.Parent = Panel
+
+	local Report = Instance.new("TextBox")
+	Report.Size = UDim2.new(1,-20,1,-104)
+	Report.Position = UDim2.fromOffset(10,46)
+	Report.BackgroundColor3 = Color3.fromRGB(9,9,11)
+	Report.BorderSizePixel = 0
+	Report.ClearTextOnFocus = false
+	Report.MultiLine = true
+	Report.TextEditable = false
+	Report.TextWrapped = false
+	Report.Text = "Open Combat, then tap SCAN."
+	Report.TextColor3 = Color3.fromRGB(235,235,235)
+	Report.TextSize = 12
+	Report.Font = Enum.Font.Code
+	Report.TextXAlignment = Enum.TextXAlignment.Left
+	Report.TextYAlignment = Enum.TextYAlignment.Top
+	Report.Parent = Panel
+	Instance.new("UICorner",Report).CornerRadius = UDim.new(0,10)
+
+	local function MakeButton(label,x)
+		local b = Instance.new("TextButton")
+		b.Size = UDim2.new(0.30,0,0,40)
+		b.Position = UDim2.new(x,0,1,-48)
+		b.BackgroundColor3 = Color3.fromRGB(42,42,48)
+		b.BorderSizePixel = 0
+		b.Text = label
+		b.TextColor3 = Color3.new(1,1,1)
+		b.TextSize = 14
+		b.Font = Enum.Font.GothamBold
+		b.Parent = Panel
+		Instance.new("UICorner",b).CornerRadius = UDim.new(0,10)
+		return b
+	end
+
+	local ScanButton = MakeButton("SCAN",0.03)
+	local CopyButton = MakeButton("COPY",0.35)
+	local CloseButton = MakeButton("CLOSE",0.67)
+	local LastReport = ""
+
+	local function fmtUDim(v)
+		return string.format("%.3f,%d",v.Scale,v.Offset)
+	end
+
+	local function pathOf(obj)
+		local parts = {}
+		local current = obj
+		while current and #parts < 9 do
+			table.insert(parts,1,current.Name)
+			if current == UI.CombatPage then break end
+			current = current.Parent
+		end
+		return table.concat(parts,"/")
+	end
+
+	local function BuildSpacingReport()
+		local lines = {
+			"=== BLIZZARD COMBAT SPACING REPORT ===",
+			"CombatPage="..tostring(UI.CombatPage),
+			""
+		}
+
+		if not UI.CombatPage then
+			table.insert(lines,"ERROR: CombatPage is nil")
+			return table.concat(lines,"\n")
+		end
+
+		for _,obj in ipairs(UI.CombatPage:GetDescendants()) do
+			if obj:IsA("UIListLayout") then
+				table.insert(lines,string.format(
+					"[LIST] %s | pad=%s | contentY=%d | fill=%s | vertical=%s",
+					pathOf(obj),
+					fmtUDim(obj.Padding),
+					math.floor(obj.AbsoluteContentSize.Y+0.5),
+					tostring(obj.FillDirection),
+					tostring(obj.VerticalAlignment)
+				))
+			elseif obj:IsA("UIPadding") then
+				table.insert(lines,string.format(
+					"[PAD] %s | top=%s bottom=%s left=%s right=%s",
+					pathOf(obj),
+					fmtUDim(obj.PaddingTop),
+					fmtUDim(obj.PaddingBottom),
+					fmtUDim(obj.PaddingLeft),
+					fmtUDim(obj.PaddingRight)
+				))
+			end
+		end
+
+		table.insert(lines,"")
+		table.insert(lines,"=== SECTION / ELEMENT FRAMES ===")
+
+		local frames = {}
+		for _,obj in ipairs(UI.CombatPage:GetDescendants()) do
+			if obj:IsA("GuiObject") and obj.Visible and obj.AbsoluteSize.Y > 0 then
+				local lower = string.lower(obj.Name)
+				if string.find(lower,"section")
+					or string.find(lower,"element")
+					or string.find(lower,"content")
+				then
+					table.insert(frames,obj)
+				end
+			end
+		end
+
+		table.sort(frames,function(a,b)
+			return a.AbsolutePosition.Y < b.AbsolutePosition.Y
+		end)
+
+		local previousBottom = nil
+		for _,obj in ipairs(frames) do
+			local top = obj.AbsolutePosition.Y
+			local height = obj.AbsoluteSize.Y
+			local bottom = top + height
+			local gap = previousBottom and (top-previousBottom) or 0
+			table.insert(lines,string.format(
+				"[FRAME] %s | y=%d h=%d bottom=%d gap=%d",
+				pathOf(obj),
+				math.floor(top+0.5),
+				math.floor(height+0.5),
+				math.floor(bottom+0.5),
+				math.floor(gap+0.5)
+			))
+			previousBottom = math.max(previousBottom or bottom,bottom)
+		end
+
+		table.insert(lines,"")
+		table.insert(lines,"READ-ONLY DIAGNOSTIC: no UI spacing was changed.")
+		return table.concat(lines,"\n")
+	end
+
+	OpenButton.MouseButton1Click:Connect(function()
+		Panel.Visible = not Panel.Visible
+	end)
+
+	ScanButton.MouseButton1Click:Connect(function()
+		LastReport = BuildSpacingReport()
+		Report.Text = LastReport
+		print(LastReport)
+	end)
+
+	CopyButton.MouseButton1Click:Connect(function()
+		if LastReport == "" then
+			LastReport = BuildSpacingReport()
+			Report.Text = LastReport
+		end
+		if setclipboard then
+			pcall(setclipboard,LastReport)
+			CopyButton.Text = "COPIED"
+		else
+			CopyButton.Text = "NO CLIPBOARD"
+		end
+		task.delay(1.2,function()
+			if CopyButton and CopyButton.Parent then CopyButton.Text = "COPY" end
+		end)
+	end)
+
+	CloseButton.MouseButton1Click:Connect(function()
+		Panel.Visible = false
+	end)
+
+	MM2.UI.CombatSpacingDiagnosticGui = DiagnosticGui
+end
+
 local function CombatNotify(title,content,icon,duration)
 	local wind = UI.WindUI
 	if wind and wind.Notify then
