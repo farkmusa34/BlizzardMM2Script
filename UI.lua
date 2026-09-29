@@ -838,6 +838,43 @@ function UI.SetNextSectionSpacing(page,above,below)
 	NextSectionSpacing[page] = true
 end
 
+local function LowerFirstSectionHeadingY(section)
+	-- The first heading has no section above it, so give it a deliberate
+	-- downward visual offset without changing section/card geometry.
+	if not section or not section.ElementFrame then
+		return
+	end
+
+	local basePositions = setmetatable({}, {__mode = "k"})
+	local FIRST_HEADING_Y_NUDGE = 10
+
+	local function Apply()
+		local outline = section.ElementFrame:FindFirstChild("Outline")
+		local top = outline and outline:FindFirstChild("Top")
+		if not top then return end
+
+		for _,obj in ipairs(top:GetDescendants()) do
+			if obj:IsA("TextLabel") or obj:IsA("TextButton") then
+				if not basePositions[obj] then
+					basePositions[obj] = obj.Position
+				end
+
+				local native = basePositions[obj]
+				obj.TextYAlignment = Enum.TextYAlignment.Center
+				obj.Position = UDim2.new(
+					native.X.Scale, native.X.Offset,
+					native.Y.Scale, native.Y.Offset + FIRST_HEADING_Y_NUDGE
+				)
+			end
+		end
+	end
+
+	Apply()
+	task.defer(Apply)
+	task.delay(0.05, Apply)
+	task.delay(0.20, Apply)
+end
+
 local function CenterLaterSectionHeadingY(section)
 	-- IMPORTANT:
 	--   * Do not resize Top / Outline / ElementFrame.
@@ -954,9 +991,14 @@ function UI.AddSection(page,titleText,subtitleText)
 	if section ~= tab then
 		LockSectionOpenAndHideArrow(section)
 
-		if not isVisuals and not isFirstHeading then
-			-- Preserve the native gap; move only the later heading text on Y.
-			CenterLaterSectionHeadingY(section)
+		if not isVisuals then
+			if isFirstHeading then
+				-- First heading: noticeably lower, since there is no group above it.
+				LowerFirstSectionHeadingY(section)
+			else
+				-- Later headings: keep them centered between surrounding groups.
+				CenterLaterSectionHeadingY(section)
+			end
 		end
 	end
 
