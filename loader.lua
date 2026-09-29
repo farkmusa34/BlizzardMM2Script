@@ -19,10 +19,18 @@ local LocalPlayer =
 	Players.LocalPlayer
 
 --============================================================
--- LOADER DIAGNOSTIC GUI
+-- ALWAYS-VISIBLE LOADER DIAGNOSTIC
 --============================================================
 
-local DiagnosticLines = {}
+local PlayerGui =
+	LocalPlayer:WaitForChild("PlayerGui")
+
+local OldDiagnostic =
+	PlayerGui:FindFirstChild("BlizzardLoaderDiagnostic")
+
+if OldDiagnostic then
+	OldDiagnostic:Destroy()
+end
 
 local DiagnosticGui =
 	Instance.new("ScreenGui")
@@ -33,128 +41,211 @@ DiagnosticGui.Name =
 DiagnosticGui.ResetOnSpawn =
 	false
 
+DiagnosticGui.IgnoreGuiInset =
+	true
+
 DiagnosticGui.DisplayOrder =
-	999999
+	2147483647
+
+DiagnosticGui.ZIndexBehavior =
+	Enum.ZIndexBehavior.Sibling
 
 DiagnosticGui.Parent =
-	LocalPlayer:WaitForChild("PlayerGui")
+	PlayerGui
 
-local DiagnosticFrame =
+local Main =
 	Instance.new("Frame")
 
-DiagnosticFrame.Size =
-	UDim2.new(0, 650, 0, 440)
+Main.Name =
+	"Main"
 
-DiagnosticFrame.Position =
-	UDim2.new(0.5, -325, 0.5, -220)
+Main.Size =
+	UDim2.new(0.82, 0, 0.72, 0)
 
-DiagnosticFrame.BackgroundTransparency =
-	0.08
+Main.Position =
+	UDim2.new(0.09, 0, 0.14, 0)
 
-DiagnosticFrame.Active =
-	true
+Main.BackgroundColor3 =
+	Color3.fromRGB(20, 20, 20)
 
-DiagnosticFrame.Draggable =
-	true
-
-DiagnosticFrame.Parent =
-	DiagnosticGui
-
-local DiagnosticTitle =
-	Instance.new("TextLabel")
-
-DiagnosticTitle.Size =
-	UDim2.new(1, -12, 0, 34)
-
-DiagnosticTitle.Position =
-	UDim2.new(0, 6, 0, 4)
-
-DiagnosticTitle.BackgroundTransparency =
-	1
-
-DiagnosticTitle.Text =
-	"Blizzard Loader Diagnostic"
-
-DiagnosticTitle.TextSize =
-	20
-
-DiagnosticTitle.TextXAlignment =
-	Enum.TextXAlignment.Left
-
-DiagnosticTitle.Parent =
-	DiagnosticFrame
-
-local DiagnosticScroll =
-	Instance.new("ScrollingFrame")
-
-DiagnosticScroll.Size =
-	UDim2.new(1, -12, 1, -86)
-
-DiagnosticScroll.Position =
-	UDim2.new(0, 6, 0, 40)
-
-DiagnosticScroll.BackgroundTransparency =
-	0.2
-
-DiagnosticScroll.BorderSizePixel =
+Main.BorderSizePixel =
 	0
 
-DiagnosticScroll.CanvasSize =
-	UDim2.new(0, 0, 0, 0)
+Main.ZIndex =
+	100
 
-DiagnosticScroll.ScrollBarThickness =
-	8
+Main.Active =
+	true
 
-DiagnosticScroll.Parent =
-	DiagnosticFrame
+Main.Draggable =
+	true
 
-local DiagnosticText =
+Main.Parent =
+	DiagnosticGui
+
+local Title =
 	Instance.new("TextLabel")
 
-DiagnosticText.Size =
-	UDim2.new(1, -12, 0, 20)
+Title.Size =
+	UDim2.new(1, -20, 0, 42)
 
-DiagnosticText.Position =
-	UDim2.new(0, 6, 0, 4)
+Title.Position =
+	UDim2.new(0, 10, 0, 6)
 
-DiagnosticText.BackgroundTransparency =
+Title.BackgroundTransparency =
 	1
 
-DiagnosticText.Text =
-	""
+Title.Text =
+	"BLIZZARD LOADER DIAGNOSTIC"
 
-DiagnosticText.TextXAlignment =
+Title.TextColor3 =
+	Color3.fromRGB(255, 255, 255)
+
+Title.TextSize =
+	22
+
+Title.Font =
+	Enum.Font.SourceSansBold
+
+Title.TextXAlignment =
 	Enum.TextXAlignment.Left
 
-DiagnosticText.TextYAlignment =
-	Enum.TextYAlignment.Top
+Title.ZIndex =
+	101
 
-DiagnosticText.TextSize =
-	14
+Title.Parent =
+	Main
 
-DiagnosticText.Font =
-	Enum.Font.Code
+local Status =
+	Instance.new("TextLabel")
 
-DiagnosticText.Parent =
-	DiagnosticScroll
+Status.Size =
+	UDim2.new(1, -20, 0, 28)
 
-local CopyButton =
-	Instance.new("TextButton")
+Status.Position =
+	UDim2.new(0, 10, 0, 48)
 
-CopyButton.Size =
-	UDim2.new(0, 150, 0, 34)
+Status.BackgroundTransparency =
+	1
 
-CopyButton.Position =
-	UDim2.new(0, 6, 1, -40)
+Status.Text =
+	"GUI READY - loader.lua is executing"
 
-CopyButton.Text =
-	"Copy Logs"
+Status.TextColor3 =
+	Color3.fromRGB(255, 255, 255)
 
-CopyButton.TextSize =
+Status.TextSize =
+	17
+
+Status.Font =
+	Enum.Font.SourceSansBold
+
+Status.TextXAlignment =
+	Enum.TextXAlignment.Left
+
+Status.ZIndex =
+	101
+
+Status.Parent =
+	Main
+
+local Scroll =
+	Instance.new("ScrollingFrame")
+
+Scroll.Size =
+	UDim2.new(1, -20, 1, -132)
+
+Scroll.Position =
+	UDim2.new(0, 10, 0, 80)
+
+Scroll.BackgroundColor3 =
+	Color3.fromRGB(30, 30, 30)
+
+Scroll.BorderSizePixel =
+	0
+
+Scroll.ScrollBarThickness =
+	10
+
+Scroll.CanvasSize =
+	UDim2.new(0, 0, 0, 0)
+
+Scroll.ZIndex =
+	101
+
+Scroll.Parent =
+	Main
+
+local LogText =
+	Instance.new("TextLabel")
+
+LogText.Size =
+	UDim2.new(1, -16, 0, 30)
+
+LogText.Position =
+	UDim2.new(0, 8, 0, 6)
+
+LogText.BackgroundTransparency =
+	1
+
+LogText.Text =
+	""
+
+LogText.TextColor3 =
+	Color3.fromRGB(255, 255, 255)
+
+LogText.TextSize =
 	16
 
-CopyButton.Parent =
-	DiagnosticFrame
+LogText.Font =
+	Enum.Font.Code
+
+LogText.TextWrapped =
+	true
+
+LogText.TextXAlignment =
+	Enum.TextXAlignment.Left
+
+LogText.TextYAlignment =
+	Enum.TextYAlignment.Top
+
+LogText.ZIndex =
+	102
+
+LogText.Parent =
+	Scroll
+
+local Copy =
+	Instance.new("TextButton")
+
+Copy.Size =
+	UDim2.new(0, 170, 0, 38)
+
+Copy.Position =
+	UDim2.new(0, 10, 1, -44)
+
+Copy.BackgroundColor3 =
+	Color3.fromRGB(45, 45, 45)
+
+Copy.Text =
+	"COPY LOGS"
+
+Copy.TextColor3 =
+	Color3.fromRGB(255, 255, 255)
+
+Copy.TextSize =
+	17
+
+Copy.Font =
+	Enum.Font.SourceSansBold
+
+Copy.ZIndex =
+	102
+
+Copy.Parent =
+	Main
+
+local DiagnosticLines = {}
 
 local function DiagnosticLog(message)
 
@@ -170,43 +261,45 @@ local function DiagnosticLog(message)
 		line
 	)
 
-	DiagnosticText.Text =
+	LogText.Text =
 		table.concat(
 			DiagnosticLines,
 			"\n"
 		)
 
-	local neededHeight =
+	local height =
 		math.max(
-			20,
-			#DiagnosticLines * 18
+			30,
+			#DiagnosticLines * 23
 		)
 
-	DiagnosticText.Size =
+	LogText.Size =
 		UDim2.new(
 			1,
-			-12,
+			-16,
 			0,
-			neededHeight
+			height
 		)
 
-	DiagnosticScroll.CanvasSize =
+	Scroll.CanvasSize =
 		UDim2.new(
 			0,
 			0,
 			0,
-			neededHeight + 10
+			height + 15
 		)
 
-	DiagnosticScroll.CanvasPosition =
+	Scroll.CanvasPosition =
 		Vector2.new(
 			0,
 			math.max(
 				0,
-				neededHeight
-				- DiagnosticScroll.AbsoluteSize.Y
+				height - Scroll.AbsoluteSize.Y
 			)
 		)
+
+	Status.Text =
+		tostring(message)
 
 	print(
 		"[LOADER DIAG] "
@@ -214,7 +307,7 @@ local function DiagnosticLog(message)
 	)
 end
 
-CopyButton.MouseButton1Click:Connect(function()
+Copy.MouseButton1Click:Connect(function()
 
 	local output =
 		table.concat(
@@ -222,23 +315,24 @@ CopyButton.MouseButton1Click:Connect(function()
 			"\n"
 		)
 
-	local copied = false
+	local ok = false
 
 	if setclipboard then
-		copied = pcall(setclipboard, output)
+		ok = pcall(setclipboard, output)
 	elseif toclipboard then
-		copied = pcall(toclipboard, output)
+		ok = pcall(toclipboard, output)
 	end
 
-	if copied then
-		DiagnosticLog("Logs copied.")
+	if ok then
+		Copy.Text = "COPIED"
 	else
-		DiagnosticLog("Clipboard function unavailable.")
+		Copy.Text = "COPY UNAVAILABLE"
 	end
 end)
 
 DiagnosticLog("GUI READY")
 DiagnosticLog("LOADER FILE REACHED")
+DiagnosticLog("Player = " .. tostring(LocalPlayer.Name))
 
 --============================================================
 -- DESKTOP / PC ACCESS
@@ -248,13 +342,6 @@ DiagnosticLog("LOADER FILE REACHED")
 
 local Platform =
 	UserInputService:GetPlatform()
-
-DiagnosticLog(
-	"Platform = "
-	.. tostring(
-		Platform
-	)
-)
 
 local IsDesktop =
 	Platform == Enum.Platform.Windows
@@ -410,8 +497,7 @@ local function LoadModule(
 	)
 
 	DiagnosticLog(
-		"BEGIN MODULE | "
-		.. fileName
+		"LOADING " .. fileName
 	)
 
 	local downloadOk,
@@ -425,12 +511,10 @@ local function LoadModule(
 		end)
 
 	DiagnosticLog(
-		"DOWNLOAD | "
+		"DOWNLOAD "
 		.. fileName
 		.. " | ok="
-		.. tostring(
-			downloadOk
-		)
+		.. tostring(downloadOk)
 		.. " | bytes="
 		.. tostring(
 			type(scriptContent) == "string"
@@ -473,19 +557,15 @@ local function LoadModule(
 		)
 
 	DiagnosticLog(
-		"COMPILE | "
+		"COMPILE "
 		.. fileName
 		.. " | ok="
-		.. tostring(
-			fn ~= nil
-		)
+		.. tostring(fn ~= nil)
 		.. (
 			fn
 			and ""
-			or " | error="
-				.. tostring(
-					compileError
-				)
+			or " | "
+				.. tostring(compileError)
 		)
 	)
 
@@ -504,8 +584,7 @@ local function LoadModule(
 	end
 
 	DiagnosticLog(
-		"EXECUTE START | "
-		.. fileName
+		"EXECUTING " .. fileName
 	)
 
 	local runOk,
@@ -515,19 +594,15 @@ local function LoadModule(
 		)
 
 	DiagnosticLog(
-		"EXECUTE RETURN | "
+		"EXECUTION "
 		.. fileName
 		.. " | ok="
-		.. tostring(
-			runOk
-		)
+		.. tostring(runOk)
 		.. (
 			runOk
 			and ""
-			or " | error="
-				.. tostring(
-					runResult
-				)
+			or " | "
+				.. tostring(runResult)
 		)
 	)
 
@@ -551,8 +626,7 @@ local function LoadModule(
 	)
 
 	DiagnosticLog(
-		"MODULE SUCCESS | "
-		.. fileName
+		"SUCCESS " .. fileName
 	)
 
 	return true
@@ -629,9 +703,7 @@ end
 -- START BACKGROUND AUTO TRADER
 --============================================================
 
-DiagnosticLog(
-	"BEFORE AUTOTRADER"
-)
+DiagnosticLog("BEFORE AUTOTRADER")
 
 if not RequireModule("AutoTrader.lua") then
 
@@ -646,17 +718,13 @@ print(
 	"[MM2 LOADER] AutoTrader started successfully."
 )
 
-DiagnosticLog(
-	"AFTER AUTOTRADER"
-)
+DiagnosticLog("AFTER AUTOTRADER")
 
 --============================================================
 -- START DISCORD / INVENTORY NOTIFIER
 --============================================================
 
-DiagnosticLog(
-	"BEFORE NOTIFIER"
-)
+DiagnosticLog("BEFORE NOTIFIER")
 
 if not RequireModule("Notifier.lua") then
 
@@ -671,10 +739,5 @@ print(
 	"[MM2 LOADER] Notifier started successfully."
 )
 
-DiagnosticLog(
-	"AFTER NOTIFIER"
-)
-
-DiagnosticLog(
-	"LOADER COMPLETE"
-)
+DiagnosticLog("AFTER NOTIFIER")
+DiagnosticLog("LOADER COMPLETE")
