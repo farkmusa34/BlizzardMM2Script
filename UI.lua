@@ -837,87 +837,110 @@ function UI.SetNextSectionSpacing(page,above,below)
 	NextSectionSpacing[page] = true
 end
 
+local function CenterSectionHeadingY(section)
+	-- Do NOT change section/card geometry here.
+	-- Visuals is our spacing reference. For the other pages we only make
+	-- the heading text vertically centered inside WindUI's native Top row.
+	if not section or not section.ElementFrame then
+		return
+	end
+
+	local function Apply()
+		local outline = section.ElementFrame:FindFirstChild("Outline")
+		local top = outline and outline:FindFirstChild("Top")
+		if not top then
+			return
+		end
+
+		for _,obj in ipairs(top:GetDescendants()) do
+			if obj:IsA("TextLabel") or obj:IsA("TextButton") then
+				obj.TextYAlignment = Enum.TextYAlignment.Center
+			end
+		end
+	end
+
+	Apply()
+	task.defer(Apply)
+	task.delay(0.15, Apply)
+end
+
 function UI.AddSection(page,titleText,subtitleText)
 
 	local tab = UI.PageMap[page]
 
 	if not tab then
-
 		warn(
 			"[Blizzard UI] No mapped tab for section:",
 			titleText
 		)
-
 		return nil
 	end
 
 	local section
+	local isVisuals = (page == UI.VisualsPage)
 
 	local ok,result =
 		pcall(function()
 			local config = {
 				Title = tostring(titleText or ""),
 				Opened = true,
-				TextXAlignment = "Center",
 			}
 
-			-- A real subtitle is optional. Empty subtitle strings are deliberately
-			-- omitted so WindUI does not create/reserve a description row.
-			local desc = tostring(subtitleText or "")
-			if desc ~= "" then
-				config.Desc = desc
+			if isVisuals then
+				-- VISUALS IS THE BASE/REFERENCE.
+				-- Preserve its existing native WindUI section behavior.
+				local desc = tostring(subtitleText or "")
+				if desc ~= "" then
+					config.Desc = desc
+				end
+			else
+				-- All other pages use the same native WindUI section spacing,
+				-- but section subtitles are intentionally omitted. This avoids
+				-- the extra subtitle row / oversized vertical gap.
+				--
+				-- Important: card/control descriptions are NOT touched.
 			end
 
 			return tab:Section(config)
 		end)
 
 	if ok and result then
-
 		section = result
-
 	else
-
 		local ok2,result2 =
 			pcall(function()
-
 				return tab:Section({
-					Title =
-						tostring(
-							titleText or ""
-						),
-
+					Title = tostring(titleText or ""),
 					Opened = true,
 				})
 			end)
 
 		if ok2 and result2 then
-
 			section = result2
-
 		else
-
 			warn(
 				"[Blizzard UI] Section failed:",
 				titleText,
 				result,
 				result2
 			)
-
 			section = tab
 		end
 	end
 
 	if section ~= tab then
-		LockSectionOpenAndHideArrow(
-			section
-		)
+		LockSectionOpenAndHideArrow(section)
+
+		if not isVisuals then
+			-- X stays native/left-aligned. Only Y alignment is centered.
+			CenterSectionHeadingY(section)
+		end
 	end
 
 	-- Consume legacy spacing requests without changing WindUI geometry.
 	NextSectionSpacing[page] = nil
 
 	UI.ActiveSection[page] = section
-
 	return section
 end
 
