@@ -49,316 +49,172 @@ end
 local CombatOverlay = UI.TracerGui or UI.ScreenGui
 assert(CombatOverlay, "Combat overlay GUI not found")
 
---============================================================
--- TEMPORARY COMBAT SPACING DIAGNOSTIC V3
---
--- Read-only.
--- V3 removes old diagnostic GUIs, proves this exact file executed,
--- then searches the actual rendered WindUI text controls.
---============================================================
+local function CombatNotify(title,content,icon,duration)
+	local wind = UI.WindUI
+	if wind and wind.Notify then
+		local ok = pcall(function()
+			wind:Notify({
+				Title = tostring(title or "Combat"),
+				Content = tostring(content or ""),
+				Icon = tostring(icon or "info"),
+				Duration = tonumber(duration) or 2.5,
+			})
+		end)
+		if ok then return end
+	end
+	if MM2.Notify then
+		pcall(MM2.Notify,tostring(content or title or "Combat"),tonumber(duration) or 2.5,icon,title)
+	end
+end
+
+local function NormalizeShootMessage(message)
+	if message == "No Murderer"
+		or message == "No Gun"
+		or message == "No Target"
+	then
+		return "No Gun or Murderer"
+	end
+	return message
+end
+
+local function NotifyShootResult(success,message)
+	message = NormalizeShootMessage(message)
+	if success then
+		CombatNotify("Shoot Murderer",message or "Shot Fired","check",1.8)
+	elseif message and message ~= "Cooldown" and message ~= "Busy" then
+		CombatNotify("Shoot Murderer",message,"circle-x",2.5)
+	end
+end
+
+local function NormalizeKillAllMessage(message)
+	if message == "No Knife" or message == "Murderer Role Required" then
+		return "Murderer Role Required"
+	end
+	return message
+end
+
+local function NotifyKillAllResult(success,message)
+	message = NormalizeKillAllMessage(message)
+	if success then
+		CombatNotify("Kill All",message or "Activated","check",1.8)
+	elseif message and message ~= "Cooldown" and message ~= "Busy" then
+		CombatNotify("Kill All",message,"circle-x",2.5)
+	end
+end
+
+
+AddCombatSection("Aimbot")
+UI.CreateToggle(UI.CombatPage, "TriggerBot", "Automatically shoots the murderer when they are visible", "TriggerBot")
+UI.CreateToggle(UI.CombatPage, "Aim Lock", "While Shift Lock is on, tracks the murderer’s torso", "AimLock")
+
+
+AddCombatSection("Sheriff")
+Flags.TriggerBotDelay = math.clamp(tonumber(Flags.TriggerBotDelay) or 0.05,0,0.60)
+UI.CreateSlider(
+	UI.CombatPage,
+	"TriggerBot Delay",
+	"Delay before TriggerBot fires",
+	function() return Flags.TriggerBotDelay end,
+	function(value)
+		Flags.TriggerBotDelay = math.clamp(tonumber(value) or 0.05,0,0.60)
+	end,
+	0,0.60,0.01
+)
+UI.CreateToggle(UI.CombatPage, "Shoot Murderer (Legit)", "Shows a shoot button that only fires when the murderer is visible", "ShowLegitShootButton", function(on)
+	if MM2.UI.FloatingLegitShootHolder then
+		MM2.UI.FloatingLegitShootHolder.Visible = on
+	elseif MM2.UI.FloatingLegitShootButton then
+		MM2.UI.FloatingLegitShootButton.Visible = on
+	end
+end)
+UI.CreateToggle(UI.CombatPage, "General Prediction Diagnostic", "Auto-fires one diagnostic shot for the movement case selected in the diagnostic panel", "GeneralPredictionDiagnostic")
+UI.CreateToggle(UI.CombatPage, "Shoot Murderer (Rage)", "Shows a rage shoot button that can target the murderer through walls", "ShowShootButton", function(on)
+	if MM2.UI.FloatingShootHolder then
+		MM2.UI.FloatingShootHolder.Visible = on
+	elseif MM2.UI.FloatingShootButton then
+		MM2.UI.FloatingShootButton.Visible = on
+	end
+end)
+UI.CreateToggle(UI.CombatPage, "Auto Grab Gun", "Automatically picks up the dropped gun without moving your character", "AutoGrab")
+
+
+AddCombatSection("Murderer")
+
+local RenderLegitThrow
+local RenderRageThrow
+
+local function SetThrowToggle(flagName,value)
+	Flags[flagName] = value == true
+	if flagName == "LegitThrow" and RenderLegitThrow then
+		RenderLegitThrow(Flags[flagName],false)
+	elseif flagName == "RageThrow" and RenderRageThrow then
+		RenderRageThrow(Flags[flagName],false)
+	end
+	if UI.SetToggleState then
+		UI.SetToggleState(flagName,Flags[flagName],false)
+	end
+end
 
 do
-	local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
-	local V3_TOKEN = "V3-20260928-UNIQUE"
-
-	print("[COMBAT DIAG V3] FILE REACHED | "..V3_TOKEN)
-	warn("[COMBAT DIAG V3] FILE REACHED | "..V3_TOKEN)
-
-	-- Remove every known old diagnostic GUI from PlayerGui and CombatOverlay.
-	local oldNames = {
-		"BlizzardNotifierDiagnostic",
-		"BlizzardCombatSpacingDiagnostic",
-		"BlizzardCombatSpacingDiagnosticV2",
-		"BlizzardCombatSpacingDiagnosticV3",
-	}
-
-	for _,root in ipairs({PlayerGui, CombatOverlay}) do
-		if root then
-			for _,name in ipairs(oldNames) do
-				local old = root:FindFirstChild(name)
-				if old then
-					old:Destroy()
-				end
-			end
-		end
-	end
-
-	local Gui = Instance.new("ScreenGui")
-	Gui.Name = "BlizzardCombatSpacingDiagnosticV3"
-	Gui.ResetOnSpawn = false
-	Gui.IgnoreGuiInset = true
-	Gui.DisplayOrder = 1000002
-	Gui.Parent = PlayerGui
-
-	local Open = Instance.new("TextButton")
-	Open.Name = "OpenV3"
-	Open.Size = UDim2.fromOffset(126,44)
-	Open.Position = UDim2.new(1,-140,0,86)
-	Open.BackgroundColor3 = Color3.fromRGB(24,24,28)
-	Open.BorderSizePixel = 0
-	Open.Text = "UI DIAG V3"
-	Open.TextColor3 = Color3.new(1,1,1)
-	Open.TextSize = 16
-	Open.Font = Enum.Font.GothamBold
-	Open.Parent = Gui
-	Instance.new("UICorner",Open).CornerRadius = UDim.new(0,12)
-
-	local Panel = Instance.new("Frame")
-	Panel.Name = "V3Panel"
-	Panel.Size = UDim2.new(0.94,0,0.78,0)
-	Panel.Position = UDim2.new(0.03,0,0.11,0)
-	Panel.BackgroundColor3 = Color3.fromRGB(15,15,18)
-	Panel.BorderSizePixel = 0
-	Panel.Visible = false
-	Panel.Parent = Gui
-	Instance.new("UICorner",Panel).CornerRadius = UDim.new(0,14)
-
-	local Title = Instance.new("TextLabel")
-	Title.Size = UDim2.new(1,-20,0,40)
-	Title.Position = UDim2.fromOffset(10,4)
-	Title.BackgroundTransparency = 1
-	Title.Text = "COMBAT SPACING DIAGNOSTIC V3 — "..V3_TOKEN
-	Title.TextColor3 = Color3.new(1,1,1)
-	Title.TextSize = 16
-	Title.Font = Enum.Font.GothamBold
-	Title.TextXAlignment = Enum.TextXAlignment.Left
-	Title.Parent = Panel
-
-	local Report = Instance.new("TextBox")
-	Report.Size = UDim2.new(1,-20,1,-104)
-	Report.Position = UDim2.fromOffset(10,44)
-	Report.BackgroundColor3 = Color3.fromRGB(8,8,10)
-	Report.BorderSizePixel = 0
-	Report.ClearTextOnFocus = false
-	Report.MultiLine = true
-	Report.TextEditable = false
-	Report.TextWrapped = false
-	Report.Text = "V3 FILE REACHED.\nOpen Combat, then press SCAN V3."
-	Report.TextColor3 = Color3.fromRGB(235,235,235)
-	Report.TextSize = 11
-	Report.Font = Enum.Font.Code
-	Report.TextXAlignment = Enum.TextXAlignment.Left
-	Report.TextYAlignment = Enum.TextYAlignment.Top
-	Report.Parent = Panel
-	Instance.new("UICorner",Report).CornerRadius = UDim.new(0,10)
-
-	local function makeButton(label,x)
-		local b = Instance.new("TextButton")
-		b.Size = UDim2.new(0.30,0,0,40)
-		b.Position = UDim2.new(x,0,1,-48)
-		b.BackgroundColor3 = Color3.fromRGB(42,42,48)
-		b.BorderSizePixel = 0
-		b.Text = label
-		b.TextColor3 = Color3.new(1,1,1)
-		b.TextSize = 14
-		b.Font = Enum.Font.GothamBold
-		b.Parent = Panel
-		Instance.new("UICorner",b).CornerRadius = UDim.new(0,10)
-		return b
-	end
-
-	local Scan = makeButton("SCAN V3",0.03)
-	local Copy = makeButton("COPY V3",0.35)
-	local Close = makeButton("CLOSE",0.67)
-
-	local targets = {
-		"Aimbot","TriggerBot","Aim Lock","Rage Throw","Auto Grab Gun",
-		"Floating Shoot Button","Kill All","Sheriff","Gun ESP",
-		"Murderer","Knife ESP","Crosshair","Crosshair Enabled",
-		"Crosshair Size","Crosshair Thickness","Crosshair Transparency",
-		"Crosshair Gap","Crosshair Color",
-	}
-
-	local Last = ""
-
-	local function clean(s)
-		return tostring(s):gsub("\n","\\n")
-	end
-
-	local function path(obj)
-		local parts = {}
-		local cur = obj
-		for _=1,12 do
-			if not cur then break end
-			table.insert(parts,1,cur.Name)
-			if cur == PlayerGui then break end
-			cur = cur.Parent
-		end
-		return table.concat(parts,"/")
-	end
-
-	local function geometry(obj)
-		if not obj:IsA("GuiObject") then return "" end
-		return string.format(
-			" pos=(%d,%d) size=(%d,%d) vis=%s order=%d",
-			math.floor(obj.AbsolutePosition.X+.5),
-			math.floor(obj.AbsolutePosition.Y+.5),
-			math.floor(obj.AbsoluteSize.X+.5),
-			math.floor(obj.AbsoluteSize.Y+.5),
-			tostring(obj.Visible),
-			obj.LayoutOrder
-		)
-	end
-
-	local function findText(target)
-		local matches = {}
-		for _,obj in ipairs(PlayerGui:GetDescendants()) do
-			if (obj:IsA("TextLabel") or obj:IsA("TextButton") or obj:IsA("TextBox"))
-				and obj ~= Report
-				and clean(obj.Text) == target
-			then
-				table.insert(matches,obj)
-			end
-		end
-		table.sort(matches,function(a,b)
-			return a.AbsolutePosition.Y < b.AbsolutePosition.Y
-		end)
-		return matches
-	end
-
-	local function parentDump(lines,obj)
-		local cur = obj
-		for level=0,8 do
-			if not cur then break end
-			table.insert(lines,string.format(
-				" P%d %s <%s>%s",
-				level,path(cur),cur.ClassName,geometry(cur)
-			))
-
-			for _,child in ipairs(cur:GetChildren()) do
-				if child:IsA("UIListLayout") then
-					table.insert(lines,string.format(
-						"    LIST %s pad=(%.3f,%d) content=(%d,%d) fill=%s sort=%s",
-						child.Name,
-						child.Padding.Scale,child.Padding.Offset,
-						math.floor(child.AbsoluteContentSize.X+.5),
-						math.floor(child.AbsoluteContentSize.Y+.5),
-						tostring(child.FillDirection),
-						tostring(child.SortOrder)
-					))
-				elseif child:IsA("UIPadding") then
-					table.insert(lines,string.format(
-						"    PAD %s T=(%.3f,%d) B=(%.3f,%d) L=(%.3f,%d) R=(%.3f,%d)",
-						child.Name,
-						child.PaddingTop.Scale,child.PaddingTop.Offset,
-						child.PaddingBottom.Scale,child.PaddingBottom.Offset,
-						child.PaddingLeft.Scale,child.PaddingLeft.Offset,
-						child.PaddingRight.Scale,child.PaddingRight.Offset
-					))
-				end
-			end
-			cur = cur.Parent
-		end
-	end
-
-	local function build()
-		local lines = {
-			"=== BLIZZARD COMBAT SPACING REPORT V3 ===",
-			"TOKEN="..V3_TOKEN,
-			"CombatPagePlaceholder="..tostring(UI.CombatPage),
-			"PlayerGui="..PlayerGui:GetFullName(),
-			"",
-		}
-
-		local allMatches = {}
-
-		for _,target in ipairs(targets) do
-			local matches = findText(target)
-			table.insert(lines,string.format(
-				"=== TARGET %q | matches=%d ===",target,#matches
-			))
-			if #matches == 0 then
-				table.insert(lines," NOT FOUND")
-			end
-			for i,obj in ipairs(matches) do
-				table.insert(allMatches,obj)
-				table.insert(lines,string.format(
-					" M%d %s <%s>%s text=%q",
-					i,path(obj),obj.ClassName,geometry(obj),clean(obj.Text)
-				))
-				parentDump(lines,obj)
-			end
-			table.insert(lines,"")
-		end
-
-		table.insert(lines,"=== SHARED ANCESTOR / SPACER CANDIDATES ===")
-		local seen = {}
-		for _,obj in ipairs(allMatches) do
-			local cur = obj.Parent
-			for _=1,9 do
-				if not cur then break end
-				if cur:IsA("GuiObject") and not seen[cur] then
-					seen[cur] = true
-					if cur.AbsoluteSize.Y >= 60 then
-						table.insert(lines,string.format(
-							"%s <%s>%s",
-							path(cur),cur.ClassName,geometry(cur)
-						))
-						for _,child in ipairs(cur:GetChildren()) do
-							if child:IsA("UIListLayout") then
-								table.insert(lines,string.format(
-									"  LIST pad=(%.3f,%d) contentY=%d",
-									child.Padding.Scale,child.Padding.Offset,
-									math.floor(child.AbsoluteContentSize.Y+.5)
-								))
-							elseif child:IsA("UIPadding") then
-								table.insert(lines,string.format(
-									"  PAD top=%d bottom=%d",
-									child.PaddingTop.Offset,child.PaddingBottom.Offset
-								))
-							end
-						end
-					end
-				end
-				cur = cur.Parent
-			end
-		end
-
-		table.insert(lines,"")
-		table.insert(lines,"READ-ONLY V3: no layout values were modified.")
-		return table.concat(lines,"\n")
-	end
-
-	Open.MouseButton1Click:Connect(function()
-		Panel.Visible = not Panel.Visible
+	local _,_,render = UI.CreateToggle(UI.CombatPage, "Auto Throw Knife (Legit)", "Automatically throws your knife at the closest visible player", "LegitThrow", function(on)
+		if on then SetThrowToggle("RageThrow",false) end
 	end)
-
-	Scan.MouseButton1Click:Connect(function()
-		Last = build()
-		Report.Text = Last
-		print("[COMBAT DIAG V3] SCAN COMPLETE | "..V3_TOKEN)
-		print(Last)
-	end)
-
-	Copy.MouseButton1Click:Connect(function()
-		if Last == "" then
-			Last = build()
-			Report.Text = Last
-		end
-		if setclipboard then
-			local ok = pcall(setclipboard,Last)
-			Copy.Text = ok and "COPIED V3" or "COPY FAILED"
-		else
-			Copy.Text = "NO CLIPBOARD"
-		end
-		task.delay(1.3,function()
-			if Copy and Copy.Parent then Copy.Text = "COPY V3" end
-		end)
-	end)
-
-	Close.MouseButton1Click:Connect(function()
-		Panel.Visible = false
-	end)
-
-	MM2.UI.CombatSpacingDiagnosticV3 = Gui
+	RenderLegitThrow = render
 end
+
+do
+	local _,_,render = UI.CreateToggle(UI.CombatPage, "Auto Throw Knife (Rage)", "Automatically throws your knife at the closest player, even through walls", "RageThrow", function(on)
+		if on then SetThrowToggle("LegitThrow",false) end
+	end)
+	RenderRageThrow = render
+end
+
+if Flags.LegitThrow and Flags.RageThrow then
+	SetThrowToggle("RageThrow",false)
+end
+
+local KNIFE_RANGE_MIN = 5
+local KNIFE_RANGE_MAX = 1000
+local KILL_ALL_RANGE = 10000
+Flags.KnifeRange = math.clamp(tonumber(Flags.KnifeRange) or 10,KNIFE_RANGE_MIN,KNIFE_RANGE_MAX)
+
+Flags.KnifeAura = Flags.KnifeAura == true
+UI.CreateToggle(UI.CombatPage, "Knife Aura", "Stabs nearby players when you use your knife", "KnifeAura")
+
+UI.CreateSlider(
+	UI.CombatPage,
+	"Knife Aura (Studs)",
+	"Sets the Knife Aura range",
+	function() return Flags.KnifeRange end,
+	function(value)
+		Flags.KnifeRange = math.clamp(tonumber(value) or 10,KNIFE_RANGE_MIN,KNIFE_RANGE_MAX)
+	end,
+	KNIFE_RANGE_MIN,KNIFE_RANGE_MAX,5
+)
+
+Flags.ShowKillAllButton = Flags.ShowKillAllButton == true
+UI.CreateToggle(UI.CombatPage, "Show Kill All Button", "Shows the floating Kill All button", "ShowKillAllButton", function(on)
+	if MM2.UI.FloatingKillAllHolder then MM2.UI.FloatingKillAllHolder.Visible = on end
+end)
+
+UI.CreateActionFeature(UI.CombatPage, "Kill All", "Stabs every player as murderer", function()
+	if MM2.Functions.KillAllOnce then
+		local ok,success,message = pcall(MM2.Functions.KillAllOnce)
+		if not ok then
+			warn("[MM2 KILL ALL ACTION]",success)
+			CombatNotify("Kill All","Kill All error","circle-x",2)
+		else
+			NotifyKillAllResult(success,message)
+		end
+	end
+end, "skull")
 
 --============================================================
 -- CROSSHAIR
 --============================================================
 
 
-AddCompactCombatSection("Crosshair")
+AddCombatSection("Crosshair")
 
 Flags.CustomCrosshair = Flags.CustomCrosshair == true
 Flags.CrosshairType = tostring(Flags.CrosshairType or "Classic")
