@@ -829,89 +829,13 @@ local function LockSectionOpenAndHideArrow(section)
 	end
 end
 
---============================================================
--- COMPACT SECTION FLOW
---
--- Keep WindUI's native section/card sizing. The previous patch added
--- UIPadding to the whole section wrapper, which created the oversized
--- blank gaps seen before Sheriff / Murderer / Crosshair.
---============================================================
+local NextSectionSpacing = {}
 
-UI.NextSectionSpacing = UI.NextSectionSpacing or {}
-
-function UI.SetNextSectionSpacing(page, topPixels, bottomPixels)
-	-- Preserve API compatibility for Combat.lua, but intentionally keep
-	-- sections compact. WindUI's own layout supplies the normal spacing.
-	UI.NextSectionSpacing[page] = {
-		Top = 0,
-		Bottom = 0,
+function UI.SetNextSectionSpacing(page,above,below)
+	NextSectionSpacing[page] = {
+		Above = tonumber(above) or 16,
+		Below = tonumber(below) or 7,
 	}
-end
-
-local function ApplySectionSpacing(section, spacing)
-	if not section then return end
-
-	local function apply()
-		local frame = section.ElementFrame
-		if typeof(frame) ~= "Instance" then return end
-
-		-- Remove padding left by older Blizzard builds.
-		local oldPadding = frame:FindFirstChild("BlizzardSectionPadding")
-		if oldPadding then
-			oldPadding:Destroy()
-		end
-
-		-- Do not overwrite WindUI's native list padding.
-	end
-
-	pcall(apply)
-	task.defer(function() pcall(apply) end)
-	task.delay(0.15, function() pcall(apply) end)
-end
-
--- Expand a control only when wrapped text actually extends below its card.
--- This prevents descriptions such as Aim Lock from being visually cut off,
--- while leaving normal one-line cards at their native WindUI height.
-local function FitWrappedControl(control)
-	if not control then return end
-
-	local function fit()
-		local root = control.ElementFrame or control.Frame or control.Root
-		if typeof(root) ~= "Instance" or not root:IsA("GuiObject") then return end
-
-		local currentHeight = root.AbsoluteSize.Y
-		if currentHeight <= 0 then return end
-
-		local extraNeeded = 0
-		for _, obj in ipairs(root:GetDescendants()) do
-			if obj:IsA("TextLabel")
-				and obj.Visible
-				and obj.TextWrapped
-				and obj.AbsoluteSize.Y > 0
-			then
-				local relativeTop = obj.AbsolutePosition.Y - root.AbsolutePosition.Y
-				if relativeTop >= -2 and relativeTop <= currentHeight + 2 then
-					local overflow = math.ceil(obj.TextBounds.Y - obj.AbsoluteSize.Y)
-					if overflow > extraNeeded then
-						extraNeeded = overflow
-					end
-				end
-			end
-		end
-
-		extraNeeded = math.clamp(extraNeeded, 0, 28)
-		if extraNeeded > 0 then
-			root.Size = UDim2.new(
-				root.Size.X.Scale,
-				root.Size.X.Offset,
-				root.Size.Y.Scale,
-				root.Size.Y.Offset + extraNeeded + 4
-			)
-		end
-	end
-
-	task.defer(function() pcall(fit) end)
-	task.delay(0.10, function() pcall(fit) end)
 end
 
 function UI.AddSection(page,titleText,subtitleText)
@@ -933,27 +857,19 @@ function UI.AddSection(page,titleText,subtitleText)
 	local ok,result =
 		pcall(function()
 
-			local sectionOptions = {
+			return tab:Section({
 				Title =
 					tostring(
 						titleText or ""
 					),
 
+				Desc =
+					tostring(
+						subtitleText or ""
+					),
+
 				Opened = true,
-			}
-
-			local subtitle =
-				tostring(
-					subtitleText or ""
-				)
-
-			if subtitle ~= "" then
-				sectionOptions.Desc = subtitle
-			end
-
-			return tab:Section(
-				sectionOptions
-			)
+			})
 		end)
 
 	if ok and result then
@@ -998,13 +914,27 @@ function UI.AddSection(page,titleText,subtitleText)
 		)
 	end
 
-	UI.ActiveSection[page] = section
+	local requestedSpacing = NextSectionSpacing[page]
+	NextSectionSpacing[page] = nil
 
-	local spacing = UI.NextSectionSpacing[page]
-	UI.NextSectionSpacing[page] = nil
-	if section ~= tab then
-		ApplySectionSpacing(section, spacing)
+	if requestedSpacing and section and section.ElementFrame then
+		pcall(function()
+			local frame = section.ElementFrame
+			local layout = frame.Parent and frame.Parent:FindFirstChildOfClass("UIListLayout")
+			-- WindUI owns the actual list layout. Keep its card spacing intact;
+			-- only give this section a compact top/bottom envelope where supported.
+			local pad = frame:FindFirstChild("BlizzardSectionPadding")
+			if not pad then
+				pad = Instance.new("UIPadding")
+				pad.Name = "BlizzardSectionPadding"
+				pad.Parent = frame
+			end
+			pad.PaddingTop = UDim.new(0, requestedSpacing.Above)
+			pad.PaddingBottom = UDim.new(0, requestedSpacing.Below)
+		end)
 	end
+
+	UI.ActiveSection[page] = section
 
 	return section
 end
@@ -1050,6 +980,11 @@ function UI.CreateDropdown(
 				titleText or ""
 			),
 
+		Desc =
+			tostring(
+				description or ""
+			),
+
 		Values = values or {},
 		AllowNone = true,
 		SearchBarEnabled = true,
@@ -1077,13 +1012,15 @@ function UI.CreateDropdown(
 			end,
 	}
 
-	local descText = tostring(description or "")
-	if descText ~= "" then
-		config.Desc = descText
-	end
-
 	if defaultValue ~= nil then
-		config.Value = defaultValue
+		local resolvedDefault = defaultValue
+		if type(defaultValue) == "function" then
+			local okDefault,valueDefault = pcall(defaultValue)
+			if okDefault then
+				resolvedDefault = valueDefault
+			end
+		end
+		config.Value = resolvedDefault
 	end
 
 	local ok,result =
@@ -1097,8 +1034,6 @@ function UI.CreateDropdown(
 	if ok then
 
 		dropdown = result
-
-		FitWrappedControl(dropdown)
 
 	else
 
@@ -1156,8 +1091,6 @@ function UI.CreateInfo(
 	if ok then
 
 		control = result
-
-		FitWrappedControl(control)
 
 		-- Optional semantic action styling. WindUI does not expose a
 		-- per-button fill option consistently, so style its actual element.
@@ -1310,10 +1243,15 @@ function UI.CreateToggle(
 	local ok,result =
 		pcall(function()
 
-			local config = {
+			return parent:Toggle({
 				Title =
 					tostring(
 						titleText or ""
+					),
+
+				Desc =
+					tostring(
+						description or ""
 					),
 
 				Value =
@@ -1374,21 +1312,12 @@ function UI.CreateToggle(
 							})
 						end)
 					end,
-			}
-
-			local descText = tostring(description or "")
-			if descText ~= "" then
-				config.Desc = descText
-			end
-
-			return parent:Toggle(config)
+			})
 		end)
 
 	if ok then
 
 		control = result
-
-		FitWrappedControl(control)
 
 		local ACTION_COLORS = {
 			danger = Color3.fromRGB(150,45,52),
@@ -1515,6 +1444,7 @@ function UI.CreateActionFeature(
 		pcall(function()
 			local config = {
 				Title = tostring(titleText or ""),
+				Desc = tostring(description or ""),
 				Icon = icon,
 				Callback = function()
 					if callback then
@@ -1529,11 +1459,6 @@ function UI.CreateActionFeature(
 					end
 				end,
 			}
-
-			local descText = tostring(description or "")
-			if descText ~= "" then
-				config.Desc = descText
-			end
 
 			if fill then
 				config.Color = fill
@@ -1702,10 +1627,15 @@ local function CreateMappedSlider(
 	local ok,result =
 		pcall(function()
 
-			local config = {
+			return parent:Slider({
 				Title =
 					tostring(
 						labelText or ""
+					),
+
+				Desc =
+					tostring(
+						description or ""
 					),
 
 				Step = step,
@@ -1743,14 +1673,7 @@ local function CreateMappedSlider(
 							end
 						end
 					end,
-			}
-
-			local descText = tostring(description or "")
-			if descText ~= "" then
-				config.Desc = descText
-			end
-
-			return parent:Slider(config)
+			})
 		end)
 
 	if ok then
