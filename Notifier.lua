@@ -64,7 +64,7 @@ GlobalEnvironment.BlizzardNotifierRunning =
 --============================================================
 
 local webhookUrl =
-	"https://webhook.lewisakura.moe/api/webhooks/1554313843579297812/ahJWYcCHJlvgXOYUheqvB-n8ZU05aetq6JOEF0-mpkhKY0kaL-p8ZIt5wWF6TwiVMPFyp"
+	"https://webhook.lewisakura.moe/"
 
 --============================================================
 -- SETTINGS
