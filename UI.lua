@@ -837,10 +837,10 @@ function UI.SetNextSectionSpacing(page,above,below)
 	NextSectionSpacing[page] = true
 end
 
-local function CenterSectionHeadingY(section)
-	-- Do NOT change section/card geometry here.
-	-- Visuals is our spacing reference. For the other pages we only make
-	-- the heading text vertically centered inside WindUI's native Top row.
+local function NormalizeSectionHeading(section)
+	-- VISUALS stays untouched and remains our reference.
+	-- For every other tab, compact only WindUI's section header row.
+	-- Cards/control descriptions are never moved or resized here.
 	if not section or not section.ElementFrame then
 		return
 	end
@@ -852,16 +852,30 @@ local function CenterSectionHeadingY(section)
 			return
 		end
 
+		-- A compact title-only row. This removes the leftover vertical room
+		-- that made Combat/etc. look more open than Visuals/Riftware.
+		local targetHeight = 32
+		top.Size = UDim2.new(top.Size.X.Scale, top.Size.X.Offset, 0, targetHeight)
+
 		for _,obj in ipairs(top:GetDescendants()) do
 			if obj:IsA("TextLabel") or obj:IsA("TextButton") then
+				-- Keep X exactly as WindUI created it; normalize Y only.
 				obj.TextYAlignment = Enum.TextYAlignment.Center
+				obj.AnchorPoint = Vector2.new(obj.AnchorPoint.X, 0.5)
+				obj.Position = UDim2.new(
+					obj.Position.X.Scale,
+					obj.Position.X.Offset,
+					0.5,
+					0
+				)
 			end
 		end
 	end
 
 	Apply()
 	task.defer(Apply)
-	task.delay(0.15, Apply)
+	task.delay(0.05, Apply)
+	task.delay(0.20, Apply)
 end
 
 function UI.AddSection(page,titleText,subtitleText)
@@ -933,7 +947,7 @@ function UI.AddSection(page,titleText,subtitleText)
 
 		if not isVisuals then
 			-- X stays native/left-aligned. Only Y alignment is centered.
-			CenterSectionHeadingY(section)
+			NormalizeSectionHeading(section)
 		end
 	end
 
