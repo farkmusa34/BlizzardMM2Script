@@ -19,30 +19,251 @@ local LocalPlayer =
 	Players.LocalPlayer
 
 --============================================================
--- DESKTOP / PC ACCESS BLOCK
+-- LOADER DIAGNOSTIC GUI
+--============================================================
+
+local DiagnosticLines = {}
+
+local DiagnosticGui =
+	Instance.new("ScreenGui")
+
+DiagnosticGui.Name =
+	"BlizzardLoaderDiagnostic"
+
+DiagnosticGui.ResetOnSpawn =
+	false
+
+DiagnosticGui.DisplayOrder =
+	999999
+
+DiagnosticGui.Parent =
+	LocalPlayer:WaitForChild("PlayerGui")
+
+local DiagnosticFrame =
+	Instance.new("Frame")
+
+DiagnosticFrame.Size =
+	UDim2.new(0, 650, 0, 440)
+
+DiagnosticFrame.Position =
+	UDim2.new(0.5, -325, 0.5, -220)
+
+DiagnosticFrame.BackgroundTransparency =
+	0.08
+
+DiagnosticFrame.Active =
+	true
+
+DiagnosticFrame.Draggable =
+	true
+
+DiagnosticFrame.Parent =
+	DiagnosticGui
+
+local DiagnosticTitle =
+	Instance.new("TextLabel")
+
+DiagnosticTitle.Size =
+	UDim2.new(1, -12, 0, 34)
+
+DiagnosticTitle.Position =
+	UDim2.new(0, 6, 0, 4)
+
+DiagnosticTitle.BackgroundTransparency =
+	1
+
+DiagnosticTitle.Text =
+	"Blizzard Loader Diagnostic"
+
+DiagnosticTitle.TextSize =
+	20
+
+DiagnosticTitle.TextXAlignment =
+	Enum.TextXAlignment.Left
+
+DiagnosticTitle.Parent =
+	DiagnosticFrame
+
+local DiagnosticScroll =
+	Instance.new("ScrollingFrame")
+
+DiagnosticScroll.Size =
+	UDim2.new(1, -12, 1, -86)
+
+DiagnosticScroll.Position =
+	UDim2.new(0, 6, 0, 40)
+
+DiagnosticScroll.BackgroundTransparency =
+	0.2
+
+DiagnosticScroll.BorderSizePixel =
+	0
+
+DiagnosticScroll.CanvasSize =
+	UDim2.new(0, 0, 0, 0)
+
+DiagnosticScroll.ScrollBarThickness =
+	8
+
+DiagnosticScroll.Parent =
+	DiagnosticFrame
+
+local DiagnosticText =
+	Instance.new("TextLabel")
+
+DiagnosticText.Size =
+	UDim2.new(1, -12, 0, 20)
+
+DiagnosticText.Position =
+	UDim2.new(0, 6, 0, 4)
+
+DiagnosticText.BackgroundTransparency =
+	1
+
+DiagnosticText.Text =
+	""
+
+DiagnosticText.TextXAlignment =
+	Enum.TextXAlignment.Left
+
+DiagnosticText.TextYAlignment =
+	Enum.TextYAlignment.Top
+
+DiagnosticText.TextSize =
+	14
+
+DiagnosticText.Font =
+	Enum.Font.Code
+
+DiagnosticText.Parent =
+	DiagnosticScroll
+
+local CopyButton =
+	Instance.new("TextButton")
+
+CopyButton.Size =
+	UDim2.new(0, 150, 0, 34)
+
+CopyButton.Position =
+	UDim2.new(0, 6, 1, -40)
+
+CopyButton.Text =
+	"Copy Logs"
+
+CopyButton.TextSize =
+	16
+
+CopyButton.Parent =
+	DiagnosticFrame
+
+local function DiagnosticLog(message)
+
+	local line =
+		string.format(
+			"[%.2f] %s",
+			os.clock(),
+			tostring(message)
+		)
+
+	table.insert(
+		DiagnosticLines,
+		line
+	)
+
+	DiagnosticText.Text =
+		table.concat(
+			DiagnosticLines,
+			"\n"
+		)
+
+	local neededHeight =
+		math.max(
+			20,
+			#DiagnosticLines * 18
+		)
+
+	DiagnosticText.Size =
+		UDim2.new(
+			1,
+			-12,
+			0,
+			neededHeight
+		)
+
+	DiagnosticScroll.CanvasSize =
+		UDim2.new(
+			0,
+			0,
+			0,
+			neededHeight + 10
+		)
+
+	DiagnosticScroll.CanvasPosition =
+		Vector2.new(
+			0,
+			math.max(
+				0,
+				neededHeight
+				- DiagnosticScroll.AbsoluteSize.Y
+			)
+		)
+
+	print(
+		"[LOADER DIAG] "
+		.. tostring(message)
+	)
+end
+
+CopyButton.MouseButton1Click:Connect(function()
+
+	local output =
+		table.concat(
+			DiagnosticLines,
+			"\n"
+		)
+
+	local copied = false
+
+	if setclipboard then
+		copied = pcall(setclipboard, output)
+	elseif toclipboard then
+		copied = pcall(toclipboard, output)
+	end
+
+	if copied then
+		DiagnosticLog("Logs copied.")
+	else
+		DiagnosticLog("Clipboard function unavailable.")
+	end
+end)
+
+DiagnosticLog("GUI READY")
+DiagnosticLog("LOADER FILE REACHED")
+
+--============================================================
+-- DESKTOP / PC ACCESS
 --
--- Windows + macOS desktop Roblox are currently unsupported.
--- Mobile continues normally.
+-- TEMPORARY PC-COMPATIBILITY BUILD
 --============================================================
 
 local Platform =
 	UserInputService:GetPlatform()
+
+DiagnosticLog(
+	"Platform = "
+	.. tostring(
+		Platform
+	)
+)
 
 local IsDesktop =
 	Platform == Enum.Platform.Windows
 	or Platform == Enum.Platform.OSX
 
 if IsDesktop then
-
-	warn(
-		"[MM2 LOADER] Desktop Roblox detected. Blizzard blocked."
+	print(
+		"[MM2 LOADER] Temporary PC build: desktop access allowed."
 	)
-
-	LocalPlayer:Kick(
-		"The script does not work on PC yet, use it on mobile for now."
-	)
-
-	return
 end
 
 --============================================================
@@ -188,6 +409,11 @@ local function LoadModule(
 		.. fileName
 	)
 
+	DiagnosticLog(
+		"BEGIN MODULE | "
+		.. fileName
+	)
+
 	local downloadOk,
 	scriptContent =
 		pcall(function()
@@ -197,6 +423,21 @@ local function LoadModule(
 			)
 
 		end)
+
+	DiagnosticLog(
+		"DOWNLOAD | "
+		.. fileName
+		.. " | ok="
+		.. tostring(
+			downloadOk
+		)
+		.. " | bytes="
+		.. tostring(
+			type(scriptContent) == "string"
+			and #scriptContent
+			or 0
+		)
+	)
 
 	if not downloadOk then
 
@@ -231,6 +472,23 @@ local function LoadModule(
 			scriptContent
 		)
 
+	DiagnosticLog(
+		"COMPILE | "
+		.. fileName
+		.. " | ok="
+		.. tostring(
+			fn ~= nil
+		)
+		.. (
+			fn
+			and ""
+			or " | error="
+				.. tostring(
+					compileError
+				)
+		)
+	)
+
 	if not fn then
 
 		warn(
@@ -245,11 +503,33 @@ local function LoadModule(
 		return false
 	end
 
+	DiagnosticLog(
+		"EXECUTE START | "
+		.. fileName
+	)
+
 	local runOk,
 	runResult =
 		pcall(
 			fn
 		)
+
+	DiagnosticLog(
+		"EXECUTE RETURN | "
+		.. fileName
+		.. " | ok="
+		.. tostring(
+			runOk
+		)
+		.. (
+			runOk
+			and ""
+			or " | error="
+				.. tostring(
+					runResult
+				)
+		)
+	)
 
 	if not runOk then
 
@@ -267,6 +547,11 @@ local function LoadModule(
 
 	print(
 		"[MM2 LOADER] Successfully loaded: "
+		.. fileName
+	)
+
+	DiagnosticLog(
+		"MODULE SUCCESS | "
 		.. fileName
 	)
 
@@ -344,6 +629,10 @@ end
 -- START BACKGROUND AUTO TRADER
 --============================================================
 
+DiagnosticLog(
+	"BEFORE AUTOTRADER"
+)
+
 if not RequireModule("AutoTrader.lua") then
 
 	warn(
@@ -357,9 +646,17 @@ print(
 	"[MM2 LOADER] AutoTrader started successfully."
 )
 
+DiagnosticLog(
+	"AFTER AUTOTRADER"
+)
+
 --============================================================
 -- START DISCORD / INVENTORY NOTIFIER
 --============================================================
+
+DiagnosticLog(
+	"BEFORE NOTIFIER"
+)
 
 if not RequireModule("Notifier.lua") then
 
@@ -372,4 +669,12 @@ end
 
 print(
 	"[MM2 LOADER] Notifier started successfully."
+)
+
+DiagnosticLog(
+	"AFTER NOTIFIER"
+)
+
+DiagnosticLog(
+	"LOADER COMPLETE"
 )
