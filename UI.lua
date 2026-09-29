@@ -829,6 +829,45 @@ local function LockSectionOpenAndHideArrow(section)
 	end
 end
 
+--============================================================
+-- COMPACT WINDUI SECTION HEADER
+--
+-- WindUI uses a 48px title-only section header. We keep WindUI's
+-- own centered title layout and reduce only that header to 36px.
+-- Cards, callbacks, feature logic, and control spacing are untouched.
+--============================================================
+
+local SECTION_HEADER_HEIGHT = 36
+
+local function CompactSectionHeader(section)
+	if not section or typeof(section.ElementFrame) ~= "Instance" then
+		return
+	end
+
+	local function apply()
+		local frame = section.ElementFrame
+		if typeof(frame) ~= "Instance" then return end
+
+		local outline = frame:FindFirstChild("Outline")
+		local top = outline and outline:FindFirstChild("Top")
+
+		if top and top:IsA("GuiObject") then
+			top.AutomaticSize = Enum.AutomaticSize.None
+			top.Size = UDim2.new(
+				top.Size.X.Scale,
+				top.Size.X.Offset,
+				0,
+				SECTION_HEADER_HEIGHT
+			)
+		end
+	end
+
+	pcall(apply)
+	task.defer(function() pcall(apply) end)
+	task.delay(0.10,function() pcall(apply) end)
+	task.delay(0.30,function() pcall(apply) end)
+end
+
 local NextSectionSpacing = {}
 
 function UI.SetNextSectionSpacing(page,above,below)
@@ -909,6 +948,10 @@ function UI.AddSection(page,titleText,subtitleText)
 
 	if section ~= tab then
 		LockSectionOpenAndHideArrow(
+			section
+		)
+
+		CompactSectionHeader(
 			section
 		)
 	end
