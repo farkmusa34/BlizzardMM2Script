@@ -50,79 +50,102 @@ local CombatOverlay = UI.TracerGui or UI.ScreenGui
 assert(CombatOverlay, "Combat overlay GUI not found")
 
 --============================================================
--- TEMPORARY COMBAT SPACING DIAGNOSTIC V2
+-- TEMPORARY COMBAT SPACING DIAGNOSTIC V3
 --
--- Read-only. Searches PlayerGui for the ACTUAL rendered WindUI
--- controls by visible text, then walks upward through their parents.
+-- Read-only.
+-- V3 removes old diagnostic GUIs, proves this exact file executed,
+-- then searches the actual rendered WindUI text controls.
 --============================================================
 
 do
 	local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
+	local V3_TOKEN = "V3-20260928-UNIQUE"
 
-	local old = PlayerGui:FindFirstChild("BlizzardCombatSpacingDiagnosticV2")
-	if old then old:Destroy() end
+	print("[COMBAT DIAG V3] FILE REACHED | "..V3_TOKEN)
+	warn("[COMBAT DIAG V3] FILE REACHED | "..V3_TOKEN)
+
+	-- Remove every known old diagnostic GUI from PlayerGui and CombatOverlay.
+	local oldNames = {
+		"BlizzardNotifierDiagnostic",
+		"BlizzardCombatSpacingDiagnostic",
+		"BlizzardCombatSpacingDiagnosticV2",
+		"BlizzardCombatSpacingDiagnosticV3",
+	}
+
+	for _,root in ipairs({PlayerGui, CombatOverlay}) do
+		if root then
+			for _,name in ipairs(oldNames) do
+				local old = root:FindFirstChild(name)
+				if old then
+					old:Destroy()
+				end
+			end
+		end
+	end
 
 	local Gui = Instance.new("ScreenGui")
-	Gui.Name = "BlizzardCombatSpacingDiagnosticV2"
+	Gui.Name = "BlizzardCombatSpacingDiagnosticV3"
 	Gui.ResetOnSpawn = false
 	Gui.IgnoreGuiInset = true
-	Gui.DisplayOrder = 1000001
+	Gui.DisplayOrder = 1000002
 	Gui.Parent = PlayerGui
 
 	local Open = Instance.new("TextButton")
-	Open.Size = UDim2.fromOffset(110, 42)
-	Open.Position = UDim2.new(1, -124, 0, 86)
+	Open.Name = "OpenV3"
+	Open.Size = UDim2.fromOffset(126,44)
+	Open.Position = UDim2.new(1,-140,0,86)
 	Open.BackgroundColor3 = Color3.fromRGB(24,24,28)
 	Open.BorderSizePixel = 0
-	Open.Text = "UI DIAG V2"
+	Open.Text = "UI DIAG V3"
 	Open.TextColor3 = Color3.new(1,1,1)
-	Open.TextSize = 15
+	Open.TextSize = 16
 	Open.Font = Enum.Font.GothamBold
 	Open.Parent = Gui
-	Instance.new("UICorner", Open).CornerRadius = UDim.new(0,12)
+	Instance.new("UICorner",Open).CornerRadius = UDim.new(0,12)
 
 	local Panel = Instance.new("Frame")
-	Panel.Size = UDim2.new(0.92,0,0.76,0)
-	Panel.Position = UDim2.new(0.04,0,0.12,0)
+	Panel.Name = "V3Panel"
+	Panel.Size = UDim2.new(0.94,0,0.78,0)
+	Panel.Position = UDim2.new(0.03,0,0.11,0)
 	Panel.BackgroundColor3 = Color3.fromRGB(15,15,18)
 	Panel.BorderSizePixel = 0
 	Panel.Visible = false
 	Panel.Parent = Gui
-	Instance.new("UICorner", Panel).CornerRadius = UDim.new(0,14)
+	Instance.new("UICorner",Panel).CornerRadius = UDim.new(0,14)
 
 	local Title = Instance.new("TextLabel")
-	Title.Size = UDim2.new(1,-20,0,36)
-	Title.Position = UDim2.fromOffset(10,5)
+	Title.Size = UDim2.new(1,-20,0,40)
+	Title.Position = UDim2.fromOffset(10,4)
 	Title.BackgroundTransparency = 1
-	Title.Text = "COMBAT SPACING DIAGNOSTIC V2"
+	Title.Text = "COMBAT SPACING DIAGNOSTIC V3 — "..V3_TOKEN
 	Title.TextColor3 = Color3.new(1,1,1)
-	Title.TextSize = 17
+	Title.TextSize = 16
 	Title.Font = Enum.Font.GothamBold
 	Title.TextXAlignment = Enum.TextXAlignment.Left
 	Title.Parent = Panel
 
 	local Report = Instance.new("TextBox")
-	Report.Size = UDim2.new(1,-20,1,-100)
-	Report.Position = UDim2.fromOffset(10,42)
+	Report.Size = UDim2.new(1,-20,1,-104)
+	Report.Position = UDim2.fromOffset(10,44)
 	Report.BackgroundColor3 = Color3.fromRGB(8,8,10)
 	Report.BorderSizePixel = 0
 	Report.ClearTextOnFocus = false
 	Report.MultiLine = true
 	Report.TextEditable = false
 	Report.TextWrapped = false
-	Report.Text = "Open the Combat tab, then press SCAN."
+	Report.Text = "V3 FILE REACHED.\nOpen Combat, then press SCAN V3."
 	Report.TextColor3 = Color3.fromRGB(235,235,235)
 	Report.TextSize = 11
 	Report.Font = Enum.Font.Code
 	Report.TextXAlignment = Enum.TextXAlignment.Left
 	Report.TextYAlignment = Enum.TextYAlignment.Top
 	Report.Parent = Panel
-	Instance.new("UICorner", Report).CornerRadius = UDim.new(0,10)
+	Instance.new("UICorner",Report).CornerRadius = UDim.new(0,10)
 
-	local function button(label, x)
+	local function makeButton(label,x)
 		local b = Instance.new("TextButton")
-		b.Size = UDim2.new(0.30,0,0,38)
-		b.Position = UDim2.new(x,0,1,-46)
+		b.Size = UDim2.new(0.30,0,0,40)
+		b.Position = UDim2.new(x,0,1,-48)
 		b.BackgroundColor3 = Color3.fromRGB(42,42,48)
 		b.BorderSizePixel = 0
 		b.Text = label
@@ -130,54 +153,41 @@ do
 		b.TextSize = 14
 		b.Font = Enum.Font.GothamBold
 		b.Parent = Panel
-		Instance.new("UICorner", b).CornerRadius = UDim.new(0,10)
+		Instance.new("UICorner",b).CornerRadius = UDim.new(0,10)
 		return b
 	end
 
-	local Scan = button("SCAN",0.03)
-	local Copy = button("COPY",0.35)
-	local Close = button("CLOSE",0.67)
+	local Scan = makeButton("SCAN V3",0.03)
+	local Copy = makeButton("COPY V3",0.35)
+	local Close = makeButton("CLOSE",0.67)
 
-	local TARGETS = {
-		"Aimbot",
-		"TriggerBot",
-		"Aim Lock",
-		"Rage Throw",
-		"Auto Grab Gun",
-		"Floating Shoot Button",
-		"Kill All",
-		"Sheriff",
-		"Gun ESP",
-		"Murderer",
-		"Knife ESP",
-		"Crosshair",
-		"Crosshair Enabled",
-		"Crosshair Size",
-		"Crosshair Thickness",
-		"Crosshair Transparency",
-		"Crosshair Gap",
-		"Crosshair Color",
+	local targets = {
+		"Aimbot","TriggerBot","Aim Lock","Rage Throw","Auto Grab Gun",
+		"Floating Shoot Button","Kill All","Sheriff","Gun ESP",
+		"Murderer","Knife ESP","Crosshair","Crosshair Enabled",
+		"Crosshair Size","Crosshair Thickness","Crosshair Transparency",
+		"Crosshair Gap","Crosshair Color",
 	}
 
 	local Last = ""
 
-	local function oneLine(s)
+	local function clean(s)
 		return tostring(s):gsub("\n","\\n")
 	end
 
 	local function path(obj)
-		local p = {}
+		local parts = {}
 		local cur = obj
-		for _ = 1, 10 do
+		for _=1,12 do
 			if not cur then break end
-			table.insert(p,1,cur.Name)
+			table.insert(parts,1,cur.Name)
 			if cur == PlayerGui then break end
 			cur = cur.Parent
 		end
-		return table.concat(p,"/")
+		return table.concat(parts,"/")
 	end
 
-	local function geom(obj)
+	local function geometry(obj)
 		if not obj:IsA("GuiObject") then return "" end
 		return string.format(
 			" pos=(%d,%d) size=(%d,%d) vis=%s order=%d",
@@ -190,48 +200,12 @@ do
 		)
 	end
 
-	local function addParentDetails(lines, startObj)
-		local cur = startObj
-		for level = 0, 6 do
-			if not cur then break end
-			table.insert(lines,string.format(
-				"  P%d %s <%s>%s",
-				level, path(cur), cur.ClassName, geom(cur)
-			))
-
-			for _,child in ipairs(cur:GetChildren()) do
-				if child:IsA("UIListLayout") then
-					table.insert(lines,string.format(
-						"     LIST %s pad=(%.3f,%d) content=(%d,%d)",
-						child.Name,
-						child.Padding.Scale, child.Padding.Offset,
-						math.floor(child.AbsoluteContentSize.X+.5),
-						math.floor(child.AbsoluteContentSize.Y+.5)
-					))
-				elseif child:IsA("UIPadding") then
-					table.insert(lines,string.format(
-						"     PAD %s T=(%.3f,%d) B=(%.3f,%d) L=(%.3f,%d) R=(%.3f,%d)",
-						child.Name,
-						child.PaddingTop.Scale,child.PaddingTop.Offset,
-						child.PaddingBottom.Scale,child.PaddingBottom.Offset,
-						child.PaddingLeft.Scale,child.PaddingLeft.Offset,
-						child.PaddingRight.Scale,child.PaddingRight.Offset
-					))
-				elseif child:IsA("UISizeConstraint") then
-					table.insert(lines,"     SIZECONSTRAINT "..child.Name)
-				end
-			end
-
-			cur = cur.Parent
-		end
-	end
-
-	local function findExactText(target)
+	local function findText(target)
 		local matches = {}
 		for _,obj in ipairs(PlayerGui:GetDescendants()) do
 			if (obj:IsA("TextLabel") or obj:IsA("TextButton") or obj:IsA("TextBox"))
-				and obj.Visible
-				and oneLine(obj.Text) == target
+				and obj ~= Report
+				and clean(obj.Text) == target
 			then
 				table.insert(matches,obj)
 			end
@@ -242,53 +216,98 @@ do
 		return matches
 	end
 
-	local function build()
-		local lines = {
-			"=== BLIZZARD COMBAT SPACING REPORT V2 ===",
-			"SearchRoot="..PlayerGui:GetFullName(),
-			"CombatPagePlaceholder="..tostring(UI.CombatPage),
-			""
-		}
-
-		local foundObjects = {}
-
-		for _,target in ipairs(TARGETS) do
-			local matches = findExactText(target)
+	local function parentDump(lines,obj)
+		local cur = obj
+		for level=0,8 do
+			if not cur then break end
 			table.insert(lines,string.format(
-				"=== TARGET %q | matches=%d ===",
-				target,#matches
+				" P%d %s <%s>%s",
+				level,path(cur),cur.ClassName,geometry(cur)
 			))
 
-			for i,obj in ipairs(matches) do
-				table.insert(foundObjects,obj)
-				table.insert(lines,string.format(
-					"M%d %s <%s>%s text=%q",
-					i,path(obj),obj.ClassName,geom(obj),oneLine(obj.Text)
-				))
-				addParentDetails(lines,obj)
+			for _,child in ipairs(cur:GetChildren()) do
+				if child:IsA("UIListLayout") then
+					table.insert(lines,string.format(
+						"    LIST %s pad=(%.3f,%d) content=(%d,%d) fill=%s sort=%s",
+						child.Name,
+						child.Padding.Scale,child.Padding.Offset,
+						math.floor(child.AbsoluteContentSize.X+.5),
+						math.floor(child.AbsoluteContentSize.Y+.5),
+						tostring(child.FillDirection),
+						tostring(child.SortOrder)
+					))
+				elseif child:IsA("UIPadding") then
+					table.insert(lines,string.format(
+						"    PAD %s T=(%.3f,%d) B=(%.3f,%d) L=(%.3f,%d) R=(%.3f,%d)",
+						child.Name,
+						child.PaddingTop.Scale,child.PaddingTop.Offset,
+						child.PaddingBottom.Scale,child.PaddingBottom.Offset,
+						child.PaddingLeft.Scale,child.PaddingLeft.Offset,
+						child.PaddingRight.Scale,child.PaddingRight.Offset
+					))
+				end
 			end
+			cur = cur.Parent
+		end
+	end
 
+	local function build()
+		local lines = {
+			"=== BLIZZARD COMBAT SPACING REPORT V3 ===",
+			"TOKEN="..V3_TOKEN,
+			"CombatPagePlaceholder="..tostring(UI.CombatPage),
+			"PlayerGui="..PlayerGui:GetFullName(),
+			"",
+		}
+
+		local allMatches = {}
+
+		for _,target in ipairs(targets) do
+			local matches = findText(target)
+			table.insert(lines,string.format(
+				"=== TARGET %q | matches=%d ===",target,#matches
+			))
 			if #matches == 0 then
-				table.insert(lines,"  NOT FOUND")
+				table.insert(lines," NOT FOUND")
+			end
+			for i,obj in ipairs(matches) do
+				table.insert(allMatches,obj)
+				table.insert(lines,string.format(
+					" M%d %s <%s>%s text=%q",
+					i,path(obj),obj.ClassName,geometry(obj),clean(obj.Text)
+				))
+				parentDump(lines,obj)
 			end
 			table.insert(lines,"")
 		end
 
-		-- Find suspiciously tall visible ancestors belonging to the same
-		-- rendered hierarchy as the matched Combat controls.
-		table.insert(lines,"=== TALL / SPACER CANDIDATES ===")
+		table.insert(lines,"=== SHARED ANCESTOR / SPACER CANDIDATES ===")
 		local seen = {}
-		for _,obj in ipairs(foundObjects) do
-			local cur = obj
-			for _ = 1,7 do
+		for _,obj in ipairs(allMatches) do
+			local cur = obj.Parent
+			for _=1,9 do
 				if not cur then break end
-				if cur:IsA("GuiObject") and cur.Visible and not seen[cur] then
+				if cur:IsA("GuiObject") and not seen[cur] then
 					seen[cur] = true
-					if cur.AbsoluteSize.Y >= 70 then
+					if cur.AbsoluteSize.Y >= 60 then
 						table.insert(lines,string.format(
 							"%s <%s>%s",
-							path(cur),cur.ClassName,geom(cur)
+							path(cur),cur.ClassName,geometry(cur)
 						))
+						for _,child in ipairs(cur:GetChildren()) do
+							if child:IsA("UIListLayout") then
+								table.insert(lines,string.format(
+									"  LIST pad=(%.3f,%d) contentY=%d",
+									child.Padding.Scale,child.Padding.Offset,
+									math.floor(child.AbsoluteContentSize.Y+.5)
+								))
+							elseif child:IsA("UIPadding") then
+								table.insert(lines,string.format(
+									"  PAD top=%d bottom=%d",
+									child.PaddingTop.Offset,child.PaddingBottom.Offset
+								))
+							end
+						end
 					end
 				end
 				cur = cur.Parent
@@ -296,7 +315,7 @@ do
 		end
 
 		table.insert(lines,"")
-		table.insert(lines,"READ-ONLY: V2 changed no positions, sizes, padding, or layouts.")
+		table.insert(lines,"READ-ONLY V3: no layout values were modified.")
 		return table.concat(lines,"\n")
 	end
 
@@ -307,6 +326,7 @@ do
 	Scan.MouseButton1Click:Connect(function()
 		Last = build()
 		Report.Text = Last
+		print("[COMBAT DIAG V3] SCAN COMPLETE | "..V3_TOKEN)
 		print(Last)
 	end)
 
@@ -316,13 +336,13 @@ do
 			Report.Text = Last
 		end
 		if setclipboard then
-			pcall(setclipboard,Last)
-			Copy.Text = "COPIED"
+			local ok = pcall(setclipboard,Last)
+			Copy.Text = ok and "COPIED V3" or "COPY FAILED"
 		else
 			Copy.Text = "NO CLIPBOARD"
 		end
-		task.delay(1.2,function()
-			if Copy and Copy.Parent then Copy.Text = "COPY" end
+		task.delay(1.3,function()
+			if Copy and Copy.Parent then Copy.Text = "COPY V3" end
 		end)
 	end)
 
@@ -330,7 +350,7 @@ do
 		Panel.Visible = false
 	end)
 
-	MM2.UI.CombatSpacingDiagnosticV2 = Gui
+	MM2.UI.CombatSpacingDiagnosticV3 = Gui
 end
 
 --============================================================
