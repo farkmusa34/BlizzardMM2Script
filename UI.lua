@@ -860,13 +860,25 @@ local function NormalizeSectionHeading(section)
 		for _,obj in ipairs(top:GetDescendants()) do
 			if obj:IsA("TextLabel") or obj:IsA("TextButton") then
 				-- Keep X exactly as WindUI created it; normalize Y only.
+				-- Aimbot already looks correct. Later Combat headings sit a
+				-- little high within the same compact 32px header row so they
+				-- look optically centered without moving any cards.
+				local headingText = tostring(obj.Text or "")
+				local yOffset = 0
+
+				if headingText == "Sheriff"
+					or headingText == "Murderer"
+					or headingText == "Crosshair" then
+					yOffset = -8
+				end
+
 				obj.TextYAlignment = Enum.TextYAlignment.Center
 				obj.AnchorPoint = Vector2.new(obj.AnchorPoint.X, 0.5)
 				obj.Position = UDim2.new(
 					obj.Position.X.Scale,
 					obj.Position.X.Offset,
 					0.5,
-					0
+					yOffset
 				)
 			end
 		end
