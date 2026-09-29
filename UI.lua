@@ -830,51 +830,85 @@ local function LockSectionOpenAndHideArrow(section)
 end
 
 --============================================================
--- SECTION SPACING OVERRIDE
+-- COMPACT SECTION FLOW
 --
--- Reference hierarchy:
---   medium space before heading
---   larger space from heading to first card
---   small, consistent spacing between cards
+-- Keep WindUI's native section/card sizing. The previous patch added
+-- UIPadding to the whole section wrapper, which created the oversized
+-- blank gaps seen before Sheriff / Murderer / Crosshair.
 --============================================================
 
 UI.NextSectionSpacing = UI.NextSectionSpacing or {}
 
 function UI.SetNextSectionSpacing(page, topPixels, bottomPixels)
+	-- Preserve API compatibility for Combat.lua, but intentionally keep
+	-- sections compact. WindUI's own layout supplies the normal spacing.
 	UI.NextSectionSpacing[page] = {
-		Top = math.max(10, tonumber(topPixels) or 0),
-		Bottom = math.max(18, tonumber(bottomPixels) or 0),
+		Top = 0,
+		Bottom = 0,
 	}
 end
 
 local function ApplySectionSpacing(section, spacing)
-	if not section or not spacing then return end
+	if not section then return end
 
 	local function apply()
 		local frame = section.ElementFrame
 		if typeof(frame) ~= "Instance" then return end
 
-		local padding = frame:FindFirstChild("BlizzardSectionPadding")
-		if not padding then
-			padding = Instance.new("UIPadding")
-			padding.Name = "BlizzardSectionPadding"
-			padding.Parent = frame
+		-- Remove padding left by older Blizzard builds.
+		local oldPadding = frame:FindFirstChild("BlizzardSectionPadding")
+		if oldPadding then
+			oldPadding:Destroy()
 		end
 
-		padding.PaddingTop = UDim.new(0, spacing.Top)
-		padding.PaddingBottom = UDim.new(0, spacing.Bottom)
-
-		-- Only touch the section wrapper layout; card internals stay unchanged.
-		for _, child in ipairs(frame:GetChildren()) do
-			if child:IsA("UIListLayout") then
-				child.Padding = UDim.new(0, 8)
-			end
-		end
+		-- Do not overwrite WindUI's native list padding.
 	end
 
 	pcall(apply)
 	task.defer(function() pcall(apply) end)
 	task.delay(0.15, function() pcall(apply) end)
+end
+
+-- Expand a control only when wrapped text actually extends below its card.
+-- This prevents descriptions such as Aim Lock from being visually cut off,
+-- while leaving normal one-line cards at their native WindUI height.
+local function FitWrappedControl(control)
+	if not control then return end
+
+	local function fit()
+		local root = control.ElementFrame or control.Frame or control.Root
+		if typeof(root) ~= "Instance" or not root:IsA("GuiObject") then return end
+
+		local rootTop = root.AbsolutePosition.Y
+		local rootBottom = rootTop + root.AbsoluteSize.Y
+		local neededBottom = rootBottom
+
+		for _, obj in ipairs(root:GetDescendants()) do
+			if obj:IsA("TextLabel") and obj.Visible and obj.TextWrapped then
+				local bottom = obj.AbsolutePosition.Y + obj.AbsoluteSize.Y
+				if obj.TextBounds.Y > obj.AbsoluteSize.Y then
+					bottom = obj.AbsolutePosition.Y + obj.TextBounds.Y
+				end
+				if bottom > neededBottom then
+					neededBottom = bottom
+				end
+			end
+		end
+
+		local overflow = math.ceil(neededBottom - rootBottom)
+		if overflow > 0 then
+			root.Size = UDim2.new(
+				root.Size.X.Scale,
+				root.Size.X.Offset,
+				root.Size.Y.Scale,
+				root.Size.Y.Offset + overflow + 10
+			)
+		end
+	end
+
+	task.defer(function() pcall(fit) end)
+	task.delay(0.08, function() pcall(fit) end)
+	task.delay(0.25, function() pcall(fit) end)
 end
 
 function UI.AddSection(page,titleText,subtitleText)
@@ -957,7 +991,7 @@ function UI.AddSection(page,titleText,subtitleText)
 
 	local spacing = UI.NextSectionSpacing[page]
 	UI.NextSectionSpacing[page] = nil
-	if spacing and section ~= tab then
+	if section ~= tab then
 		ApplySectionSpacing(section, spacing)
 	end
 
@@ -1053,6 +1087,8 @@ function UI.CreateDropdown(
 
 		dropdown = result
 
+		FitWrappedControl(dropdown)
+
 	else
 
 		warn(
@@ -1109,6 +1145,8 @@ function UI.CreateInfo(
 	if ok then
 
 		control = result
+
+		FitWrappedControl(control)
 
 		-- Optional semantic action styling. WindUI does not expose a
 		-- per-button fill option consistently, so style its actual element.
@@ -1336,6 +1374,8 @@ function UI.CreateToggle(
 	if ok then
 
 		control = result
+
+		FitWrappedControl(control)
 
 		local ACTION_COLORS = {
 			danger = Color3.fromRGB(150,45,52),
