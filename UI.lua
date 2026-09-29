@@ -1050,11 +1050,6 @@ function UI.CreateDropdown(
 				titleText or ""
 			),
 
-		Desc =
-			tostring(
-				description or ""
-			),
-
 		Values = values or {},
 		AllowNone = true,
 		SearchBarEnabled = true,
@@ -1081,6 +1076,11 @@ function UI.CreateDropdown(
 				end
 			end,
 	}
+
+	local descText = tostring(description or "")
+	if descText ~= "" then
+		config.Desc = descText
+	end
 
 	if defaultValue ~= nil then
 		config.Value = defaultValue
@@ -1310,15 +1310,10 @@ function UI.CreateToggle(
 	local ok,result =
 		pcall(function()
 
-			return parent:Toggle({
+			local config = {
 				Title =
 					tostring(
 						titleText or ""
-					),
-
-				Desc =
-					tostring(
-						description or ""
 					),
 
 				Value =
@@ -1379,7 +1374,14 @@ function UI.CreateToggle(
 							})
 						end)
 					end,
-			})
+			}
+
+			local descText = tostring(description or "")
+			if descText ~= "" then
+				config.Desc = descText
+			end
+
+			return parent:Toggle(config)
 		end)
 
 	if ok then
@@ -1513,7 +1515,6 @@ function UI.CreateActionFeature(
 		pcall(function()
 			local config = {
 				Title = tostring(titleText or ""),
-				Desc = tostring(description or ""),
 				Icon = icon,
 				Callback = function()
 					if callback then
@@ -1528,6 +1529,11 @@ function UI.CreateActionFeature(
 					end
 				end,
 			}
+
+			local descText = tostring(description or "")
+			if descText ~= "" then
+				config.Desc = descText
+			end
 
 			if fill then
 				config.Color = fill
@@ -1696,15 +1702,10 @@ local function CreateMappedSlider(
 	local ok,result =
 		pcall(function()
 
-			return parent:Slider({
+			local config = {
 				Title =
 					tostring(
 						labelText or ""
-					),
-
-				Desc =
-					tostring(
-						description or ""
 					),
 
 				Step = step,
@@ -1742,7 +1743,14 @@ local function CreateMappedSlider(
 							end
 						end
 					end,
-			})
+			}
+
+			local descText = tostring(description or "")
+			if descText ~= "" then
+				config.Desc = descText
+			end
+
+			return parent:Slider(config)
 		end)
 
 	if ok then
