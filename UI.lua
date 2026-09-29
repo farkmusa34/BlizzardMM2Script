@@ -830,20 +830,27 @@ local function LockSectionOpenAndHideArrow(section)
 end
 
 local NextSectionSpacing = {}
+local SectionCountByPage = setmetatable({}, {__mode = "k"})
 
 function UI.SetNextSectionSpacing(page,above,below)
-	-- Compatibility only. Do not add UIPadding to WindUI sections.
-	-- WindUI already provides the native spacing around section headings.
+	-- Compatibility only. Visuals already demonstrates the native WindUI
+	-- section gap we want, so no custom padding is added here.
 	NextSectionSpacing[page] = true
 end
 
-local function NormalizeSectionHeading(section)
-	-- VISUALS stays untouched and remains our reference.
-	-- For every other tab, compact only WindUI's section header row.
-	-- Cards/control descriptions are never moved or resized here.
+local function CenterLaterSectionHeadingY(section)
+	-- IMPORTANT:
+	--   * Do not resize Top / Outline / ElementFrame.
+	--   * Do not move cards.
+	--   * Do not change X.
+	--   * Only later headings are visually nudged upward on Y.
+	-- This preserves WindUI's native (Visuals-like) section gap.
 	if not section or not section.ElementFrame then
 		return
 	end
+
+	local basePositions = setmetatable({}, {__mode = "k"})
+	local HEADING_Y_NUDGE = -15
 
 	local function Apply()
 		local outline = section.ElementFrame:FindFirstChild("Outline")
@@ -852,33 +859,20 @@ local function NormalizeSectionHeading(section)
 			return
 		end
 
-		-- A compact title-only row. This removes the leftover vertical room
-		-- that made Combat/etc. look more open than Visuals/Riftware.
-		local targetHeight = 32
-		top.Size = UDim2.new(top.Size.X.Scale, top.Size.X.Offset, 0, targetHeight)
-
 		for _,obj in ipairs(top:GetDescendants()) do
 			if obj:IsA("TextLabel") or obj:IsA("TextButton") then
-				-- Keep X exactly as WindUI created it; normalize Y only.
-				-- Aimbot already looks correct. Later Combat headings sit a
-				-- little high within the same compact 32px header row so they
-				-- look optically centered without moving any cards.
-				local headingText = tostring(obj.Text or "")
-				local yOffset = 0
-
-				if headingText == "Sheriff"
-					or headingText == "Murderer"
-					or headingText == "Crosshair" then
-					yOffset = -8
+				-- Save WindUI's native position once so delayed passes never stack.
+				if not basePositions[obj] then
+					basePositions[obj] = obj.Position
 				end
 
+				local native = basePositions[obj]
 				obj.TextYAlignment = Enum.TextYAlignment.Center
-				obj.AnchorPoint = Vector2.new(obj.AnchorPoint.X, 0.5)
 				obj.Position = UDim2.new(
-					obj.Position.X.Scale,
-					obj.Position.X.Offset,
-					0.5,
-					yOffset
+					native.X.Scale,
+					native.X.Offset,
+					native.Y.Scale,
+					native.Y.Offset + HEADING_Y_NUDGE
 				)
 			end
 		end
@@ -905,6 +899,11 @@ function UI.AddSection(page,titleText,subtitleText)
 	local section
 	local isVisuals = (page == UI.VisualsPage)
 
+	-- Track heading order per tab. The first heading already looks correct,
+	-- so only headings #2+ receive the visual Y adjustment.
+	SectionCountByPage[page] = (SectionCountByPage[page] or 0) + 1
+	local isFirstHeading = SectionCountByPage[page] == 1
+
 	local ok,result =
 		pcall(function()
 			local config = {
@@ -913,20 +912,18 @@ function UI.AddSection(page,titleText,subtitleText)
 			}
 
 			if isVisuals then
-				-- VISUALS IS THE BASE/REFERENCE.
-				-- Preserve its existing native WindUI section behavior.
+				-- Visuals is untouched and remains the spacing reference.
 				local desc = tostring(subtitleText or "")
 				if desc ~= "" then
 					config.Desc = desc
 				end
 			else
-				-- All other pages use the same native WindUI section spacing,
-				-- but section subtitles are intentionally omitted. This avoids
-				-- the extra subtitle row / oversized vertical gap.
-				--
-				-- Important: card/control descriptions are NOT touched.
+				-- No section subtitles on the other tabs.
+				-- Control/card descriptions are unaffected.
 			end
 
+			-- Direct native WindUI Section(), matching the construction style
+			-- used by Visuals. No custom section height/padding is applied.
 			return tab:Section(config)
 		end)
 
@@ -957,15 +954,13 @@ function UI.AddSection(page,titleText,subtitleText)
 	if section ~= tab then
 		LockSectionOpenAndHideArrow(section)
 
-		if not isVisuals then
-			-- X stays native/left-aligned. Only Y alignment is centered.
-			NormalizeSectionHeading(section)
+		if not isVisuals and not isFirstHeading then
+			-- Preserve the native gap; move only the later heading text on Y.
+			CenterLaterSectionHeadingY(section)
 		end
 	end
 
-	-- Consume legacy spacing requests without changing WindUI geometry.
 	NextSectionSpacing[page] = nil
-
 	UI.ActiveSection[page] = section
 	return section
 end
