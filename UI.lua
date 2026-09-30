@@ -875,6 +875,40 @@ local function LowerFirstSectionHeadingY(section)
 	task.delay(0.20, Apply)
 end
 
+-- Controlled section-spacing test.
+-- Shrinks only the native section header row so the first control sits
+-- closer to its heading. Card-to-card spacing and text nudges stay untouched.
+local SECTION_TO_FIRST_CONTROL_REDUCTION = 12
+
+local function TightenSectionToFirstControlGap(section)
+	if not section or not section.ElementFrame then
+		return
+	end
+
+	local nativeSizes = setmetatable({}, {__mode = "k"})
+
+	local function Apply()
+		local outline = section.ElementFrame:FindFirstChild("Outline")
+		local top = outline and outline:FindFirstChild("Top")
+		if not top or not top:IsA("GuiObject") then return end
+
+		if not nativeSizes[top] then
+			nativeSizes[top] = top.Size
+		end
+
+		local native = nativeSizes[top]
+		top.Size = UDim2.new(
+			native.X.Scale, native.X.Offset,
+			native.Y.Scale, math.max(0, native.Y.Offset - SECTION_TO_FIRST_CONTROL_REDUCTION)
+		)
+	end
+
+	Apply()
+	task.defer(Apply)
+	task.delay(0.05, Apply)
+	task.delay(0.20, Apply)
+end
+
 local function CenterLaterSectionHeadingY(section)
 	-- IMPORTANT:
 	--   * Do not resize Top / Outline / ElementFrame.
@@ -992,6 +1026,8 @@ function UI.AddSection(page,titleText,subtitleText)
 		LockSectionOpenAndHideArrow(section)
 
 		if not isVisuals then
+			-- TEST: geometry-only reduction between heading and first control.
+			TightenSectionToFirstControlGap(section)
 			if isFirstHeading then
 				-- First heading: noticeably lower, since there is no group above it.
 				LowerFirstSectionHeadingY(section)
