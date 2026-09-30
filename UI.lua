@@ -875,10 +875,10 @@ local function LowerFirstSectionHeadingY(section)
 	task.delay(0.20, Apply)
 end
 
--- Controlled section-spacing test.
--- Shrinks only the native section header row so the first control sits
--- closer to its heading. Card-to-card spacing and text nudges stay untouched.
-local SECTION_TO_FIRST_CONTROL_REDUCTION = 0
+-- Compact title-only section spacing.
+-- Shrinks only the native section header row so removing Desc does not leave
+-- subtitle-sized empty space. Card-to-card spacing stays untouched.
+local SECTION_TO_FIRST_CONTROL_REDUCTION = 26
 
 local function TightenSectionToFirstControlGap(section)
 	if not section or not section.ElementFrame then
@@ -982,16 +982,17 @@ function UI.AddSection(page,titleText,subtitleText)
 				Opened = true,
 			}
 
-			-- SUBTITLE RESTORE TEST:
-			-- Give every WindUI section its original Desc again so we can test
-			-- whether removing subtitles caused the oversized section spacing.
-			local desc = tostring(subtitleText or "")
-			if desc ~= "" then
-				config.Desc = desc
+			-- Compact title-only sections on the main tabs.
+			-- Visuals keeps its existing subtitle behavior; every other tab omits Desc.
+			if isVisuals then
+				local desc = tostring(subtitleText or "")
+				if desc ~= "" then
+					config.Desc = desc
+				end
 			end
 
-			-- Direct native WindUI Section(), matching the construction style
-			-- used by Visuals. No custom section height/padding is applied.
+			-- Keep WindUI's native section construction; geometry is compacted
+			-- immediately after creation instead of moving the cards themselves.
 			return tab:Section(config)
 		end)
 
@@ -1023,8 +1024,12 @@ function UI.AddSection(page,titleText,subtitleText)
 		LockSectionOpenAndHideArrow(section)
 
 		if not isVisuals then
-			-- SUBTITLE RESTORE TEST: no geometry gap reduction.
-			-- Keep both heading nudges at 0 and let WindUI lay the section out natively.
+			-- Title-only mode: collapse the header space that WindUI normally reserves
+			-- for a section description. This changes the heading-to-first-card gap
+			-- without touching card-to-card spacing.
+			TightenSectionToFirstControlGap(section)
+
+			-- Keep heading text at its native Y position; only the container shrinks.
 			if isFirstHeading then
 				-- First heading: noticeably lower, since there is no group above it.
 				LowerFirstSectionHeadingY(section)
