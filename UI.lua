@@ -287,15 +287,15 @@ pcall(function()
 		WindUI:AddTheme({
 			Name = "Blizzard Mono",
 			Accent = "#FFFFFF",
-			Dialog = "#171719",
-			Outline = "#303035",
+			Dialog = "#111113",
+			Outline = "#242428",
 			Text = "#F5F5F5",
 			Placeholder = "#9B9B9B",
-			Background = "#0D0D0F",
-			Button = "#29292E",
+			Background = "#0A0A0B",
+			Button = "#1F1F23",
 			-- Mono-only toggle treatment: dark when OFF, green when ON.
 			Toggle = "#F4F4F4",
-			ToggleBar = "#4A4A50",
+			ToggleBar = "#38383C",
 			Icon = "#FFFFFF",
 		})
 	end
@@ -376,6 +376,7 @@ UI.CurrentThemeAccent =
 	or DEFAULT_BLIZZARD_BLUE
 
 local LatestUpdateTag = nil
+local HalloweenPumpkinGui = nil
 
 local function CreateLatestUpdateTag(color)
 
@@ -388,9 +389,8 @@ local function CreateLatestUpdateTag(color)
 		pcall(function()
 
 			return Window:Tag({
-				Title = "Latest Update",
-				Icon = "sparkles",
-				Color = color,
+				Title = "Halloween Event",
+				Color = Color3.fromRGB(232,126,34),
 				Border = true,
 			})
 		end)
@@ -400,11 +400,34 @@ local function CreateLatestUpdateTag(color)
 		LatestUpdateTag = result
 		UI.LatestUpdateTag = result
 
+		-- Custom pumpkin icon made entirely from Roblox UI primitives.
+		task.defer(function()
+			local root = typeof(result)=="Instance" and result
+				or (type(result)=="table" and (result.Frame or result.Root or result.Container))
+			if typeof(root)~="Instance" then return end
+			local icon=Instance.new("Frame")
+			icon.Name="BlizzardPumpkinIcon"; icon.BackgroundTransparency=1
+			icon.Size=UDim2.fromOffset(22,22); icon.AnchorPoint=Vector2.new(0,0.5)
+			icon.Position=UDim2.new(0,10,0.5,0); icon.ZIndex=20; icon.Parent=root
+			local function lobe(x,w,h)
+				local f=Instance.new("Frame"); f.BorderSizePixel=0
+				f.BackgroundColor3=Color3.fromRGB(246,139,38)
+				f.Size=UDim2.fromOffset(w,h); f.Position=UDim2.fromOffset(x,5+(16-h)/2); f.ZIndex=21
+				local c=Instance.new("UICorner"); c.CornerRadius=UDim.new(1,0); c.Parent=f; f.Parent=icon
+			end
+			lobe(2,8,14); lobe(7,8,16); lobe(12,8,14)
+			local stem=Instance.new("Frame"); stem.BorderSizePixel=0
+			stem.BackgroundColor3=Color3.fromRGB(80,55,30); stem.Size=UDim2.fromOffset(4,5)
+			stem.Position=UDim2.fromOffset(9,1); stem.Rotation=10; stem.ZIndex=22
+			local sc=Instance.new("UICorner"); sc.CornerRadius=UDim.new(0,2); sc.Parent=stem
+			stem.Parent=icon; HalloweenPumpkinGui=icon
+		end)
+
 		return result
 	end
 
 	warn(
-		"[Blizzard UI] Latest Update tag failed:",
+		"[Blizzard UI] Halloween Event tag failed:",
 		result
 	)
 
@@ -1248,41 +1271,31 @@ UI.ToggleRegistry = {}
 -- WindUI still owns the control/callback; this only restyles the visual switch.
 local function StyleSquareToggle(control,value)
 	if not control then return end
-	local root = control.ElementFrame or control.Frame or control.Root
-	if typeof(root) ~= "Instance" then return end
-
-	local best,bestScore = nil,-math.huge
+	local root=control.ElementFrame or control.Frame or control.Root
+	if typeof(root)~="Instance" then return end
+	local track,bestScore=nil,-math.huge
+	local rp,rs=root.AbsolutePosition,root.AbsoluteSize
 	for _,obj in ipairs(root:GetDescendants()) do
-		if obj:IsA("Frame") and obj.BackgroundTransparency < 1 then
-			local s = obj.AbsoluteSize
-			local p = obj.AbsolutePosition
-			local rp = root.AbsolutePosition
-			local rs = root.AbsoluteSize
-			if s.X >= 24 and s.X <= 90 and s.Y >= 18 and s.Y <= 55 and p.X > rp.X + rs.X*0.55 then
-				local score = p.X + (s.Y*2) - math.abs(s.X-s.Y)
-				if score > bestScore then best,bestScore = obj,score end
+		if obj:IsA("Frame") and obj.BackgroundTransparency<1 then
+			local s,p=obj.AbsoluteSize,obj.AbsolutePosition
+			if s.X>=34 and s.X<=100 and s.Y>=18 and s.Y<=55 and p.X>rp.X+rs.X*0.55 then
+				local score=(s.X*4)+p.X-(math.abs(s.Y-34)*2)
+				if score>bestScore then track,bestScore=obj,score end
 			end
 		end
 	end
-	if not best then return end
-
-	best.Size = UDim2.fromOffset(36,36)
-	best.BackgroundColor3 = value and Color3.fromRGB(245,245,245) or Color3.fromRGB(70,70,76)
-	best.BackgroundTransparency = value and 0 or 0.18
-
-	local corner = best:FindFirstChildOfClass("UICorner") or Instance.new("UICorner")
-	corner.CornerRadius = UDim.new(0,9)
-	corner.Parent = best
-
-	-- Hide the old circular sliding knob so the control reads as one rounded square.
-	for _,child in ipairs(best:GetDescendants()) do
-		if child:IsA("Frame") and child ~= best then
-			local s = child.AbsoluteSize
-			if s.X <= 30 and s.Y <= 30 then child.BackgroundTransparency = 1 end
-		elseif child:IsA("ImageLabel") or child:IsA("ImageButton") then
-			local s = child.AbsoluteSize
-			if s.X <= 30 and s.Y <= 30 then child.ImageTransparency = 1 end
-		end
+	if not track then return end
+	track.AnchorPoint=Vector2.new(1,0.5)
+	track.Position=UDim2.new(track.Position.X.Scale,track.Position.X.Offset,0.5,0)
+	track.Size=UDim2.fromOffset(36,36)
+	track.BackgroundColor3=value and Color3.fromRGB(245,245,245) or Color3.fromRGB(67,67,72)
+	track.BackgroundTransparency=value and 0 or 0.12
+	local corner=track:FindFirstChildOfClass("UICorner") or Instance.new("UICorner")
+	corner.CornerRadius=UDim.new(0,9); corner.Parent=track
+	for _,child in ipairs(track:GetDescendants()) do
+		if child:IsA("Frame") and child~=track then child.BackgroundTransparency=1
+		elseif child:IsA("ImageLabel") or child:IsA("ImageButton") then child.ImageTransparency=1
+		elseif child:IsA("UIStroke") then child.Transparency=1 end
 	end
 end
 
