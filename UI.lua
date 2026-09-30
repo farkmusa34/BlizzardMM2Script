@@ -878,7 +878,7 @@ end
 -- Compact title-only section spacing.
 -- Removes only part of WindUI's title-only reserved header space.
 -- The title remains unclipped and card-to-card spacing stays untouched.
-local SECTION_TO_FIRST_CONTROL_REDUCTION = 28
+local SECTION_TO_FIRST_CONTROL_REDUCTION = 16
 
 local function TightenSectionToFirstControlGap(section)
 	if not section or not section.ElementFrame then
@@ -923,14 +923,13 @@ local function CenterLaterSectionHeadingY(section)
 	--   * Do not move cards.
 	--   * Do not change X.
 	--   * Only later headings are visually nudged upward on Y.
-	-- Pull later headings toward the previous card while the compact Top size
-	-- also keeps the heading close to its first card.
+	-- This preserves WindUI's native (Visuals-like) section gap.
 	if not section or not section.ElementFrame then
 		return
 	end
 
 	local basePositions = setmetatable({}, {__mode = "k"})
-	local HEADING_Y_NUDGE = -20
+	local HEADING_Y_NUDGE = 0
 
 	local function Apply()
 		local outline = section.ElementFrame:FindFirstChild("Outline")
