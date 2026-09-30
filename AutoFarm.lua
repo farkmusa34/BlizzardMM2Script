@@ -1507,13 +1507,17 @@ local function FarmRunAfterBagFullActions()
 					break
 				end
 
-				if success == true or message == "No Murderer" then
+				-- Keep shooting after a successful shot.
+				-- The loop ends only when its normal conditions stop
+				-- or there is no murderer left to shoot.
+				if message == "No Murderer" then
 					break
 				end
 
 				local retryDelay =
 					(
-						message == "Cooldown"
+						success == true
+						or message == "Cooldown"
 						or message == "Busy"
 						or message == "No Gun"
 					)
