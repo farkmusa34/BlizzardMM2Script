@@ -342,23 +342,9 @@ if Flags.LegitThrow and Flags.RageThrow then
 end
 
 local KNIFE_RANGE_MIN = 5
-local KNIFE_RANGE_MAX = 1000
+local KNIFE_RANGE_MAX = 200
 local KILL_ALL_RANGE = 10000
 Flags.KnifeRange = math.clamp(tonumber(Flags.KnifeRange) or 10,KNIFE_RANGE_MIN,KNIFE_RANGE_MAX)
-
-Flags.KnifeAura = Flags.KnifeAura == true
-UI.CreateToggle(UI.CombatPage, "Knife Aura", "Stabs nearby players when you use your knife", "KnifeAura")
-
-UI.CreateSlider(
-	UI.CombatPage,
-	"Knife Aura (Studs)",
-	"Sets the Knife Aura range",
-	function() return Flags.KnifeRange end,
-	function(value)
-		Flags.KnifeRange = math.clamp(tonumber(value) or 10,KNIFE_RANGE_MIN,KNIFE_RANGE_MAX)
-	end,
-	KNIFE_RANGE_MIN,KNIFE_RANGE_MAX,5
-)
 
 Flags.ShowKillAllButton = Flags.ShowKillAllButton == true
 UI.CreateToggle(UI.CombatPage, "Show Kill All Button", "Shows the floating Kill All button", "ShowKillAllButton", function(on)
@@ -376,6 +362,26 @@ UI.CreateActionFeature(UI.CombatPage, "Kill All", "Stabs every player as murdere
 		end
 	end
 end, "skull")
+
+--============================================================
+-- KNIFE AURA
+--============================================================
+
+AddCompactCombatSection("Knife Aura")
+
+Flags.KnifeAura = Flags.KnifeAura == true
+UI.CreateToggle(UI.CombatPage, "Knife Aura", "Stabs nearby players when you use your knife", "KnifeAura")
+
+UI.CreateSlider(
+	UI.CombatPage,
+	"Knife Aura Radius",
+	"Sets the Knife Aura range",
+	function() return Flags.KnifeRange end,
+	function(value)
+		Flags.KnifeRange = math.clamp(tonumber(value) or 10,KNIFE_RANGE_MIN,KNIFE_RANGE_MAX)
+	end,
+	KNIFE_RANGE_MIN,KNIFE_RANGE_MAX,5
+)
 
 --============================================================
 -- CROSSHAIR
