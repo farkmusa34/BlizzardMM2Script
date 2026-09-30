@@ -1961,26 +1961,20 @@ UI.CreateActionFeature(
 	"refresh-cw"
 )
 
-MM2.Track(
-	RunService.Heartbeat:Connect(function()
+-- Refresh only the displayed rate every 0.75 seconds.
+-- Coin collection itself is still counted immediately.
+task.spawn(function()
+	while MM2.Running do
 		if not FarmStatsStartedAt or FarmStatsCoins <= 0 then
 			SetCoinRateText("Collect coins to start")
-			return
+		else
+			local elapsed = math.max(os.clock() - FarmStatsStartedAt, 1)
+			local coinsPerMinute = FarmStatsCoins / (elapsed / 60)
+			SetCoinRateText(string.format("%.1f coins/min", coinsPerMinute))
 		end
-
-		local elapsed = math.max(os.clock() - FarmStatsStartedAt, 1)
-		local coinsPerMinute = FarmStatsCoins / (elapsed / 60)
-		local coinsPerHour = coinsPerMinute * 60
-
-		SetCoinRateText(
-			string.format(
-				"%.1f coins/min   •   %.0f coins/hour",
-				coinsPerMinute,
-				coinsPerHour
-			)
-		)
-	end)
-)
+		task.wait(0.75)
+	end
+end)
 
 --============================================================
 -- Gameplay Remotes
