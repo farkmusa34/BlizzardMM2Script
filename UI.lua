@@ -1372,9 +1372,11 @@ function UI.CreateToggle(
 									or "Disabled!",
 
 								Icon =
-									flagName == "AutoFarm"
-									and "bot"
-									or (value and "check" or "x"),
+									(not value and "x")
+									or (flagName == "AutoFarm" and "bot")
+									or (flagName == "ShootMurdererAfterBagFull" and "crosshair")
+									or (flagName == "KillAllAfterBagFull" and "swords")
+									or "check",
 
 								Duration = 2.5,
 							})
