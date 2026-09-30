@@ -425,7 +425,7 @@ function UI.SetLatestUpdateTheme(color)
 	if UI.FloatingCardRegistry then
 		for _,entry in pairs(UI.FloatingCardRegistry) do
 			if entry and entry.Stroke then
-				entry.Stroke.Color = color
+				entry.Stroke.Color = entry.FixedStrokeColor or color
 			end
 		end
 	end
@@ -2028,7 +2028,8 @@ function UI.CreateMovableCardButton(
 	icon,
 	labelText,
 	startPosition,
-	callback
+	callback,
+	style
 )
 	local cleanName = tostring(name or "Floating")
 	local defaultPosition = startPosition or UDim2.fromScale(0.8,0.75)
@@ -2065,10 +2066,18 @@ function UI.CreateMovableCardButton(
 	corner.CornerRadius = UDim.new(0,14)
 	corner.Parent = button
 
+	local QUICK_BUTTON_OUTLINE_COLORS = {
+		red = Color3.fromRGB(220,42,55),
+		danger = Color3.fromRGB(220,42,55),
+		blue = Color3.fromRGB(55,145,255),
+		orange = Color3.fromRGB(240,150,45),
+	}
+	local fixedStrokeColor = QUICK_BUTTON_OUTLINE_COLORS[string.lower(tostring(style or ""))]
+
 	local stroke = Instance.new("UIStroke")
 	stroke.Name = "ThemeStroke"
 	stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
-	stroke.Color = UI.CurrentThemeAccent or DEFAULT_BLIZZARD_BLUE
+	stroke.Color = fixedStrokeColor or UI.CurrentThemeAccent or DEFAULT_BLIZZARD_BLUE
 	stroke.Thickness = 2.0
 	stroke.Transparency = 0.05
 	stroke.Parent = button
@@ -2136,6 +2145,7 @@ function UI.CreateMovableCardButton(
 		UIScale = uiScale,
 		DefaultPosition = defaultPosition,
 		DefaultSize = QUICK_BUTTON_BASE_SIZE,
+		FixedStrokeColor = fixedStrokeColor,
 	}
 
 	UI.FloatingCardRegistry[cleanName] = entry
