@@ -19,7 +19,7 @@ Flags.ShootMurdererAfterBagFull = Flags.ShootMurdererAfterBagFull == true
 Flags.FlingMurdererAfterBagFull = Flags.FlingMurdererAfterBagFull == true
 Flags.ResetCharacterAfterBagFull = Flags.ResetCharacterAfterBagFull == true
 
-UI.AddSection(UI.AutoFarmPage,"Auto Farm","Coin Farm V13.10 lifecycle-safe return")
+UI.AddSection(UI.AutoFarmPage,"Coin Farm","Coin farming controls")
 
 UI.CreateToggle(
 	UI.AutoFarmPage,
@@ -193,58 +193,6 @@ local FarmOriginalHRPSize = nil
 local FarmSizedHRP = nil
 
 --============================================================
--- V13.11 Embedded Lifecycle Diagnostic
---============================================================
-
-local FarmDiagLogs = {}
-local FarmDiagMaxLogs = 900
-local FarmDiagMarkTime = nil
-local FarmDiagLastCanCollide = nil
-local FarmDiagLastNC = nil
-local FarmDiagLastMoverCount = nil
-local FarmDiagLastGeneration = FarmRunGeneration
-local FarmDiagLastRunning = AutoFarmRunning
-local FarmDiagLastUpdateFlag = nil
-local FarmDiagLastUpdateRunning = nil
-
-local function FarmDiag(message)
-    local line = string.format("[%.3f] %s", os.clock(), tostring(message))
-    table.insert(FarmDiagLogs, line)
-    if #FarmDiagLogs > FarmDiagMaxLogs then
-        table.remove(FarmDiagLogs, 1)
-    end
-    print("[AutoFarmDiag] " .. line)
-end
-
-local function FarmDiagState(prefix)
-    local character = LocalPlayer.Character
-    local root = character and character:FindFirstChild("HumanoidRootPart")
-    local hum = character and character:FindFirstChildOfClass("Humanoid")
-    local nc, total, movers = 0, 0, 0
-    if character then
-        for _,obj in ipairs(character:GetDescendants()) do
-            if obj:IsA("BasePart") then
-                total += 1
-                if not obj.CanCollide then nc += 1 end
-            end
-            if obj.Name == "FarmAlign" or obj.Name == "FarmUprightAlign" or obj.Name == "FarmAttachmentV13_3" then
-                movers += 1
-            end
-        end
-    end
-    local vel = root and root.AssemblyLinearVelocity or Vector3.zero
-    FarmDiag(string.format(
-        "%s | Flag=%s Running=%s Gen=%s LoopGen=%s Paused=%s NoclipConn=%s Movers=%d NC=%d/%d RootCollide=%s Speed=%.2f State=%s",
-        prefix,
-        tostring(Flags.AutoFarm), tostring(AutoFarmRunning), tostring(FarmRunGeneration),
-        tostring(FarmLoopGeneration), tostring(FarmPaused), tostring(FarmNoclipConnection ~= nil),
-        movers, nc, total, tostring(root and root.CanCollide),
-        Vector3.new(vel.X,0,vel.Z).Magnitude,
-        tostring(hum and hum:GetState())
-    ))
-end
-
---============================================================
 -- V13.3 Re-Arm State
 --============================================================
 
@@ -405,7 +353,6 @@ end
 --============================================================
 
 local function FarmDestroyMovement()
-	FarmDiag("FarmDestroyMovement() called")
 	if FarmPositionAlign then
 		pcall(function()
 			FarmPositionAlign:Destroy()
@@ -427,7 +374,6 @@ local function FarmDestroyMovement()
 end
 
 local function FarmEnsureMovement(expectedGeneration)
-	FarmDiag("FarmEnsureMovement() expectedGen=" .. tostring(expectedGeneration) .. " currentGen=" .. tostring(FarmRunGeneration) .. " running=" .. tostring(AutoFarmRunning))
 	-- Never allow a stale callback to recreate farm movers after OFF.
 	if not AutoFarmRunning then
 		return false
@@ -482,7 +428,6 @@ local function FarmEnsureMovement(expectedGeneration)
 	FarmUprightAlign.MaxAngularVelocity = FARM_UPRIGHT_MAX_ANGULAR
 	FarmUprightAlign.RigidityEnabled = false
 	FarmUprightAlign.Parent = FarmHRP
-	FarmDiag("MOVERS CREATED by FarmEnsureMovement gen=" .. tostring(FarmRunGeneration))
 
 	return true
 end
@@ -525,7 +470,6 @@ local function FarmApplyNoclip(expectedGeneration)
 end
 
 local function FarmStartNoclip(expectedGeneration)
-	FarmDiag("FarmStartNoclip() expectedGen=" .. tostring(expectedGeneration) .. " currentGen=" .. tostring(FarmRunGeneration) .. " running=" .. tostring(AutoFarmRunning))
 	expectedGeneration = expectedGeneration or FarmRunGeneration
 
 	if not AutoFarmRunning or expectedGeneration ~= FarmRunGeneration then
@@ -559,7 +503,6 @@ local function FarmStartNoclip(expectedGeneration)
 end
 
 local function FarmStopNoclip()
-	FarmDiag("FarmStopNoclip() called; hadConnection=" .. tostring(FarmNoclipConnection ~= nil))
 	if FarmNoclipConnection then
 		FarmNoclipConnection:Disconnect()
 		FarmNoclipConnection = nil
@@ -1380,7 +1323,6 @@ local function FarmPause(reason)
 end
 
 local function FarmWake(expectedGeneration)
-	FarmDiag("FarmWake() expectedGen=" .. tostring(expectedGeneration) .. " currentGen=" .. tostring(FarmRunGeneration) .. " running=" .. tostring(AutoFarmRunning) .. " flag=" .. tostring(Flags.AutoFarm))
 	expectedGeneration = expectedGeneration or FarmRunGeneration
 
 	if not AutoFarmRunning or expectedGeneration ~= FarmRunGeneration then
@@ -1842,8 +1784,6 @@ end
 --============================================================
 
 function MM2.Functions.StartAutoFarm()
-	FarmDiag("===== StartAutoFarm CALLED =====")
-	FarmDiagState("BEFORE START")
 	if AutoFarmRunning then
 		return
 	end
@@ -1867,15 +1807,12 @@ function MM2.Functions.StartAutoFarm()
 	FarmRememberSafePosition()
 	FarmApplyHRPSize()
 
-	FarmDiagState("AFTER START gen=" .. tostring(runGeneration))
 	task.spawn(function()
 		FarmLoop(runGeneration)
 	end)
 end
 
 function MM2.Functions.StopAutoFarm()
-	FarmDiag("===== StopAutoFarm CALLED =====")
-	FarmDiagState("BEFORE STOP")
 	-- Invalidate every task belonging to the current run before touching the
 	-- character. This is the key race-condition fix.
 	FarmRunGeneration += 1
@@ -1937,17 +1874,9 @@ function MM2.Functions.StopAutoFarm()
 	end
 
 	table.clear(FarmCoinSkipUntil)
-	FarmDiagState("AFTER STOP")
 end
 
 function MM2.Functions.UpdateAutoFarm()
-	-- Diagnostic: only record UpdateAutoFarm when its state actually changes.
-	-- This avoids the old 0.1-second log spam while preserving meaningful transitions.
-	if FarmDiagLastUpdateFlag ~= Flags.AutoFarm or FarmDiagLastUpdateRunning ~= AutoFarmRunning then
-		FarmDiag("UpdateAutoFarm STATE flag=" .. tostring(Flags.AutoFarm) .. " running=" .. tostring(AutoFarmRunning))
-		FarmDiagLastUpdateFlag = Flags.AutoFarm
-		FarmDiagLastUpdateRunning = AutoFarmRunning
-	end
 	if Flags.AutoFarm then
 		if not AutoFarmRunning then
 			MM2.Functions.StartAutoFarm()
@@ -2009,7 +1938,7 @@ local CoinRateInfo, SetCoinRateText =
 	UI.CreateInfo(
 		UI.AutoFarmPage,
 		"Coin Rate",
-		"0 coins/min"
+		"Collect coins to start"
 	)
 
 local function FarmResetStats()
@@ -2017,9 +1946,7 @@ local function FarmResetStats()
 	FarmStatsStartedAt = nil
 	FarmLastReportedBagCount = FarmBagCount
 
-	SetCoinRateText(
-		"0 coins/min"
-	)
+	SetCoinRateText("Collect coins to start")
 end
 
 UI.CreateActionFeature(
@@ -2032,32 +1959,20 @@ UI.CreateActionFeature(
 
 MM2.Track(
 	RunService.Heartbeat:Connect(function()
-
-		if not FarmStatsStartedAt
-			or FarmStatsCoins <= 0
-		then
-			SetCoinRateText(
-				"0 coins/min"
-			)
-
+		if not FarmStatsStartedAt or FarmStatsCoins <= 0 then
+			SetCoinRateText("Collect coins to start")
 			return
 		end
 
-		local elapsed =
-			math.max(
-				os.clock()
-					- FarmStatsStartedAt,
-				1
-			)
-
-		local rate =
-			FarmStatsCoins
-			/ (elapsed / 60)
+		local elapsed = math.max(os.clock() - FarmStatsStartedAt, 1)
+		local coinsPerMinute = FarmStatsCoins / (elapsed / 60)
+		local coinsPerHour = coinsPerMinute * 60
 
 		SetCoinRateText(
 			string.format(
-				"%.1f coins/min",
-				rate
+				"%.1f coins/min   •   %.0f coins/hour",
+				coinsPerMinute,
+				coinsPerHour
 			)
 		)
 	end)
@@ -2168,146 +2083,5 @@ if FarmVictoryScreen and FarmVictoryScreen:IsA("RemoteEvent") then
 		end)
 	)
 end
-
---============================================================
--- Embedded Diagnostic GUI
--- One-run tester: ON / OFF / CLEAR / COPY
---============================================================
-
-task.spawn(function()
-    local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
-    local old = PlayerGui:FindFirstChild("AutoFarmV13_12Diagnostic")
-    if old then old:Destroy() end
-    local oldPrevious = PlayerGui:FindFirstChild("AutoFarmV13_11Diagnostic")
-    if oldPrevious then oldPrevious:Destroy() end
-
-    local gui = Instance.new("ScreenGui")
-    gui.Name = "AutoFarmV13_12Diagnostic"
-    gui.ResetOnSpawn = false
-    gui.DisplayOrder = 999999
-    gui.Parent = PlayerGui
-
-    local frame = Instance.new("Frame")
-    frame.Size = UDim2.new(0, 330, 0, 225)
-    frame.Position = UDim2.new(0.5, -165, 0.12, 0)
-    frame.Active = true
-    frame.Draggable = true
-    frame.Parent = gui
-
-    local title = Instance.new("TextLabel")
-    title.Size = UDim2.new(1, -12, 0, 30)
-    title.Position = UDim2.new(0, 6, 0, 4)
-    title.BackgroundTransparency = 1
-    title.Text = "AutoFarm LIVE DIAGNOSTIC"
-    title.TextScaled = true
-    title.Parent = frame
-
-    local status = Instance.new("TextLabel")
-    status.Size = UDim2.new(1, -12, 0, 42)
-    status.Position = UDim2.new(0, 6, 0, 35)
-    status.BackgroundTransparency = 1
-    status.TextWrapped = true
-    status.TextScaled = true
-    status.Text = "PASSIVE WATCHER: use the REAL AutoFarm toggle. CLEAR/COPY only."
-    status.Parent = frame
-
-    local function button(text, x, y, w)
-        local b = Instance.new("TextButton")
-        b.Size = UDim2.new(0, w, 0, 36)
-        b.Position = UDim2.new(0, x, 0, y)
-        b.Text = text
-        b.TextScaled = true
-        b.Parent = frame
-        return b
-    end
-
-    local clearButton = button("CLEAR LOGS", 10, 82, 150)
-    local copyButton = button("COPY LOGS", 170, 82, 150)
-
-    clearButton.MouseButton1Click:Connect(function()
-        table.clear(FarmDiagLogs)
-        FarmDiagMarkTime = nil
-        FarmDiagLastUpdateFlag = Flags.AutoFarm
-        FarmDiagLastUpdateRunning = AutoFarmRunning
-        FarmDiag("LOGS CLEARED - NEW TEST STARTED")
-        FarmDiagState("CLEAR BASELINE")
-        status.Text = "Logs cleared. Use the REAL AutoFarm toggle; this diagnostic only watches."
-    end)
-
-    copyButton.MouseButton1Click:Connect(function()
-        FarmDiagState("COPY CURRENT STATE")
-        local text = table.concat(FarmDiagLogs, "\n")
-        if setclipboard then
-            local ok = pcall(setclipboard, text)
-            status.Text = ok and "Logs copied. Send them to me." or "Clipboard call failed; logs remain in console."
-        elseif toclipboard then
-            local ok = pcall(toclipboard, text)
-            status.Text = ok and "Logs copied. Send them to me." or "Clipboard call failed; logs remain in console."
-        else
-            status.Text = "Clipboard unsupported; logs are in console."
-        end
-    end)
-
-
-    FarmDiag("EMBEDDED AUTOFARM DIAGNOSTIC GUI LOADED")
-    FarmDiagState("INITIAL STATE")
-end)
-
--- Passive watcher: this is intentionally independent from the farm lifecycle.
-task.spawn(function()
-    while MM2.Running do
-        local character = LocalPlayer.Character
-        local root = character and character:FindFirstChild("HumanoidRootPart")
-        local nc, total, movers = 0, 0, 0
-        if character then
-            for _,obj in ipairs(character:GetDescendants()) do
-                if obj:IsA("BasePart") then
-                    total += 1
-                    if not obj.CanCollide then nc += 1 end
-                end
-                if obj.Name == "FarmAlign" or obj.Name == "FarmUprightAlign" or obj.Name == "FarmAttachmentV13_3" then
-                    movers += 1
-                end
-            end
-        end
-
-        local collide = root and root.CanCollide or nil
-        if FarmDiagLastCanCollide ~= nil and collide ~= FarmDiagLastCanCollide then
-            FarmDiag("WATCH Root.CanCollide " .. tostring(FarmDiagLastCanCollide) .. " -> " .. tostring(collide))
-            FarmDiagState("COLLISION CHANGE")
-        end
-        if FarmDiagLastNC ~= nil and nc ~= FarmDiagLastNC then
-            FarmDiag("WATCH NonCollidable " .. tostring(FarmDiagLastNC) .. " -> " .. tostring(nc) .. "/" .. tostring(total))
-        end
-        if FarmDiagLastMoverCount ~= nil and movers ~= FarmDiagLastMoverCount then
-            FarmDiag("WATCH Farm mover instances " .. tostring(FarmDiagLastMoverCount) .. " -> " .. tostring(movers))
-            FarmDiagState("MOVER CHANGE")
-        end
-        if FarmDiagLastGeneration ~= FarmRunGeneration then
-            FarmDiag("WATCH Generation " .. tostring(FarmDiagLastGeneration) .. " -> " .. tostring(FarmRunGeneration))
-        end
-        if FarmDiagLastRunning ~= AutoFarmRunning then
-            FarmDiag("WATCH AutoFarmRunning " .. tostring(FarmDiagLastRunning) .. " -> " .. tostring(AutoFarmRunning))
-        end
-
-        FarmDiagLastCanCollide = collide
-        FarmDiagLastNC = nc
-        FarmDiagLastMoverCount = movers
-        FarmDiagLastGeneration = FarmRunGeneration
-        FarmDiagLastRunning = AutoFarmRunning
-
-        if FarmDiagMarkTime and os.clock() - FarmDiagMarkTime <= 5.2 then
-            local vel = root and root.AssemblyLinearVelocity or Vector3.zero
-            local hs = Vector3.new(vel.X,0,vel.Z).Magnitude
-            if hs >= 4 or movers > 0 or nc == total and total > 0 then
-                FarmDiag(string.format("POST-OFF WATCH +%.3fs speed=%.2f movers=%d NC=%d/%d flag=%s running=%s gen=%s",
-                    os.clock()-FarmDiagMarkTime, hs, movers, nc, total,
-                    tostring(Flags.AutoFarm), tostring(AutoFarmRunning), tostring(FarmRunGeneration)))
-            end
-        end
-
-        task.wait(0.10)
-    end
-end)
 
 return MM2
