@@ -124,9 +124,9 @@ end
 
 local function AddHeading(title, desc)
 	local ok, result = pcall(function()
+		-- Match the known-good Misc construction: title-only.
 		return VisualsTab:Section({
 			Title = title,
-			Desc = desc or "",
 			Opened = true,
 		})
 	end)
@@ -138,6 +138,12 @@ local function AddHeading(title, desc)
 		)
 		return nil
 	end
+
+	-- Reuse UI.lua's exact Misc-style title-only header compaction.
+	if UI.CompactTitleOnlySection then
+		UI.CompactTitleOnlySection(result)
+	end
+
 	return result
 end
 

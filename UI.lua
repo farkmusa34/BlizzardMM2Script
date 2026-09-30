@@ -838,7 +838,7 @@ function UI.SetNextSectionSpacing(page,above,below)
 	NextSectionSpacing[page] = true
 end
 
-local function LowerFirstSectionHeadingY(section)
+local function LowerFirstSectionHeadingY(section, page)
 	-- The first heading has no section above it, so give it a deliberate
 	-- downward visual offset without changing section/card geometry.
 	if not section or not section.ElementFrame then
@@ -846,7 +846,7 @@ local function LowerFirstSectionHeadingY(section)
 	end
 
 	local basePositions = setmetatable({}, {__mode = "k"})
-	local FIRST_HEADING_Y_NUDGE = 0
+	local FIRST_HEADING_Y_NUDGE = (page == UI.CombatPage) and -4 or 0
 
 	local function Apply()
 		local outline = section.ElementFrame:FindFirstChild("Outline")
@@ -916,6 +916,10 @@ local function TightenSectionToFirstControlGap(section)
 	task.delay(0.05, Apply)
 	task.delay(0.20, Apply)
 end
+
+-- Public hook for tabs (such as Visuals.lua) that create WindUI sections directly.
+-- This reuses the exact title-only compaction that gives Misc its good spacing.
+UI.CompactTitleOnlySection = TightenSectionToFirstControlGap
 
 local function CenterLaterSectionHeadingY(section)
 	-- IMPORTANT:
@@ -1040,7 +1044,7 @@ function UI.AddSection(page,titleText,subtitleText)
 			-- Keep heading text at its native Y position; clipping is disabled by the gap patch.
 			if isFirstHeading then
 				-- First heading: noticeably lower, since there is no group above it.
-				LowerFirstSectionHeadingY(section)
+				LowerFirstSectionHeadingY(section, page)
 			else
 				-- Later headings: keep them centered between surrounding groups.
 				CenterLaterSectionHeadingY(section)
