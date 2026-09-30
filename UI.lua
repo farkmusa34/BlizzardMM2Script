@@ -63,11 +63,11 @@ end
 --============================================================
 
 local COLORS = {
-	Background = Color3.fromRGB(9,10,13),
-	Sidebar = Color3.fromRGB(7,8,11),
-	Card = Color3.fromRGB(15,16,20),
-	CardHover = Color3.fromRGB(20,22,27),
-	Stroke = Color3.fromRGB(39,42,50),
+	Background = Color3.fromRGB(30,31,35),
+	Sidebar = Color3.fromRGB(10,11,13),
+	Card = Color3.fromRGB(47,48,53),
+	CardHover = Color3.fromRGB(55,56,61),
+	Stroke = Color3.fromRGB(67,68,74),
 	Text = Color3.fromRGB(240,242,248),
 	Muted = Color3.fromRGB(157,163,178),
 	Accent = Color3.fromRGB(245,245,245),
@@ -287,12 +287,12 @@ pcall(function()
 		WindUI:AddTheme({
 			Name = "Blizzard Mono",
 			Accent = "#FFFFFF",
-			Dialog = "#101114",
-			Outline = "#292C32",
+			Dialog = "#202125",
+			Outline = "#45464C",
 			Text = "#F5F5F5",
 			Placeholder = "#9B9B9B",
-			Background = "#08090B",
-			Button = "#15171B",
+			Background = "#202125",
+			Button = "#303136",
 			-- Mono-only toggle treatment: dark when OFF, green when ON.
 			Toggle = "#43A047",
 			ToggleBar = "#FFFFFF",
@@ -389,8 +389,8 @@ local function CreateLatestUpdateTag(color)
 
 			return Window:Tag({
 				Title = "Halloween Update",
-				Icon = "pumpkin",
-				Color = Color3.fromRGB(224,112,32),
+				Icon = "ghost",
+				Color = Color3.fromRGB(232,126,34),
 				Border = true,
 			})
 		end)
@@ -654,17 +654,24 @@ task.spawn(function()
 end)
 
 --============================================================
--- BLIZZARD MONO DARK SIDEBAR PASS
+-- BLIZZARD MONO COORDINATED GLASS PASS
+-- Top bar + sidebar: ~30% transparent black.
+-- Main content remains gray glass; selected navigation stays subtle.
 --============================================================
 task.spawn(function()
 	task.wait(0.9)
-	local function findTabLabel(root)
+
+	local function findLabel(root,text)
 		for _,obj in ipairs(root:GetDescendants()) do
-			if (obj:IsA("TextLabel") or obj:IsA("TextButton")) and obj.Text == "Visuals" then return obj end
+			if (obj:IsA("TextLabel") or obj:IsA("TextButton")) and obj.Text == text then
+				return obj
+			end
 		end
 	end
-	local tabLabel = findTabLabel(CoreGui) or findTabLabel(PlayerGui)
+
+	local tabLabel = findLabel(CoreGui,"Visuals") or findLabel(PlayerGui,"Visuals")
 	if not tabLabel then return end
+
 	local node,sidebar = tabLabel.Parent,nil
 	for _ = 1,9 do
 		if not node then break end
@@ -675,10 +682,35 @@ task.spawn(function()
 		node=node.Parent
 	end
 	if not sidebar then return end
+
+	-- Sidebar: black glass, not a solid black wall.
 	pcall(function()
-		sidebar.BackgroundColor3=Color3.fromRGB(7,8,11)
-		sidebar.BackgroundTransparency=0.08
+		sidebar.BackgroundColor3 = Color3.fromRGB(8,9,11)
+		sidebar.BackgroundTransparency = 0.30
 	end)
+
+	-- Find the enclosing WindUI window and give the header/frame the same glass family.
+	local windowNode = sidebar
+	for _ = 1,7 do
+		if not windowNode.Parent or not windowNode.Parent:IsA("GuiObject") then break end
+		windowNode = windowNode.Parent
+	end
+
+	-- Soften dark structural surfaces throughout the frame while leaving
+	-- the gray content/card palette supplied by Blizzard Mono intact.
+	for _,obj in ipairs(windowNode:GetDescendants()) do
+		if obj:IsA("Frame") then
+			local size=obj.AbsoluteSize
+			local c=obj.BackgroundColor3
+			local brightness=(c.R+c.G+c.B)/3
+			if brightness < 0.12 and size.X > 180 then
+				pcall(function()
+					obj.BackgroundColor3=Color3.fromRGB(10,11,13)
+					obj.BackgroundTransparency=math.max(obj.BackgroundTransparency,0.30)
+				end)
+			end
+		end
+	end
 end)
 
 --============================================================
