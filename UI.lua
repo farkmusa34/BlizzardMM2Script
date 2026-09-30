@@ -878,7 +878,7 @@ end
 -- Controlled section-spacing test.
 -- Shrinks only the native section header row so the first control sits
 -- closer to its heading. Card-to-card spacing and text nudges stay untouched.
-local SECTION_TO_FIRST_CONTROL_REDUCTION = 12
+local SECTION_TO_FIRST_CONTROL_REDUCTION = 0
 
 local function TightenSectionToFirstControlGap(section)
 	if not section or not section.ElementFrame then
@@ -982,15 +982,12 @@ function UI.AddSection(page,titleText,subtitleText)
 				Opened = true,
 			}
 
-			if isVisuals then
-				-- Visuals is untouched and remains the spacing reference.
-				local desc = tostring(subtitleText or "")
-				if desc ~= "" then
-					config.Desc = desc
-				end
-			else
-				-- No section subtitles on the other tabs.
-				-- Control/card descriptions are unaffected.
+			-- SUBTITLE RESTORE TEST:
+			-- Give every WindUI section its original Desc again so we can test
+			-- whether removing subtitles caused the oversized section spacing.
+			local desc = tostring(subtitleText or "")
+			if desc ~= "" then
+				config.Desc = desc
 			end
 
 			-- Direct native WindUI Section(), matching the construction style
@@ -1026,8 +1023,8 @@ function UI.AddSection(page,titleText,subtitleText)
 		LockSectionOpenAndHideArrow(section)
 
 		if not isVisuals then
-			-- TEST: geometry-only reduction between heading and first control.
-			TightenSectionToFirstControlGap(section)
+			-- SUBTITLE RESTORE TEST: no geometry gap reduction.
+			-- Keep both heading nudges at 0 and let WindUI lay the section out natively.
 			if isFirstHeading then
 				-- First heading: noticeably lower, since there is no group above it.
 				LowerFirstSectionHeadingY(section)
