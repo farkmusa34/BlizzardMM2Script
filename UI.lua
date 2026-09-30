@@ -876,9 +876,9 @@ local function LowerFirstSectionHeadingY(section)
 end
 
 -- Compact title-only section spacing.
--- Shrinks only the native section header row so removing Desc does not leave
--- subtitle-sized empty space. Card-to-card spacing stays untouched.
-local SECTION_TO_FIRST_CONTROL_REDUCTION = 26
+-- Removes only part of WindUI's title-only reserved header space.
+-- The title remains unclipped and card-to-card spacing stays untouched.
+local SECTION_TO_FIRST_CONTROL_REDUCTION = 16
 
 local function TightenSectionToFirstControlGap(section)
 	if not section or not section.ElementFrame then
@@ -888,9 +888,17 @@ local function TightenSectionToFirstControlGap(section)
 	local nativeSizes = setmetatable({}, {__mode = "k"})
 
 	local function Apply()
-		local outline = section.ElementFrame:FindFirstChild("Outline")
+		local main = section.ElementFrame
+		local outline = main:FindFirstChild("Outline")
 		local top = outline and outline:FindFirstChild("Top")
 		if not top or not top:IsA("GuiObject") then return end
+
+		-- WindUI's title-only section still reserves some of the old Desc row.
+		-- Reduce only part of that header reserve, and disable clipping so the
+		-- title itself can never be chopped by the tighter header.
+		pcall(function() main.ClipsDescendants = false end)
+		pcall(function() outline.ClipsDescendants = false end)
+		pcall(function() top.ClipsDescendants = false end)
 
 		if not nativeSizes[top] then
 			nativeSizes[top] = top.Size
@@ -1029,7 +1037,7 @@ function UI.AddSection(page,titleText,subtitleText)
 			-- without touching card-to-card spacing.
 			TightenSectionToFirstControlGap(section)
 
-			-- Keep heading text at its native Y position; only the container shrinks.
+			-- Keep heading text at its native Y position; clipping is disabled by the gap patch.
 			if isFirstHeading then
 				-- First heading: noticeably lower, since there is no group above it.
 				LowerFirstSectionHeadingY(section)
