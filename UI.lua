@@ -287,15 +287,15 @@ pcall(function()
 		WindUI:AddTheme({
 			Name = "Blizzard Mono",
 			Accent = "#FFFFFF",
-			Dialog = "#151515",
-			Outline = "#343434",
+			Dialog = "#171719",
+			Outline = "#303035",
 			Text = "#F5F5F5",
 			Placeholder = "#9B9B9B",
-			Background = "#0B0B0C",
-			Button = "#252527",
+			Background = "#0D0D0F",
+			Button = "#29292E",
 			-- Mono-only toggle treatment: dark when OFF, green when ON.
-			Toggle = "#43A047",
-			ToggleBar = "#FFFFFF",
+			Toggle = "#F4F4F4",
+			ToggleBar = "#4A4A50",
 			Icon = "#FFFFFF",
 		})
 	end
@@ -1159,6 +1159,8 @@ function UI.CreateInfo(
 	if ok then
 
 		control = result
+		task.defer(function() StyleSquareToggle(control,Flags[flagName]) end)
+		task.delay(0.15,function() StyleSquareToggle(control,Flags[flagName]) end)
 
 		-- Optional semantic action styling. WindUI does not expose a
 		-- per-button fill option consistently, so style its actual element.
@@ -1241,6 +1243,48 @@ end
 --============================================================
 
 UI.ToggleRegistry = {}
+
+-- Reference-style square toggle treatment.
+-- WindUI still owns the control/callback; this only restyles the visual switch.
+local function StyleSquareToggle(control,value)
+	if not control then return end
+	local root = control.ElementFrame or control.Frame or control.Root
+	if typeof(root) ~= "Instance" then return end
+
+	local best,bestScore = nil,-math.huge
+	for _,obj in ipairs(root:GetDescendants()) do
+		if obj:IsA("Frame") and obj.BackgroundTransparency < 1 then
+			local s = obj.AbsoluteSize
+			local p = obj.AbsolutePosition
+			local rp = root.AbsolutePosition
+			local rs = root.AbsoluteSize
+			if s.X >= 24 and s.X <= 90 and s.Y >= 18 and s.Y <= 55 and p.X > rp.X + rs.X*0.55 then
+				local score = p.X + (s.Y*2) - math.abs(s.X-s.Y)
+				if score > bestScore then best,bestScore = obj,score end
+			end
+		end
+	end
+	if not best then return end
+
+	best.Size = UDim2.fromOffset(36,36)
+	best.BackgroundColor3 = value and Color3.fromRGB(245,245,245) or Color3.fromRGB(70,70,76)
+	best.BackgroundTransparency = value and 0 or 0.18
+
+	local corner = best:FindFirstChildOfClass("UICorner") or Instance.new("UICorner")
+	corner.CornerRadius = UDim.new(0,9)
+	corner.Parent = best
+
+	-- Hide the old circular sliding knob so the control reads as one rounded square.
+	for _,child in ipairs(best:GetDescendants()) do
+		if child:IsA("Frame") and child ~= best then
+			local s = child.AbsoluteSize
+			if s.X <= 30 and s.Y <= 30 then child.BackgroundTransparency = 1 end
+		elseif child:IsA("ImageLabel") or child:IsA("ImageButton") then
+			local s = child.AbsoluteSize
+			if s.X <= 30 and s.Y <= 30 then child.ImageTransparency = 1 end
+		end
+	end
+end
 
 function UI.SetToggleState(
 	flagName,
@@ -1333,6 +1377,8 @@ function UI.CreateToggle(
 
 						Flags[flagName] =
 							value
+
+						task.defer(function() StyleSquareToggle(control,value) end)
 
 						if ignoreNextCallback then
 							return
@@ -1449,6 +1495,7 @@ function UI.CreateToggle(
 			end)
 
 			ignoreNextCallback = false
+			task.defer(function() StyleSquareToggle(control,value) end)
 		end
 
 		if runCallback
