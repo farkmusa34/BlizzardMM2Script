@@ -875,10 +875,13 @@ local function LowerFirstSectionHeadingY(section)
 	task.delay(0.20, Apply)
 end
 
--- Controlled section-spacing test.
--- Shrinks only the native section header row so the first control sits
--- closer to its heading. Card-to-card spacing and text nudges stay untouched.
-local SECTION_TO_FIRST_CONTROL_REDUCTION = 12
+-- Reference-spacing test.
+-- Match the tighter reference rhythm in two independent places:
+--   1) section heading -> first control
+--   2) control/card -> next control/card
+-- Text nudges stay at zero so geometry is the only variable.
+local SECTION_TO_FIRST_CONTROL_REDUCTION = 20
+local CONTROL_TO_CONTROL_GAP = 4
 
 local function TightenSectionToFirstControlGap(section)
 	if not section or not section.ElementFrame then
@@ -901,6 +904,27 @@ local function TightenSectionToFirstControlGap(section)
 			native.X.Scale, native.X.Offset,
 			native.Y.Scale, math.max(0, native.Y.Offset - SECTION_TO_FIRST_CONTROL_REDUCTION)
 		)
+	end
+
+	Apply()
+	task.defer(Apply)
+	task.delay(0.05, Apply)
+	task.delay(0.20, Apply)
+end
+
+local function TightenControlToControlGap(section)
+	if not section or not section.ElementFrame then
+		return
+	end
+
+	local function Apply()
+		-- WindUI sections expose their controls through a Content frame.
+		-- Only change that vertical list's Padding; do not resize controls.
+		local content = section.ElementFrame:FindFirstChild("Content", true)
+		local layout = content and content:FindFirstChildWhichIsA("UIListLayout")
+		if layout and layout.FillDirection == Enum.FillDirection.Vertical then
+			layout.Padding = UDim.new(0, CONTROL_TO_CONTROL_GAP)
+		end
 	end
 
 	Apply()
@@ -1025,16 +1049,15 @@ function UI.AddSection(page,titleText,subtitleText)
 	if section ~= tab then
 		LockSectionOpenAndHideArrow(section)
 
-		if not isVisuals then
-			-- TEST: geometry-only reduction between heading and first control.
-			TightenSectionToFirstControlGap(section)
-			if isFirstHeading then
-				-- First heading: noticeably lower, since there is no group above it.
-				LowerFirstSectionHeadingY(section)
-			else
-				-- Later headings: keep them centered between surrounding groups.
-				CenterLaterSectionHeadingY(section)
-			end
+		-- Reference-spacing test: use the same tighter geometry on every tab,
+		-- including Visuals, so the whole menu has one consistent rhythm.
+		TightenSectionToFirstControlGap(section)
+		TightenControlToControlGap(section)
+
+		if isFirstHeading then
+			LowerFirstSectionHeadingY(section)
+		else
+			CenterLaterSectionHeadingY(section)
 		end
 	end
 
