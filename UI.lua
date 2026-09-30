@@ -63,11 +63,11 @@ end
 --============================================================
 
 local COLORS = {
-	Background = Color3.fromRGB(15,16,20),
-	Sidebar = Color3.fromRGB(18,19,24),
-	Card = Color3.fromRGB(24,25,31),
-	CardHover = Color3.fromRGB(29,31,38),
-	Stroke = Color3.fromRGB(54,57,68),
+	Background = Color3.fromRGB(9,10,13),
+	Sidebar = Color3.fromRGB(7,8,11),
+	Card = Color3.fromRGB(15,16,20),
+	CardHover = Color3.fromRGB(20,22,27),
+	Stroke = Color3.fromRGB(39,42,50),
 	Text = Color3.fromRGB(240,242,248),
 	Muted = Color3.fromRGB(157,163,178),
 	Accent = Color3.fromRGB(245,245,245),
@@ -287,12 +287,12 @@ pcall(function()
 		WindUI:AddTheme({
 			Name = "Blizzard Mono",
 			Accent = "#FFFFFF",
-			Dialog = "#151515",
-			Outline = "#343434",
+			Dialog = "#101114",
+			Outline = "#292C32",
 			Text = "#F5F5F5",
 			Placeholder = "#9B9B9B",
-			Background = "#0B0B0C",
-			Button = "#252527",
+			Background = "#08090B",
+			Button = "#15171B",
 			-- Mono-only toggle treatment: dark when OFF, green when ON.
 			Toggle = "#43A047",
 			ToggleBar = "#FFFFFF",
@@ -388,9 +388,9 @@ local function CreateLatestUpdateTag(color)
 		pcall(function()
 
 			return Window:Tag({
-				Title = "Latest Update",
-				Icon = "sparkles",
-				Color = color,
+				Title = "Halloween Update",
+				Icon = "pumpkin",
+				Color = Color3.fromRGB(224,112,32),
 				Border = true,
 			})
 		end)
@@ -651,6 +651,34 @@ task.spawn(function()
 	end
 
 	UI.PlayerProfile = profile
+end)
+
+--============================================================
+-- BLIZZARD MONO DARK SIDEBAR PASS
+--============================================================
+task.spawn(function()
+	task.wait(0.9)
+	local function findTabLabel(root)
+		for _,obj in ipairs(root:GetDescendants()) do
+			if (obj:IsA("TextLabel") or obj:IsA("TextButton")) and obj.Text == "Visuals" then return obj end
+		end
+	end
+	local tabLabel = findTabLabel(CoreGui) or findTabLabel(PlayerGui)
+	if not tabLabel then return end
+	local node,sidebar = tabLabel.Parent,nil
+	for _ = 1,9 do
+		if not node then break end
+		if node:IsA("GuiObject") then
+			local w,h=node.AbsoluteSize.X,node.AbsoluteSize.Y
+			if w>=120 and w<=300 and h>=250 then sidebar=node end
+		end
+		node=node.Parent
+	end
+	if not sidebar then return end
+	pcall(function()
+		sidebar.BackgroundColor3=Color3.fromRGB(7,8,11)
+		sidebar.BackgroundTransparency=0.08
+	end)
 end)
 
 --============================================================
@@ -1372,11 +1400,10 @@ function UI.CreateToggle(
 									or "Disabled!",
 
 								Icon =
-									(not value and "x")
-									or (flagName == "AutoFarm" and "bot")
+									(flagName == "AutoFarm" and "bot")
 									or (flagName == "ShootMurdererAfterBagFull" and "crosshair")
 									or (flagName == "KillAllAfterBagFull" and "swords")
-									or "check",
+									or (value and "check" or "x"),
 
 								Duration = 2.5,
 							})
