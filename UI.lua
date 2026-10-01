@@ -852,7 +852,7 @@ local function LowerFirstSectionHeadingY(section, page)
 	end
 
 	local basePositions = setmetatable({}, {__mode = "k"})
-	local FIRST_HEADING_Y_NUDGE = 2
+	local FIRST_HEADING_Y_NUDGE = 0
 
 	local function Apply()
 		local outline = section.ElementFrame:FindFirstChild("Outline")
@@ -884,7 +884,7 @@ end
 -- Compact title-only section spacing.
 -- Removes only part of WindUI's title-only reserved header space.
 -- The title remains unclipped and card-to-card spacing stays untouched.
-local SECTION_TO_FIRST_CONTROL_REDUCTION = 22
+local SECTION_TO_FIRST_CONTROL_REDUCTION = 0
 
 local function TightenSectionToFirstControlGap(section)
 	if not section or not section.ElementFrame then
@@ -939,7 +939,7 @@ local function CenterLaterSectionHeadingY(section)
 	end
 
 	local basePositions = setmetatable({}, {__mode = "k"})
-	local HEADING_Y_NUDGE = -5
+	local HEADING_Y_NUDGE = 0
 
 	local function Apply()
 		local outline = section.ElementFrame:FindFirstChild("Outline")
@@ -2339,3 +2339,38 @@ print(
 )
 
 return MM2
+
+--============================================================
+-- WINDUI POST-LOAD LAYOUT REFRESH
+-- Mimics a tiny resize, then restores the exact original size.
+--============================================================
+task.defer(function()
+	task.wait(0.35)
+	pcall(function()
+		local frame =
+			Window
+			and (
+				(Window.UIElements and (
+					Window.UIElements.Main
+					or Window.UIElements.Window
+					or Window.UIElements.Container
+				))
+				or Window.Window
+				or Window.Frame
+				or Window.Main
+			)
+
+		if typeof(frame) ~= "Instance" or not frame:IsA("GuiObject") then
+			return
+		end
+
+		local originalSize = frame.Size
+		frame.Size = UDim2.new(
+			originalSize.X.Scale, originalSize.X.Offset + 1,
+			originalSize.Y.Scale, originalSize.Y.Offset + 1
+		)
+		task.wait()
+		frame.Size = originalSize
+	end)
+end)
+
