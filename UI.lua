@@ -2338,8 +2338,6 @@ print(
 	"[Blizzard MM2 UI] Blizzard Mono WindUI bridge v1.85.4 loaded"
 )
 
-return MM2
-
 --============================================================
 -- WINDUI POST-LOAD LAYOUT REFRESH
 -- Mimics a tiny resize, then restores the exact original size.
@@ -2374,3 +2372,4 @@ task.defer(function()
 	end)
 end)
 
+return MM2
