@@ -119,7 +119,7 @@ Flags.RageThrow = false -- legacy flag retired; WallThrow now controls through-w
 Flags.WallThrow = Flags.WallThrow == true
 Flags.ShowThrowAimbotButton = Flags.ShowThrowAimbotButton == true
 
-UI.CreateToggle(UI.CombatPage, "Auto Throw Knife", "Automatically throws your knife at the closest visible player", "LegitThrow")
+UI.CreateToggle(UI.CombatPage, "Auto Throw Knife (RAGE)", "Automatically throws your knife at the closest visible player", "LegitThrow")
 UI.CreateToggle(UI.CombatPage, "Throw Aimbot Button", "Throws your knife at the closest visible player", "ShowThrowAimbotButton", function(on)
 	if MM2.UI.FloatingThrowAimbotHolder then MM2.UI.FloatingThrowAimbotHolder.Visible = on end
 end)
@@ -833,6 +833,17 @@ end
 MM2.Functions.LegitThrowOnce = LegitThrowOnce
 
 local function ThrowAimbotOnce()
+	local character = LocalPlayer.Character
+	local backpack = LocalPlayer:FindFirstChild("Backpack")
+	local hasKnife = MM2.HasTool(character,MM2.Config.KnifeNames)
+		or MM2.HasTool(backpack,MM2.Config.KnifeNames)
+		or (MM2.State and MM2.State.ServerRolesCache
+			and MM2.State.ServerRolesCache[LocalPlayer.Name] == "Murderer")
+
+	if not hasKnife then
+		return false,"Murderer Role Required"
+	end
+
 	if Flags.WallThrow then
 		return RageThrowOnce()
 	end
@@ -1261,18 +1272,6 @@ local FloatingThrowAimbotButton,FloatingThrowAimbotHolder =
 		end
 	)
 
--- Red outline for the Murderer action card, when the shared card API returns a GuiObject holder.
-if typeof(FloatingThrowAimbotHolder) == "Instance" then
-	local stroke = FloatingThrowAimbotHolder:FindFirstChildWhichIsA("UIStroke",true)
-	if stroke then
-		stroke.Color = Color3.fromRGB(255,70,70)
-	else
-		stroke = Instance.new("UIStroke")
-		stroke.Color = Color3.fromRGB(255,70,70)
-		stroke.Thickness = 1.5
-		stroke.Parent = FloatingThrowAimbotHolder
-	end
-end
 FloatingThrowAimbotHolder.Visible = Flags.ShowThrowAimbotButton == true
 MM2.UI.FloatingThrowAimbotButton = FloatingThrowAimbotButton
 MM2.UI.FloatingThrowAimbotHolder = FloatingThrowAimbotHolder
@@ -1301,6 +1300,26 @@ local FloatingKillAllButton,FloatingKillAllHolder =
 FloatingKillAllHolder.Visible = Flags.ShowKillAllButton == true
 MM2.UI.FloatingKillAllButton = FloatingKillAllButton
 MM2.UI.FloatingKillAllHolder = FloatingKillAllHolder
+
+-- Match Throw Aimbot's outline to the Kill All card exactly.
+if typeof(FloatingThrowAimbotHolder) == "Instance"
+	and typeof(FloatingKillAllHolder) == "Instance"
+then
+	local killStroke = FloatingKillAllHolder:FindFirstChildWhichIsA("UIStroke",true)
+	local throwStroke = FloatingThrowAimbotHolder:FindFirstChildWhichIsA("UIStroke",true)
+
+	if killStroke then
+		if not throwStroke then
+			throwStroke = Instance.new("UIStroke")
+			throwStroke.Parent = FloatingThrowAimbotHolder
+		end
+		throwStroke.Color = killStroke.Color
+		throwStroke.Thickness = killStroke.Thickness
+		throwStroke.Transparency = killStroke.Transparency
+		throwStroke.LineJoinMode = killStroke.LineJoinMode
+		throwStroke.ApplyStrokeMode = killStroke.ApplyStrokeMode
+	end
+end
 
 --============================================================
 -- AUTO GRAB GUN
