@@ -66,8 +66,13 @@ local function CreateNativeToggle(title, desc, flagName, callback)
 						)
 					end
 				end
-				-- WindUI notification.
+				-- WindUI notification. Keep the SAME feature icon for both
+				-- Enabled and Disabled; check/x are not state icons anymore.
 				pcall(function()
+					local icon =
+						(UI.ToggleNotificationIcons and UI.ToggleNotificationIcons[flagName])
+						or "settings"
+
 					UI.WindUI:Notify({
 						Title = tostring(
 							title
@@ -78,10 +83,7 @@ local function CreateNativeToggle(title, desc, flagName, callback)
 							value
 							and "Enabled!"
 							or "Disabled!",
-						Icon =
-							value
-							and "check"
-							or "x",
+						Icon = icon,
 						Duration = 2.5,
 					})
 				end)
