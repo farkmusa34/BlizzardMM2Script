@@ -289,12 +289,12 @@ pcall(function()
 			Accent = "#FFFFFF",
 			-- Dark smoked-glass palette: near-black rather than washed gray.
 			-- Window stays Transparent=true below, so the game remains visible through it.
-			Dialog = "#08080A",
-			Outline = "#18181C",
+			Dialog = "#050506",
+			Outline = "#111114",
 			Text = "#F5F5F5",
 			Placeholder = "#929298",
-			Background = "#030305",
-			Button = "#101014",
+			Background = "#010102",
+			Button = "#0B0B0E",
 			-- Mono-only toggle treatment: dark when OFF, green when ON.
 			Toggle = "#43A047",
 			ToggleBar = "#FFFFFF",
@@ -415,10 +415,8 @@ end
 
 function UI.SetLatestUpdateTheme(color)
 
-	color =
-		typeof(color) == "Color3"
-		and color
-		or DEFAULT_BLIZZARD_BLUE
+	-- SUMMER EVENT has a fixed orange identity; theme changes must not turn it white.
+	color = DEFAULT_BLIZZARD_BLUE
 
 	UI.CurrentThemeAccent = color
 
@@ -473,8 +471,14 @@ function UI.SetLatestUpdateTheme(color)
 end
 
 CreateLatestUpdateTag(
-	UI.CurrentThemeAccent
+	DEFAULT_BLIZZARD_BLUE
 )
+
+-- WindUI/theme modules may apply their accent shortly after startup.
+-- Re-assert the event orange after those initialization passes.
+task.defer(function() UI.SetLatestUpdateTheme(DEFAULT_BLIZZARD_BLUE) end)
+task.delay(0.15,function() UI.SetLatestUpdateTheme(DEFAULT_BLIZZARD_BLUE) end)
+task.delay(0.75,function() UI.SetLatestUpdateTheme(DEFAULT_BLIZZARD_BLUE) end)
 
 --============================================================
 -- IMPORTANT:
