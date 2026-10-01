@@ -1817,8 +1817,7 @@ function MM2.Functions.StartAutoFarm()
 end
 
 function MM2.Functions.StopAutoFarm()
-	-- Invalidate every task belonging to the current run before touching the
-	-- character. This is the key race-condition fix.
+	-- Invalidate every task from the current run first.
 	FarmRunGeneration += 1
 	AutoFarmRunning = false
 	FarmPaused = false
@@ -1828,55 +1827,90 @@ function MM2.Functions.StopAutoFarm()
 	FarmAfterBagFullHandled = false
 	FarmAfterBagActionBusy = false
 
-	-- Stop every force/target FIRST so nothing can keep dragging the
-	-- character while the return is being calculated.
 	FarmReleaseTarget()
 	FarmStopNoclip()
 	FarmDestroyMovement()
 	FarmRestoreHRPSize()
 
-	-- Give any already-resumed stale iteration one scheduler turn to observe
-	-- the invalid generation. Then clean once more before relocating.
+	-- Let stale callbacks observe the invalid generation, then clean once more.
 	task.wait()
 	FarmStopNoclip()
 	FarmDestroyMovement()
 	FarmRestoreHRPSize()
 
-	-- Relocate only after all farm forces and noclip writers are dead.
-	-- A shutdown fence runs alongside return verification so any stale callback
-	-- that somehow resumes during these scheduler turns is immediately neutralized.
-	local stopGeneration = FarmRunGeneration
-	local shutdownFenceAlive = true
+	-- V13.11: simple OFF return based on the Y diagnostic.
+	-- Default is +6.3 studs at the current X/Z.
+	-- If that destination is obstructed, try a small nearby ring instead.
+	if FarmUpdateCharacter() and FarmHumanoid.Health > 0 then
+		local RETURN_LIFT = 6.30
+		local RETURN_SEARCH_STEP = 2.0
+		local RETURN_SEARCH_RADIUS = 8.0
+		local RETURN_SAMPLES = 16
 
-	task.spawn(function()
-		local deadline = os.clock() + 3.0
-		while shutdownFenceAlive
-			and not AutoFarmRunning
-			and FarmRunGeneration == stopGeneration
-			and os.clock() < deadline do
+		local currentPos = FarmHRP.Position
+		local _,yaw,_ = FarmHRP.CFrame:ToOrientation()
+		local targetY = currentPos.Y + RETURN_LIFT
 
-			FarmStopNoclip()
-			FarmDestroyMovement()
-			FarmRestoreHRPSize()
-			RunService.Heartbeat:Wait()
+		local params = OverlapParams.new()
+		params.FilterType = Enum.RaycastFilterType.Exclude
+		params.FilterDescendantsInstances = {FarmCharacter}
+		params.RespectCanCollide = true
+
+		local function returnSpotClear(position)
+			local parts = workspace:GetPartBoundsInBox(
+				CFrame.new(position + Vector3.new(0,0.6,0)),
+				Vector3.new(3.3,6.2,3.3),
+				params
+			)
+
+			for _,part in ipairs(parts) do
+				if part and part.Parent and part:IsA("BasePart") and part.CanCollide then
+					return false
+				end
+			end
+			return true
 		end
-	end)
 
-	FarmReturnToSafePosition()
-	shutdownFenceAlive = false
+		local targetPos = Vector3.new(currentPos.X,targetY,currentPos.Z)
+
+		if not returnSpotClear(targetPos) then
+			local found = nil
+			for radius = RETURN_SEARCH_STEP,RETURN_SEARCH_RADIUS,RETURN_SEARCH_STEP do
+				for i = 0,RETURN_SAMPLES-1 do
+					local angle = (math.pi*2*i)/RETURN_SAMPLES
+					local candidate = Vector3.new(
+						currentPos.X + math.cos(angle)*radius,
+						targetY,
+						currentPos.Z + math.sin(angle)*radius
+					)
+					if returnSpotClear(candidate) then
+						found = candidate
+						break
+					end
+				end
+				if found then break end
+			end
+			targetPos = found
+		end
+
+		if targetPos then
+			pcall(function()
+				FarmHumanoid.Sit = false
+				FarmHumanoid.PlatformStand = false
+				FarmHumanoid.AutoRotate = true
+				FarmHRP.AssemblyLinearVelocity = Vector3.zero
+				FarmHRP.AssemblyAngularVelocity = Vector3.zero
+				FarmHRP.CFrame = CFrame.new(targetPos) * CFrame.Angles(0,yaw,0)
+				FarmHRP.AssemblyLinearVelocity = Vector3.zero
+				FarmHRP.AssemblyAngularVelocity = Vector3.zero
+				FarmHumanoid:ChangeState(Enum.HumanoidStateType.Running)
+			end)
+		end
+	end
+
 	FarmStopNoclip()
 	FarmDestroyMovement()
 	FarmRestoreHRPSize()
-
-	if FarmUpdateCharacter() then
-		pcall(function()
-			FarmHumanoid.Sit = false
-			FarmHumanoid.PlatformStand = false
-			FarmHRP.AssemblyLinearVelocity = Vector3.zero
-			FarmHRP.AssemblyAngularVelocity = Vector3.zero
-		end)
-	end
-
 	table.clear(FarmCoinSkipUntil)
 end
 
