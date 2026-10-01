@@ -25,198 +25,6 @@ end
 local CombatOverlay = UI.TracerGui or UI.ScreenGui
 assert(CombatOverlay, "Combat overlay GUI not found")
 
---============================================================
--- TEMPORARY COMBAT GUI DIAGNOSTIC V4
--- ADDITIVE / READ-ONLY: DOES NOT REMOVE OR REPLACE FEATURES
---============================================================
-
-do
-	local DiagnosticToken = "COMBAT-GUI-V4-KEEP-FEATURES"
-	local DiagnosticLines = {}
-	local DiagnosticGui
-	local DiagnosticBox
-
-	local function DLog(message)
-		local line = string.format("[%.2f] %s", os.clock(), tostring(message))
-		table.insert(DiagnosticLines, line)
-		if DiagnosticBox then
-			DiagnosticBox.Text = table.concat(DiagnosticLines, "\n")
-		end
-		print("[COMBAT GUI V4] "..tostring(message))
-	end
-
-	local function Describe(value)
-		local t = typeof(value)
-		if t == "Instance" then
-			return value:GetFullName().." <"..value.ClassName..">"
-		end
-		return tostring(value).." <"..t..">"
-	end
-
-	local function InspectObject(label, value)
-		DLog(label.." = "..Describe(value))
-		if typeof(value) == "Instance" then
-			local okPos, pos = pcall(function() return value.AbsolutePosition end)
-			local okSize, size = pcall(function() return value.AbsoluteSize end)
-			if okPos and okSize then
-				DLog(string.format(
-					"  geometry pos=(%d,%d) size=(%d,%d)",
-					math.floor(pos.X+.5), math.floor(pos.Y+.5),
-					math.floor(size.X+.5), math.floor(size.Y+.5)
-				))
-			end
-			for _, child in ipairs(value:GetChildren()) do
-				if child:IsA("UIListLayout") then
-					DLog(string.format(
-						"  UIListLayout %s padding=(%.3f,%d) content=(%d,%d)",
-						child.Name, child.Padding.Scale, child.Padding.Offset,
-						math.floor(child.AbsoluteContentSize.X+.5),
-						math.floor(child.AbsoluteContentSize.Y+.5)
-					))
-				elseif child:IsA("UIPadding") then
-					DLog(string.format(
-						"  UIPadding %s T=%d B=%d L=%d R=%d",
-						child.Name,
-						child.PaddingTop.Offset, child.PaddingBottom.Offset,
-						child.PaddingLeft.Offset, child.PaddingRight.Offset
-					))
-				end
-			end
-		end
-	end
-
-	local function RunScan()
-		table.clear(DiagnosticLines)
-		DLog("=== BLIZZARD COMBAT GUI DIAGNOSTIC V4 ===")
-		DLog("TOKEN="..DiagnosticToken)
-		DLog("READ-ONLY / FEATURES PRESERVED")
-		InspectObject("UI.CombatPage", UI.CombatPage)
-		InspectObject("UI.ScreenGui", UI.ScreenGui)
-		InspectObject("UI.TracerGui", UI.TracerGui)
-		InspectObject("CombatOverlay", CombatOverlay)
-
-		DLog("--- UI FUNCTION AVAILABILITY ---")
-		for _, name in ipairs({
-			"Section","AddSection","CreateToggle","CreateSlider",
-			"CreateButton","CreateDropdown","CreateColorPicker"
-		}) do
-			DLog("UI."..name.." = "..tostring(type(UI[name])))
-		end
-
-		DLog("--- COMBAT PAGE TABLE/INSTANCE DETAILS ---")
-		if type(UI.CombatPage) == "table" then
-			local count = 0
-			for k,v in pairs(UI.CombatPage) do
-				count += 1
-				if count <= 80 then
-					DLog("CombatPage["..tostring(k).."] = "..Describe(v))
-				end
-			end
-			DLog("CombatPage table entries scanned="..tostring(count))
-		elseif typeof(UI.CombatPage) == "Instance" then
-			local descendants = UI.CombatPage:GetDescendants()
-			DLog("CombatPage descendants="..tostring(#descendants))
-			for i,obj in ipairs(descendants) do
-				if i > 120 then break end
-				if obj:IsA("GuiObject") or obj:IsA("UIListLayout") or obj:IsA("UIPadding") then
-					DLog(string.format(
-						"%03d %s <%s>",
-						i, obj:GetFullName(), obj.ClassName
-					))
-				end
-			end
-		end
-
-		DLog("--- KNOWN FEATURE FLAGS ---")
-		for _, flag in ipairs({
-			"TriggerBot","AimLock","ShowLegitShootButton",
-			"GeneralPredictionDiagnostic","ShowShootButton","AutoGrab",
-			"LegitThrow","RageThrow","KnifeAura","KillAll",
-			"CrosshairEnabled"
-		}) do
-			DLog(flag.." = "..tostring(Flags[flag]))
-		end
-
-		DLog("=== END V4 REPORT ===")
-	end
-
-	local parent = CombatOverlay
-	if typeof(parent) ~= "Instance" then
-		parent = LocalPlayer:WaitForChild("PlayerGui")
-	end
-
-	DiagnosticGui = Instance.new("ScreenGui")
-	DiagnosticGui.Name = "BlizzardCombatGuiDiagnosticV4"
-	DiagnosticGui.ResetOnSpawn = false
-	DiagnosticGui.DisplayOrder = 1000003
-	DiagnosticGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
-
-	local Open = Instance.new("TextButton")
-	Open.Size = UDim2.fromOffset(130,42)
-	Open.Position = UDim2.new(1,-142,0,82)
-	Open.Text = "GUI DIAG V4"
-	Open.TextSize = 15
-	Open.Parent = DiagnosticGui
-
-	local Panel = Instance.new("Frame")
-	Panel.Size = UDim2.new(.94,0,.78,0)
-	Panel.Position = UDim2.new(.03,0,.11,0)
-	Panel.Visible = false
-	Panel.Parent = DiagnosticGui
-
-	DiagnosticBox = Instance.new("TextBox")
-	DiagnosticBox.Size = UDim2.new(1,-12,1,-58)
-	DiagnosticBox.Position = UDim2.fromOffset(6,6)
-	DiagnosticBox.MultiLine = true
-	DiagnosticBox.ClearTextOnFocus = false
-	DiagnosticBox.TextEditable = false
-	DiagnosticBox.TextWrapped = false
-	DiagnosticBox.TextXAlignment = Enum.TextXAlignment.Left
-	DiagnosticBox.TextYAlignment = Enum.TextYAlignment.Top
-	DiagnosticBox.Font = Enum.Font.Code
-	DiagnosticBox.TextSize = 12
-	DiagnosticBox.Text = "V4 ready. Press SCAN."
-	DiagnosticBox.Parent = Panel
-
-	local Scan = Instance.new("TextButton")
-	Scan.Size = UDim2.new(.31,0,0,38)
-	Scan.Position = UDim2.new(.02,0,1,-44)
-	Scan.Text = "SCAN V4"
-	Scan.Parent = Panel
-
-	local Copy = Instance.new("TextButton")
-	Copy.Size = UDim2.new(.31,0,0,38)
-	Copy.Position = UDim2.new(.345,0,1,-44)
-	Copy.Text = "COPY"
-	Copy.Parent = Panel
-
-	local Close = Instance.new("TextButton")
-	Close.Size = UDim2.new(.31,0,0,38)
-	Close.Position = UDim2.new(.67,0,1,-44)
-	Close.Text = "CLOSE"
-	Close.Parent = Panel
-
-	Open.MouseButton1Click:Connect(function()
-		Panel.Visible = not Panel.Visible
-	end)
-	Scan.MouseButton1Click:Connect(RunScan)
-	Copy.MouseButton1Click:Connect(function()
-		local output = table.concat(DiagnosticLines, "\n")
-		if setclipboard then
-			pcall(setclipboard, output)
-		elseif toclipboard then
-			pcall(toclipboard, output)
-		end
-	end)
-	Close.MouseButton1Click:Connect(function()
-		Panel.Visible = false
-	end)
-
-	MM2.UI.CombatGuiDiagnosticV4 = DiagnosticGui
-	print("[COMBAT GUI V4] FILE REACHED | "..DiagnosticToken)
-end
-
-
 local function CombatNotify(title,content,icon,duration)
 	local wind = UI.WindUI
 	if wind and wind.Notify then
@@ -272,74 +80,50 @@ end
 
 
 AddCompactCombatSection("Aimbot")
-UI.CreateToggle(UI.CombatPage, "TriggerBot", "Automatically shoots the murderer when they are visible", "TriggerBot")
-UI.CreateToggle(UI.CombatPage, "Aim Lock", "While Shift Lock is on, tracks the murderer’s torso", "AimLock")
-
-
-AddCompactCombatSection("Sheriff")
+UI.CreateToggle(UI.CombatPage, "TriggerBot", "Automatically shoots the Murderer when your crosshair is on them", "TriggerBot")
 Flags.TriggerBotDelay = math.clamp(tonumber(Flags.TriggerBotDelay) or 0.05,0,0.60)
 UI.CreateSlider(
 	UI.CombatPage,
 	"TriggerBot Delay",
-	"Delay before TriggerBot fires",
+	"Sets the delay before TriggerBot fires",
 	function() return Flags.TriggerBotDelay end,
 	function(value)
 		Flags.TriggerBotDelay = math.clamp(tonumber(value) or 0.05,0,0.60)
 	end,
 	0,0.60,0.01
 )
-UI.CreateToggle(UI.CombatPage, "Shoot Murderer (Legit)", "Shows a shoot button that only fires when the murderer is visible", "ShowLegitShootButton", function(on)
+UI.CreateToggle(UI.CombatPage, "Aim Lock", "Tracks the Murderer while Shift Lock is enabled", "AimLock")
+
+AddCompactCombatSection("Sheriff")
+UI.CreateToggle(UI.CombatPage, "Shoot Murderer Button (LEGIT)", "Shows a shoot button that only fires when the Murderer is visible", "ShowLegitShootButton", function(on)
 	if MM2.UI.FloatingLegitShootHolder then
 		MM2.UI.FloatingLegitShootHolder.Visible = on
 	elseif MM2.UI.FloatingLegitShootButton then
 		MM2.UI.FloatingLegitShootButton.Visible = on
 	end
 end)
-UI.CreateToggle(UI.CombatPage, "General Prediction Diagnostic", "Auto-fires one diagnostic shot for the movement case selected in the diagnostic panel", "GeneralPredictionDiagnostic")
-UI.CreateToggle(UI.CombatPage, "Shoot Murderer (Rage)", "Shows a rage shoot button that can target the murderer through walls", "ShowShootButton", function(on)
+UI.CreateToggle(UI.CombatPage, "Shoot Murderer Button (RAGE)", "Shows a shoot button that can target the Murderer through walls", "ShowShootButton", function(on)
 	if MM2.UI.FloatingShootHolder then
 		MM2.UI.FloatingShootHolder.Visible = on
 	elseif MM2.UI.FloatingShootButton then
 		MM2.UI.FloatingShootButton.Visible = on
 	end
 end)
+
+AddCompactCombatSection("Dropped Sheriff Gun")
 UI.CreateToggle(UI.CombatPage, "Auto Grab Gun", "Automatically picks up the dropped gun without moving your character", "AutoGrab")
 
-
 AddCompactCombatSection("Murderer")
+Flags.LegitThrow = Flags.LegitThrow == true
+Flags.RageThrow = false -- legacy flag retired; WallThrow now controls through-wall targeting.
+Flags.WallThrow = Flags.WallThrow == true
+Flags.ShowThrowAimbotButton = Flags.ShowThrowAimbotButton == true
 
-local RenderLegitThrow
-local RenderRageThrow
-
-local function SetThrowToggle(flagName,value)
-	Flags[flagName] = value == true
-	if flagName == "LegitThrow" and RenderLegitThrow then
-		RenderLegitThrow(Flags[flagName],false)
-	elseif flagName == "RageThrow" and RenderRageThrow then
-		RenderRageThrow(Flags[flagName],false)
-	end
-	if UI.SetToggleState then
-		UI.SetToggleState(flagName,Flags[flagName],false)
-	end
-end
-
-do
-	local _,_,render = UI.CreateToggle(UI.CombatPage, "Auto Throw Knife (Legit)", "Automatically throws your knife at the closest visible player", "LegitThrow", function(on)
-		if on then SetThrowToggle("RageThrow",false) end
-	end)
-	RenderLegitThrow = render
-end
-
-do
-	local _,_,render = UI.CreateToggle(UI.CombatPage, "Auto Throw Knife (Rage)", "Automatically throws your knife at the closest player, even through walls", "RageThrow", function(on)
-		if on then SetThrowToggle("LegitThrow",false) end
-	end)
-	RenderRageThrow = render
-end
-
-if Flags.LegitThrow and Flags.RageThrow then
-	SetThrowToggle("RageThrow",false)
-end
+UI.CreateToggle(UI.CombatPage, "Auto Throw Knife", "Automatically throws your knife at the closest visible player", "LegitThrow")
+UI.CreateToggle(UI.CombatPage, "Throw Aimbot Button", "Throws your knife at the closest visible player", "ShowThrowAimbotButton", function(on)
+	if MM2.UI.FloatingThrowAimbotHolder then MM2.UI.FloatingThrowAimbotHolder.Visible = on end
+end)
+UI.CreateToggle(UI.CombatPage, "Wall Throw", "Allows your thrown knives to target players through walls", "WallThrow")
 
 local KNIFE_RANGE_MIN = 5
 local KNIFE_RANGE_MAX = 200
@@ -512,7 +296,7 @@ local function UpdateCrosshairVisual()
 	end
 end
 
-UI.CreateToggle(UI.CombatPage, "Crosshair", "Shows the custom Blizzard crosshair", "CustomCrosshair", function()
+UI.CreateToggle(UI.CombatPage, "Crosshair", "Select your custom crosshair", "CustomCrosshair", function()
 	UpdateCrosshairVisual()
 end)
 
@@ -573,21 +357,6 @@ local AIMLOCK_FOV = 150
 local COMBAT_MAX_DISTANCE = 2000
 local SHOT_COOLDOWN = 1.5
 local LastTriggerShot = 0
-local DiagnosticVYWindowLatched = false
-local GeneralDiagnosticRequestedCase = nil
-local GeneralDiagnosticCaseIndex = 1
-local GeneralDiagnosticSelectedIndex = 1
--- Optional exact movement window layered on top of ANY selected diagnostic case.
--- nil means AUTO (use only the case's normal matcher).
-local GeneralDiagnosticCustomWindowEnabled = false
-local GeneralDiagnosticVYMin = nil
-local GeneralDiagnosticVYMax = nil
-local GeneralDiagnosticHSMin = nil
-local GeneralDiagnosticHSMax = nil
--- Server-facing prediction used only while the general diagnostic is active.
--- Production/manual prediction remains untouched.
-local GeneralDiagnosticPredictionMs = 60
-local GENERAL_DIAGNOSTIC_CASES = {"GROUNDED_HORIZONTAL","EARLY_RISE","LATE_RISE","APEX","NORMAL_FALL","FAST_FALL","DIAGONAL_RISE","DIAGONAL_FALL","DIRECTION_CHANGE","JUMP_SPAM"}
 local LastManualShot = 0
 local ShootBusy = false
 
@@ -603,22 +372,6 @@ end
 --============================================================
 
 local MANUAL_SHOOT_PREDICTION = 0.06
-local DIAGNOSTIC_VERTICAL_PREDICTION = true
-
-local DIAGNOSTIC_BASE_PREDICTION_MS = 20
--- Final acceptance-boundary diagnostic: keep prediction fixed and move only the
--- server-facing destination vertically. This isolates whether the server cares
--- about the Arg2 endpoint itself or accepts a shot because the origin->destination
--- segment intersects a live body part.
-local ACTUAL_ENDPOINT_OFFSET_SWEEP = {0.0,2.0}
-
-local function GetManualShootTargetPosition(torso,useVerticalPrediction,predictionSeconds)
-	local velocity = torso.AssemblyLinearVelocity
-	local predictionVelocity = useVerticalPrediction and velocity or Vector3.new(velocity.X,0,velocity.Z)
-	local prediction = tonumber(predictionSeconds) or MANUAL_SHOOT_PREDICTION
-	return torso.Position + predictionVelocity * prediction
-end
-
 -- Production prediction selected from the completed falling diagnostics.
 -- Preserve the original 60 ms horizontal prediction normally. For the one
 -- condition we isolated cleanly (vertical-only fast descent, VY -35..-45),
@@ -792,935 +545,6 @@ local function EnsureCombatGun()
 	return gun
 end
 
---============================================================
--- CFRAME-ORIGIN LEGIT SHOOT DIAGNOSTIC
--- FINAL A/B: keeps prediction fixed at 20 ms and changes ONLY endpoint Y offset: 0 studs, then +2 studs.
---============================================================
-
-local ExactFireDiagnostic = {
-	Enabled = true,
-	ShotNumber = 0,
-	Pending = nil,
-	Results = {},
-}
-
-local function GetNextDiagnosticOffsetStuds()
-	local nextShot = ExactFireDiagnostic.ShotNumber + 1
-	return ACTUAL_ENDPOINT_OFFSET_SWEEP[((nextShot - 1) % #ACTUAL_ENDPOINT_OFFSET_SWEEP) + 1]
-end
-
-local DiagnosticLogLines = {}
-
-local DiagnosticGui = Instance.new("ScreenGui")
-DiagnosticGui.Name = "BlizzardCFrameDiagnostic"
-DiagnosticGui.ResetOnSpawn = false
-DiagnosticGui.IgnoreGuiInset = false
-DiagnosticGui.DisplayOrder = 999998
-DiagnosticGui.Parent = MM2.PlayerGui
-
-local DiagnosticFrame = Instance.new("Frame")
-DiagnosticFrame.Name = "Main"
-DiagnosticFrame.Size = UDim2.fromOffset(238,382)
-DiagnosticFrame.Position = UDim2.new(0.5,-119,0.16,0)
-DiagnosticFrame.BackgroundColor3 = Color3.fromRGB(18,18,22)
-DiagnosticFrame.BackgroundTransparency = 0.08
-DiagnosticFrame.BorderSizePixel = 0
-DiagnosticFrame.Active = true
-DiagnosticFrame.Parent = DiagnosticGui
-
-local DiagnosticCorner = Instance.new("UICorner")
-DiagnosticCorner.CornerRadius = UDim.new(0,8)
-DiagnosticCorner.Parent = DiagnosticFrame
-
-local DiagnosticStroke = Instance.new("UIStroke")
-DiagnosticStroke.Thickness = 1
-DiagnosticStroke.Transparency = 0.35
-DiagnosticStroke.Color = Color3.fromRGB(130,180,255)
-DiagnosticStroke.Parent = DiagnosticFrame
-
-local DiagnosticTitle = Instance.new("TextLabel")
-DiagnosticTitle.Size = UDim2.new(1,-10,0,22)
-DiagnosticTitle.Position = UDim2.fromOffset(6,2)
-DiagnosticTitle.BackgroundTransparency = 1
-DiagnosticTitle.Font = Enum.Font.GothamBold
-DiagnosticTitle.TextSize = 11
-DiagnosticTitle.TextXAlignment = Enum.TextXAlignment.Left
-DiagnosticTitle.TextColor3 = Color3.fromRGB(245,245,250)
-DiagnosticTitle.Text = "GENERAL MOVEMENT PREDICTION DIAGNOSTIC"
-DiagnosticTitle.Parent = DiagnosticFrame
-
-local DiagnosticStatus = Instance.new("TextLabel")
-DiagnosticStatus.Size = UDim2.new(1,-12,0,64)
-DiagnosticStatus.Position = UDim2.fromOffset(6,24)
-DiagnosticStatus.BackgroundTransparency = 1
-DiagnosticStatus.Font = Enum.Font.Code
-DiagnosticStatus.TextSize = 10
-DiagnosticStatus.TextWrapped = false
-DiagnosticStatus.TextXAlignment = Enum.TextXAlignment.Left
-DiagnosticStatus.TextYAlignment = Enum.TextYAlignment.Top
-DiagnosticStatus.TextColor3 = Color3.fromRGB(220,220,225)
-DiagnosticStatus.Text = "Choose a shot type below\nEnable General Prediction Diagnostic\nIt will auto-fire ONE matching shot"
-DiagnosticStatus.Parent = DiagnosticFrame
-
-local CasePrevButton = Instance.new("TextButton")
-CasePrevButton.Size = UDim2.fromOffset(34,27)
-CasePrevButton.Position = UDim2.fromOffset(6,94)
-CasePrevButton.BackgroundColor3 = Color3.fromRGB(32,32,39)
-CasePrevButton.BorderSizePixel = 0
-CasePrevButton.Font = Enum.Font.GothamBold
-CasePrevButton.TextSize = 14
-CasePrevButton.TextColor3 = Color3.fromRGB(245,245,250)
-CasePrevButton.Text = "<"
-CasePrevButton.Parent = DiagnosticFrame
-
-local CaseSelectButton = Instance.new("TextButton")
-CaseSelectButton.Size = UDim2.new(1,-86,0,27)
-CaseSelectButton.Position = UDim2.fromOffset(43,94)
-CaseSelectButton.BackgroundColor3 = Color3.fromRGB(32,32,39)
-CaseSelectButton.BorderSizePixel = 0
-CaseSelectButton.Font = Enum.Font.GothamSemibold
-CaseSelectButton.TextSize = 9
-CaseSelectButton.TextColor3 = Color3.fromRGB(245,245,250)
-CaseSelectButton.Text = GENERAL_DIAGNOSTIC_CASES[GeneralDiagnosticSelectedIndex]
-CaseSelectButton.Parent = DiagnosticFrame
-
-local CaseNextButton = Instance.new("TextButton")
-CaseNextButton.Size = UDim2.fromOffset(34,27)
-CaseNextButton.Position = UDim2.new(1,-40,0,94)
-CaseNextButton.BackgroundColor3 = Color3.fromRGB(32,32,39)
-CaseNextButton.BorderSizePixel = 0
-CaseNextButton.Font = Enum.Font.GothamBold
-CaseNextButton.TextSize = 14
-CaseNextButton.TextColor3 = Color3.fromRGB(245,245,250)
-CaseNextButton.Text = ">"
-CaseNextButton.Parent = DiagnosticFrame
-
-local function RefreshDiagnosticCaseSelection()
-    CaseSelectButton.Text = GENERAL_DIAGNOSTIC_CASES[GeneralDiagnosticSelectedIndex]
-    DiagnosticStatus.Text = "Selected: "..CaseSelectButton.Text.."\nEnable General Prediction Diagnostic\nWaiting only for this movement case"
-end
-
-CasePrevButton.Activated:Connect(function()
-    GeneralDiagnosticSelectedIndex -= 1
-    if GeneralDiagnosticSelectedIndex < 1 then GeneralDiagnosticSelectedIndex = #GENERAL_DIAGNOSTIC_CASES end
-    RefreshDiagnosticCaseSelection()
-end)
-CaseNextButton.Activated:Connect(function()
-    GeneralDiagnosticSelectedIndex += 1
-    if GeneralDiagnosticSelectedIndex > #GENERAL_DIAGNOSTIC_CASES then GeneralDiagnosticSelectedIndex = 1 end
-    RefreshDiagnosticCaseSelection()
-end)
-CaseSelectButton.Activated:Connect(function()
-    GeneralDiagnosticSelectedIndex += 1
-    if GeneralDiagnosticSelectedIndex > #GENERAL_DIAGNOSTIC_CASES then GeneralDiagnosticSelectedIndex = 1 end
-    RefreshDiagnosticCaseSelection()
-end)
-
--- Generic exact-window chooser. Works with FAST_FALL, DIAGONAL_FALL, rises, etc.
-local WindowModeButton = Instance.new("TextButton")
-WindowModeButton.Size = UDim2.new(1,-12,0,25)
-WindowModeButton.Position = UDim2.fromOffset(6,127)
-WindowModeButton.BackgroundColor3 = Color3.fromRGB(32,32,39)
-WindowModeButton.BorderSizePixel = 0
-WindowModeButton.Font = Enum.Font.GothamSemibold
-WindowModeButton.TextSize = 10
-WindowModeButton.TextColor3 = Color3.fromRGB(245,245,250)
-WindowModeButton.Text = "WINDOW: AUTO"
-WindowModeButton.Parent = DiagnosticFrame
-
-local function MakeWindowBox(label,x,y)
-    local box = Instance.new("TextBox")
-    box.Size = UDim2.fromOffset(109,25)
-    box.Position = UDim2.fromOffset(x,y)
-    box.BackgroundColor3 = Color3.fromRGB(32,32,39)
-    box.BorderSizePixel = 0
-    box.ClearTextOnFocus = false
-    box.Font = Enum.Font.Code
-    box.TextSize = 10
-    box.TextColor3 = Color3.fromRGB(245,245,250)
-    box.PlaceholderColor3 = Color3.fromRGB(145,145,155)
-    box.PlaceholderText = label
-    box.Text = ""
-    box.Parent = DiagnosticFrame
-    return box
-end
-
-local VYMinBox = MakeWindowBox("VY MIN e.g. -37",6,158)
-local VYMaxBox = MakeWindowBox("VY MAX e.g. -36",123,158)
-local HSMinBox = MakeWindowBox("HS MIN e.g. 15",6,189)
-local HSMaxBox = MakeWindowBox("HS MAX e.g. 17",123,189)
-
-local WindowHint = Instance.new("TextLabel")
-WindowHint.Size = UDim2.new(1,-12,0,34)
-WindowHint.Position = UDim2.fromOffset(6,220)
-WindowHint.BackgroundTransparency = 1
-WindowHint.Font = Enum.Font.Code
-WindowHint.TextSize = 9
-WindowHint.TextWrapped = true
-WindowHint.TextXAlignment = Enum.TextXAlignment.Left
-WindowHint.TextYAlignment = Enum.TextYAlignment.Top
-WindowHint.TextColor3 = Color3.fromRGB(180,180,190)
-WindowHint.Text = "CUSTOM = selected case + these limits. Blank field = no extra limit."
-WindowHint.Parent = DiagnosticFrame
-
--- Diagnostic-only server-facing prediction chooser.
-local PredictionMsBox = Instance.new("TextBox")
-PredictionMsBox.Size = UDim2.new(1,-12,0,27)
-PredictionMsBox.Position = UDim2.fromOffset(6,258)
-PredictionMsBox.BackgroundColor3 = Color3.fromRGB(32,32,39)
-PredictionMsBox.BorderSizePixel = 0
-PredictionMsBox.ClearTextOnFocus = false
-PredictionMsBox.Font = Enum.Font.Code
-PredictionMsBox.TextSize = 10
-PredictionMsBox.TextColor3 = Color3.fromRGB(245,245,250)
-PredictionMsBox.PlaceholderColor3 = Color3.fromRGB(145,145,155)
-PredictionMsBox.PlaceholderText = "DIAGNOSTIC PREDICTION MS (e.g. 30)"
-PredictionMsBox.Text = tostring(GeneralDiagnosticPredictionMs)
-PredictionMsBox.Parent = DiagnosticFrame
-
-local PredictionHint = Instance.new("TextLabel")
-PredictionHint.Size = UDim2.new(1,-12,0,24)
-PredictionHint.Position = UDim2.fromOffset(6,288)
-PredictionHint.BackgroundTransparency = 1
-PredictionHint.Font = Enum.Font.Code
-PredictionHint.TextSize = 9
-PredictionHint.TextWrapped = true
-PredictionHint.TextXAlignment = Enum.TextXAlignment.Left
-PredictionHint.TextColor3 = Color3.fromRGB(180,180,190)
-PredictionHint.Text = "Changes diagnostic shots only; production prediction is untouched."
-PredictionHint.Parent = DiagnosticFrame
-
-local function ParseWindowBox(box)
-    local t = tostring(box.Text or ""):gsub("%s+","")
-    if t == "" then return nil end
-    return tonumber(t)
-end
-
-local function RefreshCustomWindow()
-    GeneralDiagnosticVYMin = ParseWindowBox(VYMinBox)
-    GeneralDiagnosticVYMax = ParseWindowBox(VYMaxBox)
-    GeneralDiagnosticHSMin = ParseWindowBox(HSMinBox)
-    GeneralDiagnosticHSMax = ParseWindowBox(HSMaxBox)
-    WindowModeButton.Text = GeneralDiagnosticCustomWindowEnabled and "WINDOW: CUSTOM" or "WINDOW: AUTO"
-end
-
-WindowModeButton.Activated:Connect(function()
-    GeneralDiagnosticCustomWindowEnabled = not GeneralDiagnosticCustomWindowEnabled
-    RefreshCustomWindow()
-end)
-for _,box in ipairs({VYMinBox,VYMaxBox,HSMinBox,HSMaxBox}) do
-    box.FocusLost:Connect(RefreshCustomWindow)
-end
-
-local function RefreshDiagnosticPrediction()
-    local ms = tonumber((PredictionMsBox.Text or ""):gsub("%s+",""))
-    if ms then
-        GeneralDiagnosticPredictionMs = math.clamp(ms,0,250)
-    end
-    PredictionMsBox.Text = tostring(GeneralDiagnosticPredictionMs)
-    return GeneralDiagnosticPredictionMs
-end
-
--- Keep the stored value in sync while typing, not only after FocusLost.
-PredictionMsBox:GetPropertyChangedSignal("Text"):Connect(function()
-    local ms = tonumber((PredictionMsBox.Text or ""):gsub("%s+",""))
-    if ms then
-        GeneralDiagnosticPredictionMs = math.clamp(ms,0,250)
-    end
-end)
-PredictionMsBox.FocusLost:Connect(RefreshDiagnosticPrediction)
-
-local CopyLogsButton = Instance.new("TextButton")
-CopyLogsButton.Size = UDim2.new(1,-12,0,27)
-CopyLogsButton.Position = UDim2.new(0,6,1,-67)
-CopyLogsButton.BackgroundColor3 = Color3.fromRGB(32,32,39)
-CopyLogsButton.BorderSizePixel = 0
-CopyLogsButton.AutoButtonColor = true
-CopyLogsButton.Font = Enum.Font.GothamSemibold
-CopyLogsButton.TextSize = 10
-CopyLogsButton.TextColor3 = Color3.fromRGB(245,245,250)
-CopyLogsButton.Text = "COPY LOGS"
-CopyLogsButton.Parent = DiagnosticFrame
-
-local CopyCorner = Instance.new("UICorner")
-CopyCorner.CornerRadius = UDim.new(0,6)
-CopyCorner.Parent = CopyLogsButton
-
-local ClearLogsButton = Instance.new("TextButton")
-ClearLogsButton.Size = UDim2.new(1,-12,0,27)
-ClearLogsButton.Position = UDim2.new(0,6,1,-33)
-ClearLogsButton.BackgroundColor3 = Color3.fromRGB(32,32,39)
-ClearLogsButton.BorderSizePixel = 0
-ClearLogsButton.AutoButtonColor = true
-ClearLogsButton.Font = Enum.Font.GothamSemibold
-ClearLogsButton.TextSize = 10
-ClearLogsButton.TextColor3 = Color3.fromRGB(245,245,250)
-ClearLogsButton.Text = "CLEAR LOGS"
-ClearLogsButton.Parent = DiagnosticFrame
-
-local ClearCorner = Instance.new("UICorner")
-ClearCorner.CornerRadius = UDim.new(0,6)
-ClearCorner.Parent = ClearLogsButton
-
-local function PushDiagnosticLog(line)
-	line = tostring(line)
-	table.insert(DiagnosticLogLines,line)
-	if #DiagnosticLogLines > 350 then
-		table.remove(DiagnosticLogLines,1)
-	end
-	print(line)
-end
-
-local function SetDiagnosticStatus(text)
-	DiagnosticStatus.Text = tostring(text or "")
-end
-
-CopyLogsButton.Activated:Connect(function()
-	local joined = table.concat(DiagnosticLogLines,"\n")
-	if setclipboard then
-		local ok = pcall(setclipboard,joined)
-		CopyLogsButton.Text = ok and "COPIED!" or "COPY FAILED"
-	else
-		CopyLogsButton.Text = "NO CLIPBOARD API"
-	end
-	task.delay(1.2,function()
-		if CopyLogsButton and CopyLogsButton.Parent then
-			CopyLogsButton.Text = "COPY LOGS"
-		end
-	end)
-end)
-
-ClearLogsButton.Activated:Connect(function()
-	table.clear(DiagnosticLogLines)
-	ExactFireDiagnostic.ShotNumber = 0
-	ExactFireDiagnostic.Pending = nil
-	ExactFireDiagnostic.Results = {}
-	GeneralDiagnosticCaseIndex = 1
-	SetDiagnosticStatus("Logs cleared\n6 controlled movement shots\nEnable General Prediction Diagnostic")
-	ClearLogsButton.Text = "CLEARED!"
-	task.delay(1.2,function()
-		if ClearLogsButton and ClearLogsButton.Parent then ClearLogsButton.Text = "CLEAR LOGS" end
-	end)
-end)
-
--- Small drag behavior for mouse and touch.
-do
-	local dragging = false
-	local dragInput
-	local dragStart
-	local startPosition
-
-	DiagnosticTitle.Active = true
-	DiagnosticTitle.InputBegan:Connect(function(input)
-		if input.UserInputType == Enum.UserInputType.MouseButton1
-			or input.UserInputType == Enum.UserInputType.Touch
-		then
-			dragging = true
-			dragStart = input.Position
-			startPosition = DiagnosticFrame.Position
-			input.Changed:Connect(function()
-				if input.UserInputState == Enum.UserInputState.End then
-					dragging = false
-				end
-			end)
-		end
-	end)
-
-	DiagnosticTitle.InputChanged:Connect(function(input)
-		if input.UserInputType == Enum.UserInputType.MouseMovement
-			or input.UserInputType == Enum.UserInputType.Touch
-		then
-			dragInput = input
-		end
-	end)
-
-	UIS.InputChanged:Connect(function(input)
-		if dragging and input == dragInput then
-			local delta = input.Position-dragStart
-			DiagnosticFrame.Position = UDim2.new(
-				startPosition.X.Scale,
-				startPosition.X.Offset+delta.X,
-				startPosition.Y.Scale,
-				startPosition.Y.Offset+delta.Y
-			)
-		end
-	end)
-end
-
-local function DiagnosticVector3(v)
-	return string.format("(%.2f, %.2f, %.2f)",v.X,v.Y,v.Z)
-end
-
-
--- Rolling target-motion buffer. Read-only: this does not alter prediction or firing.
-local PRE_SHOT_WINDOW = 0.200
-local PRE_SHOT_MAX_SAMPLES = 40
-local DiagnosticMotionBuffer = {}
-
-local function DiagnosticHumanoidState(humanoid)
-	if not humanoid then return "NONE" end
-	local ok,state = pcall(function() return humanoid:GetState() end)
-	return ok and tostring(state):gsub("Enum.HumanoidStateType.","") or "?"
-end
-
-local function CaptureDiagnosticMotionSample()
-	local player = FindLiveMurderer()
-	local torso = player and GetCombatTorso(player.Character)
-	local humanoid = player and player.Character and player.Character:FindFirstChildOfClass("Humanoid")
-	if not player or not torso or not humanoid then return end
-	local now = os.clock()
-	table.insert(DiagnosticMotionBuffer,{
-		Clock=now,
-		Player=player,
-		Position=torso.Position,
-		Velocity=torso.AssemblyLinearVelocity,
-		State=DiagnosticHumanoidState(humanoid),
-		Floor=tostring(humanoid.FloorMaterial):gsub("Enum.Material.",""),
-		Jump=humanoid.Jump == true,
-	})
-	while #DiagnosticMotionBuffer > PRE_SHOT_MAX_SAMPLES do table.remove(DiagnosticMotionBuffer,1) end
-	while #DiagnosticMotionBuffer > 0 and now-DiagnosticMotionBuffer[1].Clock > PRE_SHOT_WINDOW do
-		table.remove(DiagnosticMotionBuffer,1)
-	end
-end
-
-RunService.Heartbeat:Connect(CaptureDiagnosticMotionSample)
-
-local function SnapshotDiagnosticMotion(player,shotClock)
-	local out = {}
-	for _,sample in ipairs(DiagnosticMotionBuffer) do
-		if sample.Player == player and sample.Clock <= shotClock and shotClock-sample.Clock <= PRE_SHOT_WINDOW then
-			table.insert(out,sample)
-		end
-	end
-	return out
-end
-
-local HYPOTHETICAL_MS = {20,30,40,50,60,80,100}
-
-local function ClassifyDiagnosticPhase(record)
-	local vy = record.BaseVelocity.Y
-	local floor = record.BaseFloor
-	local airborne = floor == "Air"
-	local pre = record.PreShotSamples or {}
-	local jumpStartedRecently = false
-	for i = math.max(1,#pre-8),#pre do
-		local sample = pre[i]
-		if sample and (sample.State == "Jumping" or sample.Jump or sample.Velocity.Y > 6) then
-			jumpStartedRecently = true
-			break
-		end
-	end
-	-- Direction wins over recent jump history. This prevents descending shots
-	-- from being mislabeled JUMP_START just because a jump occurred recently.
-	if vy <= -10 then return "FALLING" end
-	if airborne and vy < -2 then return "DESCENT_NEAR_APEX" end
-	if not airborne and math.abs(vy) < 5 and not jumpStartedRecently then return "GROUNDED" end
-	if jumpStartedRecently and vy >= -2 and vy < 8 then return "JUMP_START" end
-	if vy >= 35 then return "EARLY_ASCENT" end
-	if vy >= 10 then return "LATE_ASCENT" end
-	return "APEX"
-end
-
-local function BuildHypotheticalTargets(position,velocity)
-	local targets = {}
-	for _,ms in ipairs(HYPOTHETICAL_MS) do
-		targets[ms] = position + velocity*(ms/1000)
-	end
-	return targets
-end
-
-
---============================================================
--- HITBOX / PART-INTERSECTION HELPERS (READ-ONLY)
--- The real shot is NOT changed. These only inspect the fixed shot segment.
---============================================================
-local DIAGNOSTIC_BODY_PARTS = {
-    "Head","UpperTorso","LowerTorso","Torso","HumanoidRootPart",
-    "LeftUpperArm","LeftLowerArm","LeftHand","RightUpperArm","RightLowerArm","RightHand",
-    "LeftUpperLeg","LeftLowerLeg","LeftFoot","RightUpperLeg","RightLowerLeg","RightFoot",
-    "Left Arm","Right Arm","Left Leg","Right Leg",
-}
-
-local function PointToSegmentDistance(point,a,b)
-    local ab = b-a
-    local denom = ab:Dot(ab)
-    if denom <= 1e-8 then return (point-a).Magnitude,0,a end
-    local t = math.clamp((point-a):Dot(ab)/denom,0,1)
-    local closest = a+ab*t
-    return (point-closest).Magnitude,t,closest
-end
-
--- Segment-vs-oriented-box slab test. Uses the live BasePart CFrame/Size.
-local function SegmentIntersectsPart(a,b,part)
-    if not part or not part:IsA("BasePart") then return false,nil end
-    local la = part.CFrame:PointToObjectSpace(a)
-    local lb = part.CFrame:PointToObjectSpace(b)
-    local d = lb-la
-    local h = part.Size*0.5
-    local tmin,tmax = 0,1
-    local function axis(origin,delta,half)
-        if math.abs(delta) < 1e-8 then
-            return math.abs(origin) <= half
-        end
-        local t1=(-half-origin)/delta
-        local t2=( half-origin)/delta
-        if t1>t2 then t1,t2=t2,t1 end
-        tmin=math.max(tmin,t1)
-        tmax=math.min(tmax,t2)
-        return tmin<=tmax
-    end
-    if not axis(la.X,d.X,h.X) then return false,nil end
-    if not axis(la.Y,d.Y,h.Y) then return false,nil end
-    if not axis(la.Z,d.Z,h.Z) then return false,nil end
-    local hitLocal=la+d*tmin
-    return true,part.CFrame:PointToWorldSpace(hitLocal)
-end
-
-local function InspectCharacterAgainstShot(character,origin,destination)
-    local result={Intersections={},NearestPart=nil,NearestCenterDistance=math.huge,NearestSurfaceApprox=math.huge}
-    if not character then return result end
-    local seen={}
-    for _,name in ipairs(DIAGNOSTIC_BODY_PARTS) do
-        local part=character:FindFirstChild(name)
-        if part and part:IsA("BasePart") and not seen[part] then
-            seen[part]=true
-            local centerDist,t,closest=PointToSegmentDistance(part.Position,origin,destination)
-            -- Approximate center-to-surface clearance for quick comparison only.
-            local radius=part.Size.Magnitude*0.5
-            local surfaceApprox=math.max(0,centerDist-radius)
-            if centerDist<result.NearestCenterDistance then
-                result.NearestCenterDistance=centerDist
-                result.NearestSurfaceApprox=surfaceApprox
-                result.NearestPart=part.Name
-                result.NearestT=t
-                result.NearestPoint=closest
-            end
-            local hit,hitPoint=SegmentIntersectsPart(origin,destination,part)
-            if hit then
-                table.insert(result.Intersections,{Name=part.Name,Point=hitPoint})
-            end
-        end
-    end
-    return result
-end
-
-local function JoinIntersectionNames(info)
-    if not info or #info.Intersections==0 then return "NONE" end
-    local names={}
-    for _,v in ipairs(info.Intersections) do table.insert(names,v.Name) end
-    return table.concat(names,",")
-end
-
---============================================================
--- SERVER-ACCEPTANCE / ENDPOINT HELPERS (READ-ONLY)
--- Tests whether the exact Arg2 destination point is actually inside a live
--- body-part OBB at each sampled frame. This is intentionally different from
--- the existing segment-intersection test: a segment can cross a character
--- even when the endpoint itself is outside every body part.
---============================================================
-local function PointInsidePartOBB(point,part)
-    if not point or not part or not part:IsA("BasePart") then return false,nil end
-    local p = part.CFrame:PointToObjectSpace(point)
-    local h = part.Size*0.5
-    local inside = math.abs(p.X) <= h.X and math.abs(p.Y) <= h.Y and math.abs(p.Z) <= h.Z
-    -- Signed clearance to the nearest box face while inside; negative means outside.
-    local clearance = math.min(h.X-math.abs(p.X),h.Y-math.abs(p.Y),h.Z-math.abs(p.Z))
-    return inside,clearance
-end
-
-local function InspectEndpointAgainstCharacter(character,point)
-    local result={InsideParts={},NearestPart=nil,NearestCenterDistance=math.huge,BestClearance=-math.huge}
-    if not character or not point then return result end
-    local seen={}
-    for _,name in ipairs(DIAGNOSTIC_BODY_PARTS) do
-        local part=character:FindFirstChild(name)
-        if part and part:IsA("BasePart") and not seen[part] then
-            seen[part]=true
-            local centerDistance=(point-part.Position).Magnitude
-            if centerDistance < result.NearestCenterDistance then
-                result.NearestCenterDistance=centerDistance
-                result.NearestPart=part.Name
-            end
-            local inside,clearance=PointInsidePartOBB(point,part)
-            if clearance and clearance > result.BestClearance then
-                result.BestClearance=clearance
-                result.BestClearancePart=part.Name
-            end
-            if inside then
-                table.insert(result.InsideParts,{Name=part.Name,Clearance=clearance})
-            end
-        end
-    end
-    return result
-end
-
-local function JoinEndpointInsideNames(info)
-    if not info or #info.InsideParts==0 then return "NONE" end
-    local names={}
-    for _,v in ipairs(info.InsideParts) do table.insert(names,v.Name) end
-    return table.concat(names,",")
-end
-
-local function BeginExactFireDiagnostic(player,torso,entryClock,targetPosition,actualPredictionMs,endpointOffsetStuds)
-	if not ExactFireDiagnostic.Enabled or not player or not torso then
-		return nil
-	end
-
-	ExactFireDiagnostic.ShotNumber += 1
-
-	local humanoid = torso.Parent and torso.Parent:FindFirstChildOfClass("Humanoid")
-	local record = {
-		Id = ExactFireDiagnostic.ShotNumber,
-		Player = player,
-		Torso = torso,
-		Humanoid = humanoid,
-		EntryClock = entryClock,
-		PredictClock = os.clock(),
-		BasePosition = torso.Position,
-		BaseVelocity = torso.AssemblyLinearVelocity,
-		TargetPosition = targetPosition,
-		ActualPredictionMs = tonumber(actualPredictionMs) or DIAGNOSTIC_BASE_PREDICTION_MS,
-		EndpointOffsetStuds = tonumber(endpointOffsetStuds) or 0,
-		StartHealth = humanoid and humanoid.Health or -1,
-		PreShotSamples = SnapshotDiagnosticMotion(player,entryClock),
-		BaseState = DiagnosticHumanoidState(humanoid),
-		BaseFloor = humanoid and tostring(humanoid.FloorMaterial):gsub("Enum.Material.","") or "NONE",
-		BaseJump = humanoid and humanoid.Jump == true or false,
-	}
-	record.Phase = ClassifyDiagnosticPhase(record)
-	record.GeneralCase = GeneralDiagnosticRequestedCase or record.Phase
-	-- Vertical-only diagnostic controls. These are READ-ONLY and never alter the shot.
-	local bv = record.BaseVelocity
-	record.BaseHorizontalSpeed = Vector3.new(bv.X,0,bv.Z).Magnitude
-	record.BaseVerticalSpeed = bv.Y
-	record.VerticalOnlyAtFire = record.BaseHorizontalSpeed <= 2.0
-	record.HypotheticalTargets = BuildHypotheticalTargets(record.BasePosition,record.BaseVelocity)
-	record.BestHypothetical = nil
-	record.BestHypotheticalError = math.huge
-	record.BestHypotheticalCheckpoint = nil
-	record.HypotheticalClosest = {}
-	for _,ms in ipairs(HYPOTHETICAL_MS) do
-		record.HypotheticalClosest[ms] = {Error = math.huge, Checkpoint = nil}
-	end
-	record.SentTargetClosest = {Error = math.huge, Checkpoint = nil}
-	record.PartIntersectionFrames = 0
-	record.FirstPartIntersection = nil
-	record.ClosestPartCenter = {Distance=math.huge, Part=nil, Checkpoint=nil}
-	record.EndpointInsideFrames = 0
-	record.FirstEndpointInside = nil
-	record.EndpointInsideAtHealthChange = nil
-	record.BestEndpointClearance = {Value=-math.huge, Part=nil, Checkpoint=nil}
-
-	ExactFireDiagnostic.Pending = record
-	return record
-end
-
-local function MonitorExactFireDiagnostic(record)
-	-- Dense sampler for the current REAL server-facing prediction value.
-	task.spawn(function()
-		local fireClock = record.FireClock or os.clock()
-		local denseWindow = 0.100
-		local extraCheckpoints = {0.150,0.200}
-		local denseSamples = {}
-		local eventTimes = {
-			YRise = nil,
-			FloorAir = nil,
-			StateChange = nil,
-			HealthChange = nil,
-		}
-		local initialState = record.BaseState
-		local initialFloor = record.BaseFloor
-		local initialHealth = record.StartHealth
-		local lastHealth = initialHealth
-
-		local function inspectSample(elapsed,tag)
-			local torso = record.Torso
-			local humanoid = record.Humanoid
-			if not torso or not torso.Parent then
-				return false
-			end
-
-			local position = torso.Position
-			local velocity = torso.AssemblyLinearVelocity
-			local state = DiagnosticHumanoidState(humanoid)
-			local floor = humanoid and tostring(humanoid.FloorMaterial):gsub("Enum.Material.","") or "NONE"
-			local jump = humanoid and humanoid.Jump == true or false
-			local health = humanoid and humanoid.Health or -1
-			local elapsedMs = elapsed*1000
-			local errorToSentTarget = (position-record.TargetPosition).Magnitude
-
-			local hitboxInfo = nil
-			local endpointInfo = nil
-			if record.ShotOrigin and record.ShotDestination then
-				hitboxInfo = InspectCharacterAgainstShot(record.Player and record.Player.Character,record.ShotOrigin,record.ShotDestination)
-				if hitboxInfo.NearestCenterDistance < record.ClosestPartCenter.Distance then
-					record.ClosestPartCenter.Distance = hitboxInfo.NearestCenterDistance
-					record.ClosestPartCenter.Part = hitboxInfo.NearestPart
-					record.ClosestPartCenter.Checkpoint = elapsedMs
-				end
-				if #hitboxInfo.Intersections > 0 then
-					record.PartIntersectionFrames += 1
-					if not record.FirstPartIntersection then
-						record.FirstPartIntersection = {Ms=elapsedMs,Parts=JoinIntersectionNames(hitboxInfo)}
-					end
-				end
-						endpointInfo = InspectEndpointAgainstCharacter(record.Player and record.Player.Character,record.ShotDestination)
-				if endpointInfo.BestClearance > record.BestEndpointClearance.Value then
-					record.BestEndpointClearance.Value=endpointInfo.BestClearance
-					record.BestEndpointClearance.Part=endpointInfo.BestClearancePart
-					record.BestEndpointClearance.Checkpoint=elapsedMs
-				end
-				if #endpointInfo.InsideParts > 0 then
-					record.EndpointInsideFrames += 1
-					if not record.FirstEndpointInside then
-						record.FirstEndpointInside={Ms=elapsedMs,Parts=JoinEndpointInsideNames(endpointInfo)}
-					end
-				end
-			end
-
-			-- Transition timestamps are observational only.
-			if not eventTimes.YRise and velocity.Y > 6 then
-				eventTimes.YRise = elapsedMs
-			end
-			if not eventTimes.FloorAir and floor == "Air" and initialFloor ~= "Air" then
-				eventTimes.FloorAir = elapsedMs
-			end
-			if not eventTimes.StateChange and state ~= initialState then
-				eventTimes.StateChange = elapsedMs
-				eventTimes.StateChangeTo = state
-			end
-			if not eventTimes.HealthChange and initialHealth >= 0 and health >= 0 and health < initialHealth then
-				eventTimes.HealthChange = elapsedMs
-			end
-			lastHealth = health
-
-			if errorToSentTarget < record.SentTargetClosest.Error then
-				record.SentTargetClosest.Error = errorToSentTarget
-				record.SentTargetClosest.Checkpoint = elapsedMs
-			end
-
-			local hypoParts = {}
-			for _,ms in ipairs(HYPOTHETICAL_MS) do
-				local hp = record.HypotheticalTargets[ms]
-				local err = (position-hp).Magnitude
-				table.insert(hypoParts,string.format("%dms=%.3f",ms,err))
-				local closest = record.HypotheticalClosest[ms]
-				if closest and err < closest.Error then
-					closest.Error = err
-					closest.Checkpoint = elapsedMs
-				end
-				if err < record.BestHypotheticalError then
-					record.BestHypotheticalError = err
-					record.BestHypothetical = ms
-					record.BestHypotheticalCheckpoint = elapsedMs
-				end
-			end
-
-			table.insert(denseSamples,{
-				Ms=elapsedMs, Position=position, Velocity=velocity, State=state,
-				Floor=floor, Jump=jump, Health=health, Error=errorToSentTarget,
-			})
-
-			local horizontalSpeed = Vector3.new(velocity.X,0,velocity.Z).Magnitude
-			PushDiagnosticLog(string.format(
-				"+%.1fms%s H=%s Pos=%s Vel=%s HSpeed=%.3f VY=%.3f State=%s Floor=%s Jump=%s ErrorToSentTarget=%.3f",
-				elapsedMs,
-				tag and (" ["..tag.."]") or "",
-				health >= 0 and string.format("%.1f",health) or "?",
-				DiagnosticVector3(position), DiagnosticVector3(velocity),
-				horizontalSpeed, velocity.Y,
-				state, floor, tostring(jump), errorToSentTarget
-			))
-			PushDiagnosticLog("      HypotheticalErrors: "..table.concat(hypoParts," | "))
-			if hitboxInfo then
-				PushDiagnosticLog(string.format("      ShotSegment: Intersects=%s | NearestCenter=%s %.3f",
-					JoinIntersectionNames(hitboxInfo), tostring(hitboxInfo.NearestPart or "NONE"),
-					hitboxInfo.NearestCenterDistance < math.huge and hitboxInfo.NearestCenterDistance or -1
-				))
-			end
-			if endpointInfo then
-				PushDiagnosticLog(string.format("      Arg2Endpoint: Inside=%s | NearestCenter=%s %.3f | BestSignedClearance=%s %.3f",
-					JoinEndpointInsideNames(endpointInfo),tostring(endpointInfo.NearestPart or "NONE"),
-					endpointInfo.NearestCenterDistance < math.huge and endpointInfo.NearestCenterDistance or -1,
-					tostring(endpointInfo.BestClearancePart or "NONE"),
-					endpointInfo.BestClearance > -math.huge and endpointInfo.BestClearance or -999
-				))
-			end
-			return true
-		end
-
-		-- Sample immediately after FireServer returns, then every Heartbeat through 100 ms.
-		inspectSample(math.max(0,os.clock()-fireClock),"RETURN")
-		while os.clock()-fireClock < denseWindow do
-			RunService.Heartbeat:Wait()
-			inspectSample(os.clock()-fireClock,"FRAME")
-		end
-
-		-- Keep two later observations so outcome/death timing is not lost.
-		for _,checkpoint in ipairs(extraCheckpoints) do
-			local remaining = checkpoint-(os.clock()-fireClock)
-			if remaining > 0 then task.wait(remaining) end
-			if not inspectSample(os.clock()-fireClock,checkpoint == 0.150 and "150MS" or "200MS") then
-				PushDiagnosticLog(string.format("+%.1fms Target part unavailable",(os.clock()-fireClock)*1000))
-			end
-		end
-
-		local endHealth = record.Humanoid and record.Humanoid.Health or lastHealth or -1
-		local outcome = "UNKNOWN"
-		if record.StartHealth >= 0 and endHealth >= 0 then
-			outcome = endHealth < record.StartHealth and "HIT" or "NO HEALTH CHANGE"
-		end
-
-		ExactFireDiagnostic.Results[record.Id] = {
-			Offset = record.EndpointOffsetStuds,
-			Outcome = outcome,
-			BestClearance = record.BestEndpointClearance and record.BestEndpointClearance.Value or -math.huge,
-			FirstInside = record.FirstEndpointInside and record.FirstEndpointInside.Ms or nil,
-		}
-
-		PushDiagnosticLog("ANALYSIS SUMMARY")
-		PushDiagnosticLog("------------------------------------------------------------")
-		PushDiagnosticLog("Phase="..tostring(record.Phase))
-		local fastDescentControl = record.VerticalOnlyAtFire
-			and record.BaseVerticalSpeed >= -45
-			and record.BaseVerticalSpeed <= -35
-		PushDiagnosticLog("FastDescentControl(VY -35..-45)="..tostring(fastDescentControl))
-		if not fastDescentControl then
-			PushDiagnosticLog("CONTROL_WARNING=For the clean A/B set, fire while VY is between -35 and -45 with near-zero horizontal speed")
-		end
-		PushDiagnosticLog(string.format(
-			"VerticalOnlyControl=%s HorizontalSpeedAtFire=%.3f VerticalSpeedAtFire=%.3f",
-			tostring(record.VerticalOnlyAtFire),
-			record.BaseHorizontalSpeed or -1,
-			record.BaseVerticalSpeed or 0
-		))
-		if not record.VerticalOnlyAtFire then
-			PushDiagnosticLog("CONTROL_WARNING=Horizontal motion exceeded 2 studs/s; do not use this shot as a clean vertical-only sample")
-		end
-		if record.BestHypothetical then
-			PushDiagnosticLog(string.format(
-				"BestHypothetical=%dms Error=%.3f studs At=+%.1fms",
-				record.BestHypothetical, record.BestHypotheticalError,
-				record.BestHypotheticalCheckpoint or -1
-			))
-		else
-			PushDiagnosticLog("BestHypothetical=unavailable")
-		end
-
-		PushDiagnosticLog("CLOSEST APPROACH BY HYPOTHETICAL (dense 0-100ms + 150/200ms)")
-		local closestParts = {}
-		for _,ms in ipairs(HYPOTHETICAL_MS) do
-			local closest = record.HypotheticalClosest[ms]
-			if closest and closest.Checkpoint then
-				table.insert(closestParts,string.format("%dms=%.3f@+%.1fms",ms,closest.Error,closest.Checkpoint))
-			else
-				table.insert(closestParts,string.format("%dms=unavailable",ms))
-			end
-		end
-		PushDiagnosticLog(table.concat(closestParts," | "))
-		if record.SentTargetClosest and record.SentTargetClosest.Checkpoint then
-			PushDiagnosticLog(string.format(
-				"Actual%dmsClosest=%.3f studs At=+%.1fms",
-				record.ActualPredictionMs or 60, record.SentTargetClosest.Error, record.SentTargetClosest.Checkpoint
-			))
-		end
-
-		local function eventText(v)
-			return v and string.format("+%.1fms",v) or "not observed"
-		end
-		PushDiagnosticLog("HITBOX / PART INTERSECTION SUMMARY")
-		PushDiagnosticLog("------------------------------------------------------------")
-		if record.FirstPartIntersection then
-			PushDiagnosticLog(string.format("FirstIntersection=+%.1fms Parts=%s",record.FirstPartIntersection.Ms,record.FirstPartIntersection.Parts))
-		else
-			PushDiagnosticLog("FirstIntersection=NONE")
-		end
-		PushDiagnosticLog("IntersectionFrames="..tostring(record.PartIntersectionFrames or 0))
-		if record.ClosestPartCenter and record.ClosestPartCenter.Checkpoint then
-			PushDiagnosticLog(string.format("ClosestPartCenter=%s Distance=%.3f At=+%.1fms",
-				tostring(record.ClosestPartCenter.Part or "NONE"),record.ClosestPartCenter.Distance,record.ClosestPartCenter.Checkpoint))
-		end
-
-		PushDiagnosticLog("SERVER ACCEPTANCE / ARG2 ENDPOINT SUMMARY")
-		PushDiagnosticLog("------------------------------------------------------------")
-		if record.FirstEndpointInside then
-			PushDiagnosticLog(string.format("FirstArg2Inside=+%.1fms Parts=%s",record.FirstEndpointInside.Ms,record.FirstEndpointInside.Parts))
-		else
-			PushDiagnosticLog("FirstArg2Inside=NONE")
-		end
-		PushDiagnosticLog("Arg2InsideFrames="..tostring(record.EndpointInsideFrames or 0))
-		if record.BestEndpointClearance and record.BestEndpointClearance.Checkpoint then
-			PushDiagnosticLog(string.format("BestArg2SignedClearance=%s %.3f At=+%.1fms",
-				tostring(record.BestEndpointClearance.Part or "NONE"),record.BestEndpointClearance.Value,record.BestEndpointClearance.Checkpoint))
-		end
-		PushDiagnosticLog("InterpretationHint=positive clearance means Arg2 was inside that live body-part box; negative means outside")
-		PushDiagnosticLog("TRANSITION TIMELINE")
-		PushDiagnosticLog("------------------------------------------------------------")
-		PushDiagnosticLog("Fire=+0.0ms")
-		PushDiagnosticLog("YRise(>6)="..eventText(eventTimes.YRise))
-		PushDiagnosticLog("Floor->Air="..eventText(eventTimes.FloorAir))
-		PushDiagnosticLog("StateChange="..eventText(eventTimes.StateChange)..(eventTimes.StateChangeTo and (" -> "..eventTimes.StateChangeTo) or ""))
-		PushDiagnosticLog("HealthChange="..eventText(eventTimes.HealthChange))
-		PushDiagnosticLog("DenseFrames="..tostring(#denseSamples))
-		PushDiagnosticLog(string.format("ActualPrediction=%dms XYZ + YOffset=%.1f studs (SERVER-FACING)",record.ActualPredictionMs or DIAGNOSTIC_BASE_PREDICTION_MS,record.EndpointOffsetStuds or 0))
-		PushDiagnosticLog("SERVER ACCEPTANCE CONTROL SUMMARY")
-		PushDiagnosticLog("------------------------------------------------------------")
-		if record.PreFireState then
-			PushDiagnosticLog(string.format("PreFireSinceLastShot=%.3fms PreFireCooldownRemaining=%.3fms",
-				record.PreFireState.SinceLastManualShot*1000,record.PreFireState.CooldownRemaining*1000))
-			PushDiagnosticLog("PreFireToolEnabled="..tostring(record.PreFireState.ToolEnabled).." PreFireCantShoot="..tostring(record.PreFireState.CantShootEnabled))
-		end
-		if record.ReturnFireState then
-			PushDiagnosticLog("ReturnToolEnabled="..tostring(record.ReturnFireState.ToolEnabled).." ReturnCantShoot="..tostring(record.ReturnFireState.CantShootEnabled))
-		end
-		PushDiagnosticLog("Outcome="..outcome)
-
-		if Flags.GeneralPredictionDiagnostic and record.GeneralCase then
-			PushDiagnosticLog("SELECTED DIAGNOSTIC COMPLETE - General Prediction Diagnostic remains ON")
-			SetDiagnosticStatus("COMPLETE: "..tostring(record.GeneralCase).."\nOutcome: "..outcome.."\nDiagnostic remains ON; waiting for next matching shot")
-		end
-
-		PushDiagnosticLog("============================================================")
-	end)
-end
-
-local function ReadGunFireState(gun,character)
-	local state = {}
-	state.Clock = os.clock()
-	state.Parent = gun and gun.Parent and gun.Parent:GetFullName() or "nil"
-	state.Equipped = gun ~= nil and character ~= nil and gun.Parent == character
-	state.ToolEnabled = (gun and gun:IsA("Tool")) and gun.Enabled or nil
-	local cantShoot = gun and gun:FindFirstChild("CantShoot")
-	if cantShoot and cantShoot:IsA("BillboardGui") then
-		state.CantShootEnabled = cantShoot.Enabled
-	else
-		state.CantShootEnabled = nil
-	end
-	local handle = gun and gun:FindFirstChild("Handle")
-	state.HandlePresent = handle ~= nil and handle:IsA("BasePart")
-	local shootRemote = gun and gun:FindFirstChild("Shoot")
-	state.RemotePresent = shootRemote ~= nil and shootRemote:IsA("RemoteEvent")
-	state.SinceLastManualShot = state.Clock-(LastManualShot or 0)
-	state.CooldownRemaining = math.max(0,SHOT_COOLDOWN-state.SinceLastManualShot)
-	state.ShootBusy = ShootBusy == true
-	return state
-end
-
-local function LogGunFireState(label,state)
-	PushDiagnosticLog(label)
-	PushDiagnosticLog("------------------------------------------------------------")
-	PushDiagnosticLog("Clock="..string.format("%.6f",state.Clock))
-	PushDiagnosticLog("GunParent="..tostring(state.Parent))
-	PushDiagnosticLog("GunEquipped="..tostring(state.Equipped))
-	PushDiagnosticLog("ToolEnabled="..tostring(state.ToolEnabled))
-	PushDiagnosticLog("CantShootEnabled="..tostring(state.CantShootEnabled))
-	PushDiagnosticLog("HandlePresent="..tostring(state.HandlePresent).." RemotePresent="..tostring(state.RemotePresent))
-	PushDiagnosticLog("ShootBusy="..tostring(state.ShootBusy))
-	PushDiagnosticLog(string.format("SinceLastManualShot=%.3fms CooldownRemaining=%.3fms",
-		state.SinceLastManualShot*1000,state.CooldownRemaining*1000))
-end
-
 local function FireCombatGun(gun,targetPosition)
 	if not gun or typeof(targetPosition) ~= "Vector3" then
 		return false
@@ -1739,249 +563,16 @@ local function FireCombatGun(gun,targetPosition)
 	if direction.Magnitude <= 0.1 then
 		return false
 	end
-	local unitDirection = direction.Unit
-	local diagnostic = ExactFireDiagnostic.Pending
-
-	-- Keep shot construction fixed while the diagnostic isolates jump timing.
-	local originMode = "HRP_ORIGIN"
 	local originCFrame = CFrame.new(hrp.Position,targetPosition)
 	local destinationCFrame = CFrame.new(targetPosition)
-	if ExactFireDiagnostic.Enabled and diagnostic then
-		diagnostic.FireClock = os.clock()
-		diagnostic.ShotOrigin = originCFrame.Position
-		diagnostic.ShotDestination = destinationCFrame.Position
-		SetDiagnosticStatus(
-			"Shot #"..diagnostic.Id.." fired\n"
-			.."Target: "..tostring(diagnostic.Player and diagnostic.Player.Name or "?").."\n"
-			.."Origin: "..originMode.."\n"
-			.."Prediction: "..tostring(diagnostic.ActualPredictionMs or DIAGNOSTIC_BASE_PREDICTION_MS).."ms + YOffset "..string.format("%+.1f",diagnostic.EndpointOffsetStuds or 0).." (ACTUAL)\n"
-			.."Collecting result..."
-		)
-
-		local targetPart = diagnostic.Torso
-		local firePosition = targetPart and targetPart.Parent and targetPart.Position or nil
-		local fireVelocity = targetPart and targetPart.Parent and targetPart.AssemblyLinearVelocity or nil
-
-		PushDiagnosticLog("============================================================")
-		PushDiagnosticLog("GENERAL MOVEMENT PREDICTION DIAGNOSTIC SHOT #"..diagnostic.Id)
-		PushDiagnosticLog("Target="..tostring(diagnostic.Player and diagnostic.Player.Name or "?"))
-		PushDiagnosticLog(string.format("Prediction=%dms XYZ + YOffset=%.1f studs (ACTUAL SERVER-FACING; vertical enabled)",diagnostic.ActualPredictionMs or DIAGNOSTIC_BASE_PREDICTION_MS,diagnostic.EndpointOffsetStuds or 0))
-		PushDiagnosticLog("OriginMode="..originMode)
-		PushDiagnosticLog("Phase="..tostring(diagnostic.Phase))
-		PushDiagnosticLog(string.format(
-			"VERTICAL-ONLY CONTROL: HorizontalSpeed=%.3f VerticalSpeed=%.3f CleanVerticalOnly=%s",
-			diagnostic.BaseHorizontalSpeed or -1,
-			diagnostic.BaseVerticalSpeed or 0,
-			tostring(diagnostic.VerticalOnlyAtFire)
-		))
-		PushDiagnosticLog("RequestedMovementCase="..tostring(diagnostic.GeneralCase or "UNKNOWN"))
-		PushDiagnosticLog("Instruction=Automatic trigger selected this movement state; production prediction was not changed")
-		PushDiagnosticLog("PRE-SHOT ROLLING BUFFER (oldest -> newest)")
-		PushDiagnosticLog("------------------------------------------------------------")
-		local pre = diagnostic.PreShotSamples or {}
-		if #pre == 0 then
-			PushDiagnosticLog("No pre-shot samples available")
-		else
-			for _,sample in ipairs(pre) do
-				PushDiagnosticLog(string.format(
-					"%+.1fms Pos=%s Vel=%s State=%s Floor=%s Jump=%s",
-					(sample.Clock-diagnostic.EntryClock)*1000,
-					DiagnosticVector3(sample.Position),
-					DiagnosticVector3(sample.Velocity),
-					sample.State,sample.Floor,tostring(sample.Jump)
-				))
-			end
-		end
-		PushDiagnosticLog("PREDICTION/FIRE SNAPSHOT")
-		PushDiagnosticLog("------------------------------------------------------------")
-		PushDiagnosticLog("BasePosition="..DiagnosticVector3(diagnostic.BasePosition))
-		PushDiagnosticLog("BaseVelocity="..DiagnosticVector3(diagnostic.BaseVelocity))
-		PushDiagnosticLog("BaseState="..diagnostic.BaseState.." BaseFloor="..diagnostic.BaseFloor.." BaseJump="..tostring(diagnostic.BaseJump))
-		PushDiagnosticLog("SentTarget="..DiagnosticVector3(targetPosition))
-		PushDiagnosticLog(string.format("HYPOTHETICAL TARGETS (read-only; ACTUAL shot=%dms)",diagnostic.ActualPredictionMs or 60))
-		for _,ms in ipairs(HYPOTHETICAL_MS) do
-			PushDiagnosticLog(string.format("%dms=%s",ms,DiagnosticVector3(diagnostic.HypotheticalTargets[ms])))
-		end
-
-		if firePosition and fireVelocity then
-			PushDiagnosticLog("FireMomentPosition="..DiagnosticVector3(firePosition))
-			PushDiagnosticLog("FireMomentVelocity="..DiagnosticVector3(fireVelocity))
-			PushDiagnosticLog(string.format(
-				"BaseToFireMove=%.3f SentTargetToFirePosition=%.3f",
-				(firePosition-diagnostic.BasePosition).Magnitude,
-				(targetPosition-firePosition).Magnitude
-			))
-		end
-
-		PushDiagnosticLog("ShooterHRP="..DiagnosticVector3(hrp.Position))
-		PushDiagnosticLog("ShooterHRPLook="..DiagnosticVector3(hrp.CFrame.LookVector))
-		PushDiagnosticLog("OriginCFramePosition="..DiagnosticVector3(originCFrame.Position))
-		PushDiagnosticLog("OriginLook="..DiagnosticVector3(originCFrame.LookVector))
-		PushDiagnosticLog("OriginRight="..DiagnosticVector3(originCFrame.RightVector))
-		PushDiagnosticLog("OriginUp="..DiagnosticVector3(originCFrame.UpVector))
-		PushDiagnosticLog("DestinationCFramePosition="..DiagnosticVector3(destinationCFrame.Position))
-		PushDiagnosticLog("DestinationLook="..DiagnosticVector3(destinationCFrame.LookVector))
-		PushDiagnosticLog("DestinationRight="..DiagnosticVector3(destinationCFrame.RightVector))
-		PushDiagnosticLog("DestinationUp="..DiagnosticVector3(destinationCFrame.UpVector))
-
-		local camera = workspace.CurrentCamera
-		if camera then
-			PushDiagnosticLog("CameraPosition="..DiagnosticVector3(camera.CFrame.Position))
-			PushDiagnosticLog("CameraLook="..DiagnosticVector3(camera.CFrame.LookVector))
-		end
-
-		local handle = gun:FindFirstChild("Handle")
-		if handle and handle:IsA("BasePart") then
-			PushDiagnosticLog("GunHandlePosition="..DiagnosticVector3(handle.Position))
-			PushDiagnosticLog("GunHandleLook="..DiagnosticVector3(handle.CFrame.LookVector))
-			PushDiagnosticLog(string.format("HandleToTarget=%.3f HRPToHandle=%.3f",
-				(handle.Position-targetPosition).Magnitude,
-				(hrp.Position-handle.Position).Magnitude
-			))
-		else
-			PushDiagnosticLog("GunHandle=unavailable")
-		end
-
-		local originDot = originCFrame.LookVector:Dot((destinationCFrame.Position-originCFrame.Position).Unit)
-		PushDiagnosticLog(string.format("OriginLookDotToTarget=%.6f",originDot))
-		PushDiagnosticLog(string.format(
-			"EntryToPrediction=%.3fms PredictionToFire=%.3fms EntryToFire=%.3fms",
-			(diagnostic.PredictClock-diagnostic.EntryClock)*1000,
-			(diagnostic.FireClock-diagnostic.PredictClock)*1000,
-			(diagnostic.FireClock-diagnostic.EntryClock)*1000
-		))
-		PushDiagnosticLog(string.format(
-			"OriginToDestination=%.3f HRPToDestination=%.3f",
-			(originCFrame.Position-destinationCFrame.Position).Magnitude,
-			(hrp.Position-destinationCFrame.Position).Magnitude
-		))
-		local fireHitbox = InspectCharacterAgainstShot(diagnostic.Player and diagnostic.Player.Character,originCFrame.Position,destinationCFrame.Position)
-		PushDiagnosticLog("FIRE-TIME HITBOX CHECK")
-		PushDiagnosticLog("------------------------------------------------------------")
-		PushDiagnosticLog("IntersectedParts="..JoinIntersectionNames(fireHitbox))
-		PushDiagnosticLog(string.format("NearestPartCenter=%s Distance=%.3f",
-			tostring(fireHitbox.NearestPart or "NONE"),
-			fireHitbox.NearestCenterDistance < math.huge and fireHitbox.NearestCenterDistance or -1
-		))
-	end
-
-	-- SERVER-FACING / PAYLOAD DIAGNOSTIC (read-only logging; shot unchanged)
-	if ExactFireDiagnostic.Enabled and diagnostic then
-		PushDiagnosticLog("SERVER-FACING FIRE SNAPSHOT")
-		PushDiagnosticLog("------------------------------------------------------------")
-		PushDiagnosticLog("RemotePath="..shoot:GetFullName())
-		PushDiagnosticLog("RemoteClass="..shoot.ClassName)
-		PushDiagnosticLog("RemoteParent="..(shoot.Parent and shoot.Parent:GetFullName() or "nil"))
-		PushDiagnosticLog("GunPath="..gun:GetFullName())
-		PushDiagnosticLog("GunParent="..(gun.Parent and gun.Parent:GetFullName() or "nil"))
-		PushDiagnosticLog("GunEquipped="..tostring(gun.Parent == character))
-		PushDiagnosticLog("ArgCount=2")
-		PushDiagnosticLog("Arg1Type="..typeof(originCFrame).." Arg1CFramePos="..DiagnosticVector3(originCFrame.Position))
-		PushDiagnosticLog("Arg1Look="..DiagnosticVector3(originCFrame.LookVector))
-		PushDiagnosticLog("Arg2Type="..typeof(destinationCFrame).." Arg2CFramePos="..DiagnosticVector3(destinationCFrame.Position))
-		PushDiagnosticLog("PayloadOriginToDestination="..string.format("%.3f",(originCFrame.Position-destinationCFrame.Position).Magnitude))
-
-		local attrs = gun:GetAttributes()
-		local attrNames = {}
-		for name in pairs(attrs) do table.insert(attrNames,name) end
-		table.sort(attrNames)
-		if #attrNames == 0 then
-			PushDiagnosticLog("GunAttributes=NONE")
-		else
-			for _,name in ipairs(attrNames) do
-				local value = attrs[name]
-				PushDiagnosticLog("GunAttribute["..tostring(name).."]="..tostring(value).." ("..typeof(value)..")")
-			end
-		end
-
-		local children = {}
-		for _,child in ipairs(gun:GetChildren()) do
-			table.insert(children,child.Name..":"..child.ClassName)
-		end
-		table.sort(children)
-		PushDiagnosticLog("GunChildren="..(#children > 0 and table.concat(children,",") or "NONE"))
-		PushDiagnosticLog("FireCallClock="..string.format("%.6f",os.clock()))
-	end
-
-	local preFireState = nil
-	if ExactFireDiagnostic.Enabled and diagnostic then
-		preFireState = ReadGunFireState(gun,character)
-		diagnostic.PreFireState = preFireState
-		LogGunFireState("PRE-FIRE STATE",preFireState)
-	end
-
-	-- BOUNDARY-V3 STRICT FINAL FIRE GATE:
-	-- This is the last possible check before the server-facing RemoteEvent.
-	-- The earlier gate protects shot construction; this one guarantees that
-	-- DiagnosticAutoVYShot never sends a diagnostic shot if the target has
-	-- drifted outside VY -35..-45 (inclusive) while logs were being built.
-	if Flags.DiagnosticAutoVYShot and not Flags.GeneralPredictionDiagnostic and diagnostic then
-		local finalTargetPart = diagnostic.Torso
-		local finalVelocity = finalTargetPart and finalTargetPart.Parent and finalTargetPart.AssemblyLinearVelocity or nil
-		local finalHorizontalSpeed = finalVelocity and Vector3.new(finalVelocity.X,0,finalVelocity.Z).Magnitude or math.huge
-		local finalVY = finalVelocity and finalVelocity.Y or math.huge
-		local finalInWindow = finalVY >= -45 and finalVY <= -35
-		local finalCleanVertical = finalHorizontalSpeed <= 1.0
-
-		PushDiagnosticLog(string.format(
-			"BOUNDARY-V3 FINAL FIRE GATE: VY=%.3f HSpeed=%.3f InWindow=%s CleanVertical=%s",
-			finalVY,finalHorizontalSpeed,tostring(finalInWindow),tostring(finalCleanVertical)
-		))
-
-		if not finalInWindow or not finalCleanVertical then
-			PushDiagnosticLog("BOUNDARY-V3 FIRE REJECTED: no FireServer call was sent")
-			-- This was not a real test shot. Restore the sequence so the same
-			-- endpoint offset is retried on the next valid window entry.
-			ExactFireDiagnostic.ShotNumber = math.max(0,ExactFireDiagnostic.ShotNumber-1)
-			ExactFireDiagnostic.Pending = nil
-			SetDiagnosticStatus(string.format(
-				"STRICT GATE REJECTED\nVY %.3f | HSpeed %.3f\nNo server shot sent; retrying same offset",
-				finalVY,finalHorizontalSpeed
-			))
-			return false
-		end
-	end
-
-	local remoteStart = os.clock()
 	shoot:FireServer(originCFrame,destinationCFrame)
-
-	if ExactFireDiagnostic.Enabled and diagnostic then
-		diagnostic.RemoteReturnClock = os.clock()
-		PushDiagnosticLog("SERVER-FACING FIRE RETURN")
-		PushDiagnosticLog("------------------------------------------------------------")
-		PushDiagnosticLog("RemoteStillParented="..tostring(shoot.Parent ~= nil))
-		PushDiagnosticLog("GunStillEquipped="..tostring(gun.Parent == character))
-		PushDiagnosticLog(string.format(
-			"FireServerReturn=%.3fms",
-			(diagnostic.RemoteReturnClock-remoteStart)*1000
-		))
-		local returnState = ReadGunFireState(gun,character)
-		diagnostic.ReturnFireState = returnState
-		LogGunFireState("IMMEDIATE POST-FIRE STATE",returnState)
-		task.spawn(function()
-			for _,delaySeconds in ipairs({0.016,0.050,0.100,0.250}) do
-				local waitFor = delaySeconds-(os.clock()-remoteStart)
-				if waitFor > 0 then task.wait(waitFor) end
-				if gun and gun.Parent then
-					LogGunFireState(string.format("GUN STATE +%.0fMS",delaySeconds*1000),ReadGunFireState(gun,character))
-				else
-					PushDiagnosticLog(string.format("GUN STATE +%.0fMS: gun unavailable",delaySeconds*1000))
-				end
-			end
-		end)
-		PushDiagnosticLog("POST-FIRE HITBOX TRACKING: every Heartbeat through 100ms, then 150/200ms")
-		PushDiagnosticLog("------------------------------------------------------------")
-		ExactFireDiagnostic.Pending = nil
-		MonitorExactFireDiagnostic(diagnostic)
-	end
-
 	return true
 end
 
 --============================================================
 -- RAGE SHOOT - restored from the older working implementation
 -- Uses the old target-local CFrame construction and has NO LOS requirement.
--- Kept separate from FireCombatGun so Legit/diagnostic behavior stays intact.
+-- Kept separate from FireCombatGun so LEGIT behavior stays intact.
 --============================================================
 
 local function FireRageCombatGun(gun,targetPosition)
@@ -2060,9 +651,6 @@ MM2.Functions.ShootMurderer = function()
 	return success,message
 end
 
--- Forward declaration: ShootMurdererLegit revalidates diagnostic cases before the matcher is defined below.
-local GeneralDiagnosticMatches
-
 MM2.Functions.ShootMurdererLegit = function()
 	if ShootBusy then return false,"Busy" end
 	local now = os.clock()
@@ -2081,30 +669,7 @@ MM2.Functions.ShootMurdererLegit = function()
 		if not torso then return false,"No Gun or Murderer" end
 		if not HasClearLineOfSight(torso) then return false,"Murderer Behind Wall" end
 
-		-- Revalidate the selected diagnostic case at the exact fire point.
-		-- This prevents FAST_FALL (and other narrow cases) from matching in the
-		-- auto-trigger loop, then firing after the target has already left the window.
-		if Flags.GeneralPredictionDiagnostic and GeneralDiagnosticRequestedCase then
-			local diagnosticHumanoid = murderer.Character and murderer.Character:FindFirstChildOfClass("Humanoid")
-			if not diagnosticHumanoid or not GeneralDiagnosticMatches(GeneralDiagnosticRequestedCase,torso,diagnosticHumanoid) then
-				return false,"Diagnostic Window Missed"
-			end
-		end
-
 		local targetPosition = GetProductionShootTargetPosition(torso)
-		if Flags.GeneralPredictionDiagnostic and GeneralDiagnosticRequestedCase then
-			-- Diagnostic A/B mode: the chooser controls the ACTUAL server-facing
-			-- XYZ prediction for this diagnostic shot only. Production is unchanged.
-			-- Read the TextBox again at the exact fire point. This prevents a typed
-			-- value (for example 30) from being missed if FocusLost has not fired yet.
-			local typedMs = tonumber((PredictionMsBox.Text or ""):gsub("%s+",""))
-			local actualMs = math.clamp(typedMs or tonumber(GeneralDiagnosticPredictionMs) or 60,0,250)
-			GeneralDiagnosticPredictionMs = actualMs
-			targetPosition = GetManualShootTargetPosition(torso,true,actualMs/1000)
-			if not ExactFireDiagnostic.Pending then
-				BeginExactFireDiagnostic(murderer,torso,os.clock(),targetPosition,actualMs,0)
-			end
-		end
 		if not FireCombatGun(gun,targetPosition) then
 			return false,"Shot Failed"
 		end
@@ -2119,100 +684,6 @@ MM2.Functions.ShootMurdererLegit = function()
 	return success,message
 end
 
-
---============================================================
--- GENERAL PREDICTION DIAGNOSTIC AUTO-TRIGGER
--- Fires only through ShootMurdererLegit, so normal visibility/cooldown/gun checks remain intact.
--- The diagnostic can override prediction for diagnostic shots only; production prediction remains unchanged.
---============================================================
-local function GeneralDiagnosticBaseMatches(caseName,torso,humanoid)
-	if not torso or not humanoid or humanoid.Health <= 0 then return false end
-	local v = torso.AssemblyLinearVelocity
-	local hs = Vector3.new(v.X,0,v.Z).Magnitude
-	local airborne = humanoid.FloorMaterial == Enum.Material.Air
-	if caseName == "GROUNDED_HORIZONTAL" then
-		return hs >= 8 and math.abs(v.Y) <= 5 and not airborne
-	elseif caseName == "EARLY_RISE" then
-		return airborne and hs < 8 and v.Y >= 35
-	elseif caseName == "LATE_RISE" then
-		return airborne and hs < 8 and v.Y >= 12 and v.Y < 35
-	elseif caseName == "APEX" then
-		return airborne and math.abs(v.Y) <= 6 and hs < 8
-	elseif caseName == "NORMAL_FALL" then
-		return airborne and hs < 8 and v.Y <= -12 and v.Y >= -30
-	elseif caseName == "FAST_FALL" then
-		return airborne and v.Y <= -35 and v.Y >= -45 and hs <= 2
-	elseif caseName == "DIAGONAL_RISE" then
-		return airborne and hs >= 8 and v.Y >= 12
-	elseif caseName == "DIAGONAL_FALL" then
-		-- Fast diagonal-fall sample: wait until the target is genuinely descending fast.
-		return airborne and hs >= 8 and v.Y >= -45 and v.Y <= -30
-	elseif caseName == "DIRECTION_CHANGE" then
-		local samples = DiagnosticMotionBuffers[torso.Parent and Players:GetPlayerFromCharacter(torso.Parent)]
-		if samples and #samples >= 2 and hs >= 8 then
-			local old = samples[math.max(1,#samples-1)].Velocity
-			local a,b = Vector3.new(old.X,0,old.Z),Vector3.new(v.X,0,v.Z)
-			return a.Magnitude >= 8 and b.Magnitude >= 8 and a.Unit:Dot(b.Unit) < 0.35
-		end
-		return false
-	elseif caseName == "JUMP_SPAM" then
-		return airborne and hs >= 4 and math.abs(v.Y) >= 8
-	end
-	return false
-end
-
-
-GeneralDiagnosticMatches = function(caseName,torso,humanoid)
-    if not GeneralDiagnosticBaseMatches(caseName,torso,humanoid) then return false end
-    if not GeneralDiagnosticCustomWindowEnabled then return true end
-    local v = torso.AssemblyLinearVelocity
-    local hs = Vector3.new(v.X,0,v.Z).Magnitude
-    -- Normalize custom bounds so either entry order works.
-    -- Example: VY Min=-35 / VY Max=-45 means the valid interval is -45..-35.
-    if GeneralDiagnosticVYMin ~= nil and GeneralDiagnosticVYMax ~= nil then
-        local vyLow = math.min(GeneralDiagnosticVYMin,GeneralDiagnosticVYMax)
-        local vyHigh = math.max(GeneralDiagnosticVYMin,GeneralDiagnosticVYMax)
-        if v.Y < vyLow or v.Y > vyHigh then return false end
-    elseif GeneralDiagnosticVYMin ~= nil and v.Y < GeneralDiagnosticVYMin then
-        return false
-    elseif GeneralDiagnosticVYMax ~= nil and v.Y > GeneralDiagnosticVYMax then
-        return false
-    end
-
-    if GeneralDiagnosticHSMin ~= nil and GeneralDiagnosticHSMax ~= nil then
-        local hsLow = math.min(GeneralDiagnosticHSMin,GeneralDiagnosticHSMax)
-        local hsHigh = math.max(GeneralDiagnosticHSMin,GeneralDiagnosticHSMax)
-        if hs < hsLow or hs > hsHigh then return false end
-    elseif GeneralDiagnosticHSMin ~= nil and hs < GeneralDiagnosticHSMin then
-        return false
-    elseif GeneralDiagnosticHSMax ~= nil and hs > GeneralDiagnosticHSMax then
-        return false
-    end
-    return true
-end
-
-task.spawn(function()
-	while task.wait(0.01) do
-		if Flags.GeneralPredictionDiagnostic and ExactFireDiagnostic.Enabled then
-			local wanted = GENERAL_DIAGNOSTIC_CASES[GeneralDiagnosticSelectedIndex]
-			local murderer = FindLiveMurderer()
-			local torso = murderer and GetCombatTorso(murderer.Character)
-			local humanoid = murderer and murderer.Character and murderer.Character:FindFirstChildOfClass("Humanoid")
-			if torso and humanoid then
-				local v = torso.AssemblyLinearVelocity
-				local hs = Vector3.new(v.X,0,v.Z).Magnitude
-				local windowText = GeneralDiagnosticCustomWindowEnabled and string.format("CUSTOM VY[%s,%s] HS[%s,%s]", tostring(GeneralDiagnosticVYMin or "*"), tostring(GeneralDiagnosticVYMax or "*"), tostring(GeneralDiagnosticHSMin or "*"), tostring(GeneralDiagnosticHSMax or "*")) or "AUTO WINDOW"
-				SetDiagnosticStatus(string.format("SELECTED: %s\nHSpeed %.1f | VY %.1f\n%s",wanted,hs,v.Y,windowText))
-				if not ShootBusy and os.clock()-LastManualShot >= SHOT_COOLDOWN and HasClearLineOfSight(torso) and GeneralDiagnosticMatches(wanted,torso,humanoid) then
-					GeneralDiagnosticRequestedCase = wanted
-					local ok = MM2.Functions.ShootMurdererLegit()
-					GeneralDiagnosticRequestedCase = nil
-					if not ok and ExactFireDiagnostic.Pending then ExactFireDiagnostic.Pending = nil end
-				end
-			end
-		end
-	end
-end)
 
 --============================================================
 -- RAGE THROW
@@ -2361,15 +832,22 @@ end
 
 MM2.Functions.LegitThrowOnce = LegitThrowOnce
 
+local function ThrowAimbotOnce()
+	if Flags.WallThrow then
+		return RageThrowOnce()
+	end
+	return LegitThrowOnce()
+end
+MM2.Functions.ThrowAimbotOnce = ThrowAimbotOnce
+
 task.spawn(function()
 	while MM2.Running do
-		if Flags.LegitThrow and Flags.RageThrow then
-			SetThrowToggle("RageThrow",false)
-		end
 		if Flags.LegitThrow then
-			LegitThrowOnce()
-		elseif Flags.RageThrow then
-			RageThrowOnce()
+			if Flags.WallThrow then
+				RageThrowOnce()
+			else
+				LegitThrowOnce()
+			end
 		end
 		task.wait(0.03)
 	end
@@ -2758,6 +1236,46 @@ local FloatingShootButton,FloatingShootHolder =
 FloatingShootHolder.Visible = Flags.ShowShootButton == true
 MM2.UI.FloatingShootButton = FloatingShootButton
 MM2.UI.FloatingShootHolder = FloatingShootHolder
+
+-- Throw Aimbot: existing crossed-swords icon with a red outline.
+local FloatingThrowAimbotButton,FloatingThrowAimbotHolder =
+	UI.CreateMovableCardButton(
+		"FloatingThrowAimbot",
+		"swords",
+		"THROW",
+		UDim2.new(0.67,-52,0.70,-42),
+		function()
+			task.spawn(function()
+				local ok,success,message = pcall(function()
+					return MM2.Functions.ThrowAimbotOnce()
+				end)
+				if not ok then
+					warn("[MM2 THROW AIMBOT BUTTON]",success)
+					CombatNotify("Throw Aimbot","Error","circle-x",2)
+				elseif success then
+					CombatNotify("Throw Aimbot","Knife Thrown","swords",1.8)
+				elseif message then
+					CombatNotify("Throw Aimbot",message,"circle-x",2.5)
+				end
+			end)
+		end
+	)
+
+-- Red outline for the Murderer action card, when the shared card API returns a GuiObject holder.
+if typeof(FloatingThrowAimbotHolder) == "Instance" then
+	local stroke = FloatingThrowAimbotHolder:FindFirstChildWhichIsA("UIStroke",true)
+	if stroke then
+		stroke.Color = Color3.fromRGB(255,70,70)
+	else
+		stroke = Instance.new("UIStroke")
+		stroke.Color = Color3.fromRGB(255,70,70)
+		stroke.Thickness = 1.5
+		stroke.Parent = FloatingThrowAimbotHolder
+	end
+end
+FloatingThrowAimbotHolder.Visible = Flags.ShowThrowAimbotButton == true
+MM2.UI.FloatingThrowAimbotButton = FloatingThrowAimbotButton
+MM2.UI.FloatingThrowAimbotHolder = FloatingThrowAimbotHolder
 
 -- Kill All: skull Lucide icon.
 local FloatingKillAllButton,FloatingKillAllHolder =
