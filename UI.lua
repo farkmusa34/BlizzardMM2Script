@@ -1344,12 +1344,107 @@ local function ApplyReferenceToggleSkin(control,isOn)
 	-- WindUI owns the toggle shape, colours, knob, and state animation.
 end
 
+--============================================================
+-- TOGGLE NOTIFICATION ICONS
+-- One feature icon is used for BOTH Enabled and Disabled notices.
+-- Error / blocked-action notifications still choose their own icons
+-- (for example circle-x) at the call site.
+--============================================================
+UI.ToggleNotificationIcons = UI.ToggleNotificationIcons or {
+	-- Visuals
+	-- Keep aliases here so the notifier works with either current or older flag names.
+	MatchESP = "eye",
+	PlayerESP = "eye",
+	GunESP = "scan-eye",
+	RoleESP = "scan-eye",
+	Tracers = "scan",
+	TracerESP = "scan",
+	Nametags = "badge",
+	NameTags = "badge",
+	DistanceESP = "ruler",
+	ShowDistance = "ruler",
+	ESPDistance = "ruler",
+
+	-- Combat
+	TriggerBot = "crosshair",
+	AimLock = "target",
+	ShowLegitShootButton = "crosshair",
+	GeneralPredictionDiagnostic = "activity",
+	ShowShootButton = "crosshair",
+	AutoGrab = "hand",
+	LegitThrow = "knife",
+	RageThrow = "knife",
+	ShowKillAllButton = "swords",
+	KnifeAura = "swords",
+	CustomCrosshair = "crosshair",
+
+	-- Player
+	Fly = "wind",
+	Noclip = "ghost",
+	InfiniteJump = "arrow-up",
+	WallClimb = "move-up",
+	WallJump = "move-up",
+	BombJumpButton = "bomb",
+
+	-- Fling
+	ShowFlingMurdererButton = "wind",
+	ShowFlingSheriffButton = "shield",
+	AntiFling = "shield-check",
+	FlingNotify = "bell",
+
+	-- Auto Farm
+	AutoFarm = "bot",
+	AntiDisconnect = "wifi",
+	KillAllAfterBagFull = "swords",
+	ShootMurdererAfterBagFull = "crosshair",
+	FlingMurdererAfterBagFull = "wind",
+	ResetCharacterAfterBagFull = "rotate-ccw",
+
+	-- Misc
+	QuickButtonsLocked = "lock",
+	AntiAFK = "clock",
+	AutoSaveConfig = "save",
+}
+
+function UI.SetToggleNotificationIcon(flagName,icon)
+	if typeof(flagName) ~= "string" or flagName == "" then
+		return false
+	end
+
+	if icon == nil then
+		UI.ToggleNotificationIcons[flagName] = nil
+		return true
+	end
+
+	if typeof(icon) ~= "string" or icon == "" then
+		return false
+	end
+
+	UI.ToggleNotificationIcons[flagName] = icon
+	return true
+end
+
+local function GetToggleNotificationIcon(flagName,overrideIcon)
+	if typeof(overrideIcon) == "string" and overrideIcon ~= "" then
+		return overrideIcon
+	end
+
+	local mapped = UI.ToggleNotificationIcons[flagName]
+	if typeof(mapped) == "string" and mapped ~= "" then
+		return mapped
+	end
+
+	-- Neutral fallback for any future toggle that has not been mapped yet.
+	return "settings"
+end
+
 function UI.CreateToggle(
 	page,
 	titleText,
 	description,
 	flagName,
-	callback
+	callback,
+	notificationIcon
 )
 
 	local parent =
@@ -1437,11 +1532,10 @@ function UI.CreateToggle(
 									or "Disabled!",
 
 								Icon =
-									(not value and "x")
-									or (flagName == "AutoFarm" and "bot")
-									or (flagName == "ShootMurdererAfterBagFull" and "crosshair")
-									or (flagName == "KillAllAfterBagFull" and "swords")
-									or "check",
+									GetToggleNotificationIcon(
+										flagName,
+										notificationIcon
+									),
 
 								Duration = 2.5,
 							})
