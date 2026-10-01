@@ -846,7 +846,7 @@ local function LowerFirstSectionHeadingY(section, page)
 	end
 
 	local basePositions = setmetatable({}, {__mode = "k"})
-	local FIRST_HEADING_Y_NUDGE = (page == UI.CombatPage) and -4 or 0
+	local FIRST_HEADING_Y_NUDGE = 0
 
 	local function Apply()
 		local outline = section.ElementFrame:FindFirstChild("Outline")
@@ -878,7 +878,7 @@ end
 -- Compact title-only section spacing.
 -- Removes only part of WindUI's title-only reserved header space.
 -- The title remains unclipped and card-to-card spacing stays untouched.
-local SECTION_TO_FIRST_CONTROL_REDUCTION = 16
+local SECTION_TO_FIRST_CONTROL_REDUCTION = 18
 
 local function TightenSectionToFirstControlGap(section)
 	if not section or not section.ElementFrame then
@@ -1035,20 +1035,17 @@ function UI.AddSection(page,titleText,subtitleText)
 	if section ~= tab then
 		LockSectionOpenAndHideArrow(section)
 
-		if not isVisuals then
-			-- Title-only mode: collapse the header space that WindUI normally reserves
-			-- for a section description. This changes the heading-to-first-card gap
-			-- without touching card-to-card spacing.
-			TightenSectionToFirstControlGap(section)
+		-- Normalize section spacing on every tab. The section header reserve is
+		-- compacted instead of moving individual cards, so section transitions
+		-- stay consistent even when WindUI rebuilds/reflows the page.
+		TightenSectionToFirstControlGap(section)
 
-			-- Keep heading text at its native Y position; clipping is disabled by the gap patch.
-			if isFirstHeading then
-				-- First heading: noticeably lower, since there is no group above it.
-				LowerFirstSectionHeadingY(section, page)
-			else
-				-- Later headings: keep them centered between surrounding groups.
-				CenterLaterSectionHeadingY(section)
-			end
+		-- Keep every heading on WindUI's native vertical center. No tab-specific
+		-- offsets: those were the source of Combat/other tabs drifting apart.
+		if isFirstHeading then
+			LowerFirstSectionHeadingY(section, page)
+		else
+			CenterLaterSectionHeadingY(section)
 		end
 	end
 
