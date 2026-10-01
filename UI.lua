@@ -289,15 +289,15 @@ pcall(function()
 			Accent = "#FFFFFF",
 			-- Dark smoked-glass palette: near-black rather than washed gray.
 			-- Window stays Transparent=true below, so the game remains visible through it.
-			Dialog = "#050506",
-			Outline = "#111114",
+			Dialog = "#020203",
+			Outline = "#0B0B0E",
 			Text = "#F5F5F5",
 			Placeholder = "#929298",
-			Background = "#010102",
-			Button = "#0B0B0E",
-			-- Mono-only toggle treatment: dark when OFF, green when ON.
-			Toggle = "#43A047",
-			ToggleBar = "#FFFFFF",
+			Background = "#000001",
+			Button = "#07070A",
+			-- Mono toggle treatment: dark/gray when OFF, bright white when ON.
+			Toggle = "#FFFFFF",
+			ToggleBar = "#B8B8BC",
 			Icon = "#FFFFFF",
 		})
 	end
@@ -368,9 +368,9 @@ end)
 
 local DEFAULT_BLIZZARD_BLUE =
 	Color3.fromRGB(
-		242,
-		139,
-		36
+		246,
+		190,
+		52
 	)
 
 UI.CurrentThemeAccent =
@@ -415,7 +415,7 @@ end
 
 function UI.SetLatestUpdateTheme(color)
 
-	-- SUMMER EVENT has a fixed orange identity; theme changes must not turn it white.
+	-- SUMMER EVENT has a fixed sun-gold identity; theme changes must not turn it white.
 	color = DEFAULT_BLIZZARD_BLUE
 
 	UI.CurrentThemeAccent = color
@@ -852,7 +852,7 @@ local function LowerFirstSectionHeadingY(section, page)
 	end
 
 	local basePositions = setmetatable({}, {__mode = "k"})
-	local FIRST_HEADING_Y_NUDGE = 0
+	local FIRST_HEADING_Y_NUDGE = 2
 
 	local function Apply()
 		local outline = section.ElementFrame:FindFirstChild("Outline")
@@ -939,7 +939,7 @@ local function CenterLaterSectionHeadingY(section)
 	end
 
 	local basePositions = setmetatable({}, {__mode = "k"})
-	local HEADING_Y_NUDGE = 0
+	local HEADING_Y_NUDGE = -4
 
 	local function Apply()
 		local outline = section.ElementFrame:FindFirstChild("Outline")
