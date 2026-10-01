@@ -20,6 +20,16 @@ local Players = S.Players
 local LocalPlayer = MM2.LocalPlayer
 local UI = MM2.UI
 
+local function TeleportFail(message)
+	MM2.Notify(
+		message,
+		2.5,
+		"circle-x",
+		"Teleport"
+	)
+	return false
+end
+
 local SelectedPlayerName = nil
 
 --============================================================
@@ -270,14 +280,9 @@ local function TeleportBehindMurderer()
 		or not hrp
 	then
 
-		MM2.Notify(
-			"No active Murderer found.",
-			2.5,
-			"triangle-alert",
-			"Teleport"
+		return TeleportFail(
+			"No active Murderer found."
 		)
-
-		return false
 	end
 
 	if TeleportNearHRP(
@@ -356,14 +361,9 @@ local function TeleportBehindSheriff()
 		or not hrp
 	then
 
-		MM2.Notify(
-			"No active Sheriff found.",
-			2.5,
-			"triangle-alert",
-			"Teleport"
+		return TeleportFail(
+			"No active Sheriff found."
 		)
-
-		return false
 	end
 
 	if TeleportNearHRP(
@@ -394,13 +394,32 @@ local function FindMapAnchorPlayer()
 
 	RefreshServerRoles()
 
+	-- Teleport-to-map is valid only while Shared.lua confirms
+	-- that a live role round is active.
+	if MM2.State.RoleRoundActive ~= true then
+		return nil,"No active round or map found."
+	end
+
+	local roleCache =
+		MM2.State.ServerRolesCache
+
+	if type(roleCache) ~= "table"
+		or next(roleCache) == nil
+	then
+		return nil,"No active roles found."
+	end
+
 	local fallbackMurderer = nil
 
 	for _,player in ipairs(
 		Players:GetPlayers()
 	) do
 
-		if player ~= LocalPlayer then
+		if player ~= LocalPlayer
+			and not MM2.State.PlayerOutOfRound[
+				player.Name
+			]
+		then
 
 			local role =
 				MM2.GetPlayerRole(
@@ -414,14 +433,16 @@ local function FindMapAnchorPlayer()
 
 			if humanoid
 				and hrp
-				and role ~= "None"
+				and (
+					role == "Murderer"
+					or role == "Sheriff"
+					or role == "Hero"
+					or role == "Innocent"
+				)
 			then
 
-				-- Prefer a non-Murderer player so Teleport
-				-- to Map does not normally place the user
-				-- beside the Murderer.
+				-- Prefer a non-Murderer role anchor.
 				if role ~= "Murderer" then
-
 					return player,hrp
 				end
 
@@ -434,33 +455,28 @@ local function FindMapAnchorPlayer()
 	end
 
 	if fallbackMurderer then
-
 		return
 			fallbackMurderer.Player,
 			fallbackMurderer.HRP
 	end
 
-	return nil
+	return nil,"No alive active-round role player found."
 end
 
 local function TeleportToMap()
 
-	local player,hrp =
+	local player,hrpOrReason =
 		FindMapAnchorPlayer()
 
-	if not player
-		or not hrp
-	then
-
-		MM2.Notify(
-			"No active round player found.",
-			2.5,
-			"triangle-alert",
-			"Teleport"
+	if not player then
+		return TeleportFail(
+			type(hrpOrReason) == "string"
+				and hrpOrReason
+				or "No active round player found."
 		)
-
-		return false
 	end
+
+	local hrp = hrpOrReason
 
 	if TeleportNearHRP(
 		hrp,
