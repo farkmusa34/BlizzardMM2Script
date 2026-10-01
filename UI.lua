@@ -1353,6 +1353,12 @@ end
 UI.ToggleNotificationIcons = UI.ToggleNotificationIcons or {
 	-- Visuals
 	-- Keep aliases here so the notifier works with either current or older flag names.
+	CoinESP = "coins",
+	RoundTimer = "timer",
+	MurdererTracer = "scan",
+	SheriffTracer = "scan",
+	HeroTracer = "scan",
+	InnocentTracer = "scan",
 	MatchESP = "eye",
 	PlayerESP = "eye",
 	GunESP = "scan-eye",
