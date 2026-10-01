@@ -2203,7 +2203,11 @@ function UI.CreateMovableCardButton(
 		local identity = string.lower(cleanName .. " " .. tostring(labelText or ""))
 		if string.find(identity,"bomb") then
 			fixedStrokeColor = QUICK_BUTTON_OUTLINE_COLORS.orange
-		elseif string.find(identity,"kill all") or (string.find(identity,"fling") and string.find(identity,"murder")) then
+		elseif string.find(identity,"kill all")
+			or string.find(identity,"throw knife")
+			or string.find(identity,"throw aimbot")
+			or (string.find(identity,"fling") and string.find(identity,"murder"))
+		then
 			fixedStrokeColor = QUICK_BUTTON_OUTLINE_COLORS.red
 		elseif string.find(identity,"shoot") or string.find(identity,"rage") or (string.find(identity,"fling") and (string.find(identity,"sheriff") or string.find(identity,"hero"))) then
 			fixedStrokeColor = QUICK_BUTTON_OUTLINE_COLORS.blue
