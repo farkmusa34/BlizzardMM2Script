@@ -884,7 +884,7 @@ end
 -- Compact title-only section spacing.
 -- Removes only part of WindUI's title-only reserved header space.
 -- The title remains unclipped and card-to-card spacing stays untouched.
-local SECTION_TO_FIRST_CONTROL_REDUCTION = 18
+local SECTION_TO_FIRST_CONTROL_REDUCTION = 22
 
 local function TightenSectionToFirstControlGap(section)
 	if not section or not section.ElementFrame then
@@ -939,7 +939,7 @@ local function CenterLaterSectionHeadingY(section)
 	end
 
 	local basePositions = setmetatable({}, {__mode = "k"})
-	local HEADING_Y_NUDGE = -8
+	local HEADING_Y_NUDGE = -5
 
 	local function Apply()
 		local outline = section.ElementFrame:FindFirstChild("Outline")
@@ -1335,54 +1335,13 @@ end
 UI.SetToggle = UI.SetToggleState
 
 --============================================================
--- PASSIVE REFERENCE TOGGLE SKIN
--- Visual-only: compact rounded-square, gray OFF / white ON.
--- Never replaces callbacks/flags and every operation is protected.
+-- TOGGLE APPEARANCE
+-- Keep WindUI's original/native toggle rendering.
+-- No custom square skin is applied here.
 --============================================================
 local function ApplyReferenceToggleSkin(control,isOn)
-	pcall(function()
-		if not control then return end
-		local root = control.ElementFrame or control.Frame or control.Root
-		if typeof(root) ~= "Instance" then return end
-
-		local candidates = {}
-		for _,obj in ipairs(root:GetDescendants()) do
-			if obj:IsA("GuiObject") and obj.Visible then
-				local size = obj.AbsoluteSize
-				-- WindUI toggle pieces live at the right side and are much smaller than the card.
-				if size.X >= 14 and size.X <= 58 and size.Y >= 14 and size.Y <= 34 then
-					table.insert(candidates,obj)
-				end
-			end
-		end
-		if #candidates == 0 then return end
-
-		table.sort(candidates,function(a,b)
-			local ax = a.AbsolutePosition.X + a.AbsoluteSize.X
-			local bx = b.AbsolutePosition.X + b.AbsoluteSize.X
-			if math.abs(ax-bx) > 2 then return ax > bx end
-			return (a.AbsoluteSize.X*a.AbsoluteSize.Y) > (b.AbsoluteSize.X*b.AbsoluteSize.Y)
-		end)
-
-		local track = candidates[1]
-		if not track then return end
-		-- Compact the existing WindUI switch instead of replacing it.
-		track.Size = UDim2.fromOffset(30,24)
-		if track:IsA("Frame") or track:IsA("TextButton") or track:IsA("ImageButton") then
-			track.BackgroundColor3 = isOn and Color3.fromRGB(245,245,245) or Color3.fromRGB(92,92,98)
-			track.BackgroundTransparency = 0
-		end
-		local corner = track:FindFirstChildOfClass("UICorner")
-		if corner then corner.CornerRadius = UDim.new(0,6) end
-
-		-- Keep any inner knob compact as well.
-		for _,obj in ipairs(track:GetDescendants()) do
-			if obj:IsA("GuiObject") then
-				local c = obj:FindFirstChildOfClass("UICorner")
-				if c then c.CornerRadius = UDim.new(0,5) end
-			end
-		end
-	end)
+	-- Intentionally left as a no-op for compatibility with older call sites.
+	-- WindUI owns the toggle shape, colours, knob, and state animation.
 end
 
 function UI.CreateToggle(
