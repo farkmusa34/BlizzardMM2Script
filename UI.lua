@@ -279,7 +279,7 @@ UI.WindUI = WindUI
 --============================================================
 -- BLIZZARD MONO THEME
 -- Black / charcoal surfaces with white controls and icons.
--- Existing WindUI toggle geometry is preserved, so toggles stay pill-shaped.
+-- WindUI colors stay monochrome; a visual skin below converts toggles to compact rounded squares.
 --============================================================
 
 pcall(function()
@@ -425,7 +425,7 @@ function UI.SetLatestUpdateTheme(color)
 	if UI.FloatingCardRegistry then
 		for _,entry in pairs(UI.FloatingCardRegistry) do
 			if entry and entry.Stroke then
-				entry.Stroke.Color = entry.FixedStrokeColor or color
+				entry.Stroke.Color = entry.FixedStrokeColor or Color3.fromRGB(49,145,255)
 			end
 		end
 	end
@@ -852,7 +852,7 @@ local function LowerFirstSectionHeadingY(section, page)
 	end
 
 	local basePositions = setmetatable({}, {__mode = "k"})
-	local FIRST_HEADING_Y_NUDGE = 2
+	local FIRST_HEADING_Y_NUDGE = 0
 
 	local function Apply()
 		local outline = section.ElementFrame:FindFirstChild("Outline")
@@ -939,7 +939,7 @@ local function CenterLaterSectionHeadingY(section)
 	end
 
 	local basePositions = setmetatable({}, {__mode = "k"})
-	local HEADING_Y_NUDGE = -4
+	local HEADING_Y_NUDGE = -10
 
 	local function Apply()
 		local outline = section.ElementFrame:FindFirstChild("Outline")
@@ -1212,6 +1212,7 @@ function UI.CreateInfo(
 	if ok then
 
 		control = result
+		RefreshReferenceToggleSkin(control, Flags[flagName])
 
 		-- Optional semantic action styling. WindUI does not expose a
 		-- per-button fill option consistently, so style its actual element.
@@ -1287,6 +1288,80 @@ function UI.CreateInfo(
 	end
 
 	return control,SetText
+end
+
+--============================================================
+-- COMPACT REFERENCE TOGGLE SKIN
+--
+-- WindUI normally renders a long pill switch. The reference uses a compact
+-- rounded-square state indicator: gray when OFF and white when ON. This skin
+-- only changes the generated toggle visuals; callbacks/flags remain untouched.
+--============================================================
+
+local function SkinToggleAsReferenceSquare(control, value)
+	if not control then return end
+	value = value == true
+
+	local root = control.ElementFrame or control.Frame or control.Root
+	if typeof(root) ~= "Instance" then return end
+
+	local candidates = {}
+	for _,obj in ipairs(root:GetDescendants()) do
+		if obj:IsA("Frame") or obj:IsA("TextButton") then
+			local size = obj.AbsoluteSize
+			-- Toggle pieces live on the right and are much smaller than the card.
+			if size.X >= 24 and size.X <= 105 and size.Y >= 20 and size.Y <= 60 then
+				table.insert(candidates,obj)
+			end
+		end
+	end
+
+	if #candidates == 0 then return end
+
+	-- The outer track is normally the widest small frame in the control.
+	table.sort(candidates,function(a,b)
+		return a.AbsoluteSize.X > b.AbsoluteSize.X
+	end)
+	local track = candidates[1]
+	if not track then return end
+
+	pcall(function()
+		track.AnchorPoint = Vector2.new(1,0.5)
+		track.Position = UDim2.new(1,-18,0.5,0)
+		track.Size = UDim2.fromOffset(42,42)
+		track.BackgroundColor3 = value
+			and Color3.fromRGB(250,250,250)
+			or Color3.fromRGB(77,77,82)
+		track.BackgroundTransparency = 0
+	end)
+
+	local corner = track:FindFirstChildOfClass("UICorner")
+	if not corner then
+		corner = Instance.new("UICorner")
+		corner.Parent = track
+	end
+	corner.CornerRadius = UDim.new(0,11)
+
+	-- Hide the sliding circular knob; the square itself is the state indicator.
+	for _,obj in ipairs(track:GetDescendants()) do
+		if obj:IsA("Frame") or obj:IsA("TextButton") then
+			if obj ~= track then
+				pcall(function() obj.BackgroundTransparency = 1 end)
+			end
+		elseif obj:IsA("ImageLabel") or obj:IsA("ImageButton") then
+			pcall(function() obj.ImageTransparency = 1 end)
+		end
+	end
+end
+
+local function RefreshReferenceToggleSkin(control, value)
+	local function Apply()
+		SkinToggleAsReferenceSquare(control,value)
+	end
+	Apply()
+	task.defer(Apply)
+	task.delay(0.05,Apply)
+	task.delay(0.18,Apply)
 end
 
 --============================================================
@@ -1387,6 +1462,7 @@ function UI.CreateToggle(
 						Flags[flagName] =
 							value
 
+						RefreshReferenceToggleSkin(control, value)
 
 						if ignoreNextCallback then
 							return
@@ -1442,6 +1518,7 @@ function UI.CreateToggle(
 	if ok then
 
 		control = result
+		RefreshReferenceToggleSkin(control, Flags[flagName])
 
 		local ACTION_COLORS = {
 			danger = Color3.fromRGB(150,45,52),
@@ -1504,6 +1581,8 @@ function UI.CreateToggle(
 
 			ignoreNextCallback = false
 		end
+
+		RefreshReferenceToggleSkin(control, value)
 
 		if runCallback
 			and callback
@@ -2009,7 +2088,7 @@ local function FlashQuickButton(entry)
 
 	if entry.Icon then
 		pcall(function()
-			entry.Icon.ImageColor3 = UI.CurrentThemeAccent or DEFAULT_BLIZZARD_BLUE
+			entry.Icon.ImageColor3 = Color3.fromRGB(255,255,255)
 		end)
 	end
 
@@ -2018,7 +2097,7 @@ local function FlashQuickButton(entry)
 			return
 		end
 
-		button.BackgroundTransparency = 0.10
+		button.BackgroundTransparency = 0.08
 		stroke.Transparency = 0.05
 		stroke.Thickness = 2.0
 
@@ -2060,8 +2139,8 @@ function UI.CreateMovableCardButton(
 	button.Name = cleanName
 	button.Size = UDim2.fromScale(1,1)
 	button.Position = UDim2.fromScale(0,0)
-	button.BackgroundColor3 = Color3.fromRGB(14,16,22)
-	button.BackgroundTransparency = 0.10
+	button.BackgroundColor3 = Color3.fromRGB(10,11,15)
+	button.BackgroundTransparency = 0.08
 	button.BorderSizePixel = 0
 	button.Text = ""
 	button.AutoButtonColor = false
@@ -2073,13 +2152,34 @@ function UI.CreateMovableCardButton(
 	corner.CornerRadius = UDim.new(0,14)
 	corner.Parent = button
 
+	-- Fixed reference palette. These colors intentionally do NOT follow the
+	-- selected WindUI theme in Misc.
 	local QUICK_BUTTON_OUTLINE_COLORS = {
-		red = Color3.fromRGB(220,42,55),
-		danger = Color3.fromRGB(220,42,55),
-		blue = Color3.fromRGB(55,145,255),
-		orange = Color3.fromRGB(240,150,45),
+		red = Color3.fromRGB(239,62,76),
+		danger = Color3.fromRGB(239,62,76),
+		blue = Color3.fromRGB(49,145,255),
+		orange = Color3.fromRGB(245,157,43),
+		gold = Color3.fromRGB(245,157,43),
 	}
-	local fixedStrokeColor = QUICK_BUTTON_OUTLINE_COLORS[string.lower(tostring(style or ""))]
+
+	local requestedStyle = string.lower(tostring(style or ""))
+	local identity = string.lower(cleanName .. " " .. tostring(labelText or ""))
+
+	-- Older modules do not always pass a style, so infer it from the button's
+	-- stable name/label. This keeps every quick button on the reference palette.
+	if requestedStyle == "" then
+		if string.find(identity,"bomb",1,true) then
+			requestedStyle = "orange"
+		elseif string.find(identity,"kill",1,true)
+			or string.find(identity,"murderer",1,true) and not string.find(identity,"shoot",1,true) then
+			requestedStyle = "red"
+		else
+			requestedStyle = "blue"
+		end
+	end
+
+	local fixedStrokeColor = QUICK_BUTTON_OUTLINE_COLORS[requestedStyle]
+		or QUICK_BUTTON_OUTLINE_COLORS.blue
 
 	local stroke = Instance.new("UIStroke")
 	stroke.Name = "ThemeStroke"
