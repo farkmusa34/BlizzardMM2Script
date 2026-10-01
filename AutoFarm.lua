@@ -1842,7 +1842,7 @@ function MM2.Functions.StopAutoFarm()
 	-- Default is +6.3 studs at the current X/Z.
 	-- If that destination is obstructed, try a small nearby ring instead.
 	if FarmUpdateCharacter() and FarmHumanoid.Health > 0 then
-		local RETURN_LIFT = 6.30
+		local RETURN_LIFT = 6.40
 		local RETURN_SEARCH_STEP = 2.0
 		local RETURN_SEARCH_RADIUS = 8.0
 		local RETURN_SAMPLES = 16
