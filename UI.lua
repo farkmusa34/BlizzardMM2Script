@@ -287,12 +287,14 @@ pcall(function()
 		WindUI:AddTheme({
 			Name = "Blizzard Mono",
 			Accent = "#FFFFFF",
-			Dialog = "#171719",
-			Outline = "#303035",
+			-- Dark smoked-glass palette: near-black rather than washed gray.
+			-- Window stays Transparent=true below, so the game remains visible through it.
+			Dialog = "#0B0B0D",
+			Outline = "#202024",
 			Text = "#F5F5F5",
-			Placeholder = "#9B9B9B",
-			Background = "#0D0D0F",
-			Button = "#29292E",
+			Placeholder = "#929298",
+			Background = "#070709",
+			Button = "#17171B",
 			-- Mono-only toggle treatment: dark when OFF, green when ON.
 			Toggle = "#43A047",
 			ToggleBar = "#FFFFFF",
