@@ -289,12 +289,12 @@ pcall(function()
 			Accent = "#FFFFFF",
 			-- Dark smoked-glass palette: near-black rather than washed gray.
 			-- Window stays Transparent=true below, so the game remains visible through it.
-			Dialog = "#0B0B0D",
-			Outline = "#202024",
+			Dialog = "#08080A",
+			Outline = "#18181C",
 			Text = "#F5F5F5",
 			Placeholder = "#929298",
-			Background = "#070709",
-			Button = "#17171B",
+			Background = "#030305",
+			Button = "#101014",
 			-- Mono-only toggle treatment: dark when OFF, green when ON.
 			Toggle = "#43A047",
 			ToggleBar = "#FFFFFF",
@@ -368,9 +368,9 @@ end)
 
 local DEFAULT_BLIZZARD_BLUE =
 	Color3.fromRGB(
-		245,
-		245,
-		245
+		242,
+		139,
+		36
 	)
 
 UI.CurrentThemeAccent =
@@ -390,8 +390,8 @@ local function CreateLatestUpdateTag(color)
 		pcall(function()
 
 			return Window:Tag({
-				Title = "Latest Update",
-				Icon = "sparkles",
+				Title = "SUMMER EVENT",
+				Icon = "sun",
 				Color = color,
 				Border = true,
 			})
@@ -406,7 +406,7 @@ local function CreateLatestUpdateTag(color)
 	end
 
 	warn(
-		"[Blizzard UI] Latest Update tag failed:",
+		"[Blizzard UI] SUMMER EVENT tag failed:",
 		result
 	)
 
