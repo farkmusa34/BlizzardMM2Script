@@ -63,11 +63,11 @@ end
 --============================================================
 
 local COLORS = {
-	Background = Color3.fromRGB(7,8,10),
-	Sidebar = Color3.fromRGB(9,10,12),
-	Card = Color3.fromRGB(17,18,22),
-	CardHover = Color3.fromRGB(22,23,28),
-	Stroke = Color3.fromRGB(42,44,52),
+	Background = Color3.fromRGB(15,16,20),
+	Sidebar = Color3.fromRGB(18,19,24),
+	Card = Color3.fromRGB(24,25,31),
+	CardHover = Color3.fromRGB(29,31,38),
+	Stroke = Color3.fromRGB(54,57,68),
 	Text = Color3.fromRGB(240,242,248),
 	Muted = Color3.fromRGB(157,163,178),
 	Accent = Color3.fromRGB(245,245,245),
@@ -287,12 +287,14 @@ pcall(function()
 		WindUI:AddTheme({
 			Name = "Blizzard Mono",
 			Accent = "#FFFFFF",
-			Dialog = "#0D0D0F",
-			Outline = "#29292D",
+			-- Dark smoked-glass palette: near-black rather than washed gray.
+			-- Window stays Transparent=true below, so the game remains visible through it.
+			Dialog = "#0B0B0D",
+			Outline = "#202024",
 			Text = "#F5F5F5",
-			Placeholder = "#9B9B9B",
-			Background = "#070708",
-			Button = "#171719",
+			Placeholder = "#929298",
+			Background = "#070709",
+			Button = "#17171B",
 			-- Mono-only toggle treatment: dark when OFF, green when ON.
 			Toggle = "#43A047",
 			ToggleBar = "#FFFFFF",
@@ -371,8 +373,6 @@ local DEFAULT_BLIZZARD_BLUE =
 		245
 	)
 
-local SUMMER_EVENT_ORANGE = Color3.fromRGB(242,139,34)
-
 UI.CurrentThemeAccent =
 	UI.CurrentThemeAccent
 	or DEFAULT_BLIZZARD_BLUE
@@ -390,9 +390,9 @@ local function CreateLatestUpdateTag(color)
 		pcall(function()
 
 			return Window:Tag({
-				Title = "SUMMER EVENT",
-				Icon = "sun",
-				Color = SUMMER_EVENT_ORANGE,
+				Title = "Latest Update",
+				Icon = "sparkles",
+				Color = color,
 				Border = true,
 			})
 		end)
@@ -422,8 +422,8 @@ function UI.SetLatestUpdateTheme(color)
 
 	UI.CurrentThemeAccent = color
 
-	-- Theme changes may recolor floating controls, but the seasonal
-	-- SUMMER EVENT tag always remains orange.
+
+	-- Keep every floating Blizzard card synced to the selected theme.
 	if UI.FloatingCardRegistry then
 		for _,entry in pairs(UI.FloatingCardRegistry) do
 			if entry and entry.Stroke then
@@ -432,17 +432,48 @@ function UI.SetLatestUpdateTheme(color)
 		end
 	end
 
-	if LatestUpdateTag and LatestUpdateTag.SetColor then
+	-- Prefer WindUI's native tag color updater.
+	if LatestUpdateTag
+		and LatestUpdateTag.SetColor
+	then
+
+		local success =
+			pcall(function()
+
+				LatestUpdateTag:SetColor(
+					color
+				)
+			end)
+
+		if success then
+
+			UI.LatestUpdateTag =
+				LatestUpdateTag
+
+			return LatestUpdateTag
+		end
+	end
+
+	-- Fallback for WindUI builds without SetColor().
+	if LatestUpdateTag
+		and LatestUpdateTag.Destroy
+	then
+
 		pcall(function()
-			LatestUpdateTag:SetColor(SUMMER_EVENT_ORANGE)
+			LatestUpdateTag:Destroy()
 		end)
 	end
 
-	return LatestUpdateTag
+	LatestUpdateTag = nil
+	UI.LatestUpdateTag = nil
+
+	return CreateLatestUpdateTag(
+		color
+	)
 end
 
 CreateLatestUpdateTag(
-	SUMMER_EVENT_ORANGE
+	UI.CurrentThemeAccent
 )
 
 --============================================================
@@ -801,12 +832,141 @@ local function LockSectionOpenAndHideArrow(section)
 end
 
 local NextSectionSpacing = {}
+local SectionCountByPage = setmetatable({}, {__mode = "k"})
 
 function UI.SetNextSectionSpacing(page,above,below)
-	NextSectionSpacing[page] = {
-		Above = tonumber(above) or 16,
-		Below = tonumber(below) or 7,
-	}
+	-- Compatibility only. Visuals already demonstrates the native WindUI
+	-- section gap we want, so no custom padding is added here.
+	NextSectionSpacing[page] = true
+end
+
+local function LowerFirstSectionHeadingY(section, page)
+	-- The first heading has no section above it, so give it a deliberate
+	-- downward visual offset without changing section/card geometry.
+	if not section or not section.ElementFrame then
+		return
+	end
+
+	local basePositions = setmetatable({}, {__mode = "k"})
+	local FIRST_HEADING_Y_NUDGE = 0
+
+	local function Apply()
+		local outline = section.ElementFrame:FindFirstChild("Outline")
+		local top = outline and outline:FindFirstChild("Top")
+		if not top then return end
+
+		for _,obj in ipairs(top:GetDescendants()) do
+			if obj:IsA("TextLabel") or obj:IsA("TextButton") then
+				if not basePositions[obj] then
+					basePositions[obj] = obj.Position
+				end
+
+				local native = basePositions[obj]
+				obj.TextYAlignment = Enum.TextYAlignment.Center
+				obj.Position = UDim2.new(
+					native.X.Scale, native.X.Offset,
+					native.Y.Scale, native.Y.Offset + FIRST_HEADING_Y_NUDGE
+				)
+			end
+		end
+	end
+
+	Apply()
+	task.defer(Apply)
+	task.delay(0.05, Apply)
+	task.delay(0.20, Apply)
+end
+
+-- Compact title-only section spacing.
+-- Removes only part of WindUI's title-only reserved header space.
+-- The title remains unclipped and card-to-card spacing stays untouched.
+local SECTION_TO_FIRST_CONTROL_REDUCTION = 18
+
+local function TightenSectionToFirstControlGap(section)
+	if not section or not section.ElementFrame then
+		return
+	end
+
+	local nativeSizes = setmetatable({}, {__mode = "k"})
+
+	local function Apply()
+		local main = section.ElementFrame
+		local outline = main:FindFirstChild("Outline")
+		local top = outline and outline:FindFirstChild("Top")
+		if not top or not top:IsA("GuiObject") then return end
+
+		-- WindUI's title-only section still reserves some of the old Desc row.
+		-- Reduce only part of that header reserve, and disable clipping so the
+		-- title itself can never be chopped by the tighter header.
+		pcall(function() main.ClipsDescendants = false end)
+		pcall(function() outline.ClipsDescendants = false end)
+		pcall(function() top.ClipsDescendants = false end)
+
+		if not nativeSizes[top] then
+			nativeSizes[top] = top.Size
+		end
+
+		local native = nativeSizes[top]
+		top.Size = UDim2.new(
+			native.X.Scale, native.X.Offset,
+			native.Y.Scale, math.max(0, native.Y.Offset - SECTION_TO_FIRST_CONTROL_REDUCTION)
+		)
+	end
+
+	Apply()
+	task.defer(Apply)
+	task.delay(0.05, Apply)
+	task.delay(0.20, Apply)
+end
+
+-- Public hook for tabs (such as Visuals.lua) that create WindUI sections directly.
+-- This reuses the exact title-only compaction that gives Misc its good spacing.
+UI.CompactTitleOnlySection = TightenSectionToFirstControlGap
+
+local function CenterLaterSectionHeadingY(section)
+	-- IMPORTANT:
+	--   * Do not resize Top / Outline / ElementFrame.
+	--   * Do not move cards.
+	--   * Do not change X.
+	--   * Only later headings are visually nudged upward on Y.
+	-- This preserves WindUI's native (Visuals-like) section gap.
+	if not section or not section.ElementFrame then
+		return
+	end
+
+	local basePositions = setmetatable({}, {__mode = "k"})
+	local HEADING_Y_NUDGE = 0
+
+	local function Apply()
+		local outline = section.ElementFrame:FindFirstChild("Outline")
+		local top = outline and outline:FindFirstChild("Top")
+		if not top then
+			return
+		end
+
+		for _,obj in ipairs(top:GetDescendants()) do
+			if obj:IsA("TextLabel") or obj:IsA("TextButton") then
+				-- Save WindUI's native position once so delayed passes never stack.
+				if not basePositions[obj] then
+					basePositions[obj] = obj.Position
+				end
+
+				local native = basePositions[obj]
+				obj.TextYAlignment = Enum.TextYAlignment.Center
+				obj.Position = UDim2.new(
+					native.X.Scale,
+					native.X.Offset,
+					native.Y.Scale,
+					native.Y.Offset + HEADING_Y_NUDGE
+				)
+			end
+		end
+	end
+
+	Apply()
+	task.defer(Apply)
+	task.delay(0.05, Apply)
+	task.delay(0.20, Apply)
 end
 
 function UI.AddSection(page,titleText,subtitleText)
@@ -814,99 +974,85 @@ function UI.AddSection(page,titleText,subtitleText)
 	local tab = UI.PageMap[page]
 
 	if not tab then
-
 		warn(
 			"[Blizzard UI] No mapped tab for section:",
 			titleText
 		)
-
 		return nil
 	end
 
 	local section
+	local isVisuals = (page == UI.VisualsPage)
+
+	-- Track heading order per tab. The first heading already looks correct,
+	-- so only headings #2+ receive the visual Y adjustment.
+	SectionCountByPage[page] = (SectionCountByPage[page] or 0) + 1
+	local isFirstHeading = SectionCountByPage[page] == 1
 
 	local ok,result =
 		pcall(function()
-
-			return tab:Section({
-				Title =
-					tostring(
-						titleText or ""
-					),
-
-				Desc =
-					tostring(
-						subtitleText or ""
-					),
-
+			local config = {
+				Title = tostring(titleText or ""),
 				Opened = true,
-			})
+			}
+
+			-- Compact title-only sections on the main tabs.
+			-- Visuals keeps its existing subtitle behavior; every other tab omits Desc.
+			if isVisuals then
+				local desc = tostring(subtitleText or "")
+				if desc ~= "" then
+					config.Desc = desc
+				end
+			end
+
+			-- Keep WindUI's native section construction; geometry is compacted
+			-- immediately after creation instead of moving the cards themselves.
+			return tab:Section(config)
 		end)
 
 	if ok and result then
-
 		section = result
-
 	else
-
 		local ok2,result2 =
 			pcall(function()
-
 				return tab:Section({
-					Title =
-						tostring(
-							titleText or ""
-						),
-
+					Title = tostring(titleText or ""),
 					Opened = true,
 				})
 			end)
 
 		if ok2 and result2 then
-
 			section = result2
-
 		else
-
 			warn(
 				"[Blizzard UI] Section failed:",
 				titleText,
 				result,
 				result2
 			)
-
 			section = tab
 		end
 	end
 
 	if section ~= tab then
-		LockSectionOpenAndHideArrow(
-			section
-		)
+		LockSectionOpenAndHideArrow(section)
+
+		-- Normalize section spacing on every tab. The section header reserve is
+		-- compacted instead of moving individual cards, so section transitions
+		-- stay consistent even when WindUI rebuilds/reflows the page.
+		TightenSectionToFirstControlGap(section)
+
+		-- Keep every heading on WindUI's native vertical center. No tab-specific
+		-- offsets: those were the source of Combat/other tabs drifting apart.
+		if isFirstHeading then
+			LowerFirstSectionHeadingY(section, page)
+		else
+			CenterLaterSectionHeadingY(section)
+		end
 	end
 
-	local requestedSpacing = NextSectionSpacing[page]
 	NextSectionSpacing[page] = nil
-
-	if requestedSpacing and section and section.ElementFrame then
-		pcall(function()
-			local frame = section.ElementFrame
-			local layout = frame.Parent and frame.Parent:FindFirstChildOfClass("UIListLayout")
-			-- WindUI owns the actual list layout. Keep its card spacing intact;
-			-- only give this section a compact top/bottom envelope where supported.
-			local pad = frame:FindFirstChild("BlizzardSectionPadding")
-			if not pad then
-				pad = Instance.new("UIPadding")
-				pad.Name = "BlizzardSectionPadding"
-				pad.Parent = frame
-			end
-			pad.PaddingTop = UDim.new(0, requestedSpacing.Above)
-			pad.PaddingBottom = UDim.new(0, requestedSpacing.Below)
-		end)
-	end
-
 	UI.ActiveSection[page] = section
-
 	return section
 end
 
@@ -1237,6 +1383,7 @@ function UI.CreateToggle(
 						Flags[flagName] =
 							value
 
+
 						if ignoreNextCallback then
 							return
 						end
@@ -1275,9 +1422,11 @@ function UI.CreateToggle(
 									or "Disabled!",
 
 								Icon =
-									flagName == "AutoFarm"
-									and "bot"
-									or (value and "check" or "x"),
+									(not value and "x")
+									or (flagName == "AutoFarm" and "bot")
+									or (flagName == "ShootMurdererAfterBagFull" and "crosshair")
+									or (flagName == "KillAllAfterBagFull" and "swords")
+									or "check",
 
 								Duration = 2.5,
 							})
@@ -1882,7 +2031,8 @@ function UI.CreateMovableCardButton(
 	icon,
 	labelText,
 	startPosition,
-	callback
+	callback,
+	style
 )
 	local cleanName = tostring(name or "Floating")
 	local defaultPosition = startPosition or UDim2.fromScale(0.8,0.75)
@@ -1919,10 +2069,18 @@ function UI.CreateMovableCardButton(
 	corner.CornerRadius = UDim.new(0,14)
 	corner.Parent = button
 
+	local QUICK_BUTTON_OUTLINE_COLORS = {
+		red = Color3.fromRGB(220,42,55),
+		danger = Color3.fromRGB(220,42,55),
+		blue = Color3.fromRGB(55,145,255),
+		orange = Color3.fromRGB(240,150,45),
+	}
+	local fixedStrokeColor = QUICK_BUTTON_OUTLINE_COLORS[string.lower(tostring(style or ""))]
+
 	local stroke = Instance.new("UIStroke")
 	stroke.Name = "ThemeStroke"
 	stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
-	stroke.Color = UI.CurrentThemeAccent or DEFAULT_BLIZZARD_BLUE
+	stroke.Color = fixedStrokeColor or UI.CurrentThemeAccent or DEFAULT_BLIZZARD_BLUE
 	stroke.Thickness = 2.0
 	stroke.Transparency = 0.05
 	stroke.Parent = button
@@ -1990,6 +2148,7 @@ function UI.CreateMovableCardButton(
 		UIScale = uiScale,
 		DefaultPosition = defaultPosition,
 		DefaultSize = QUICK_BUTTON_BASE_SIZE,
+		FixedStrokeColor = fixedStrokeColor,
 	}
 
 	UI.FloatingCardRegistry[cleanName] = entry
