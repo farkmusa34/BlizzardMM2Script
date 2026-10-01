@@ -1253,7 +1253,7 @@ local FloatingThrowAimbotButton,FloatingThrowAimbotHolder =
 	UI.CreateMovableCardButton(
 		"FloatingThrowAimbot",
 		"swords",
-		"THROW",
+		"THROW\nKNIFE",
 		UDim2.new(0.67,-52,0.70,-42),
 		function()
 			task.spawn(function()
@@ -1301,24 +1301,15 @@ FloatingKillAllHolder.Visible = Flags.ShowKillAllButton == true
 MM2.UI.FloatingKillAllButton = FloatingKillAllButton
 MM2.UI.FloatingKillAllHolder = FloatingKillAllHolder
 
--- Match Throw Aimbot's outline to the Kill All card exactly.
-if typeof(FloatingThrowAimbotHolder) == "Instance"
-	and typeof(FloatingKillAllHolder) == "Instance"
-then
-	local killStroke = FloatingKillAllHolder:FindFirstChildWhichIsA("UIStroke",true)
+-- Throw Aimbot floating button: force the intended red outline.
+if typeof(FloatingThrowAimbotHolder) == "Instance" then
 	local throwStroke = FloatingThrowAimbotHolder:FindFirstChildWhichIsA("UIStroke",true)
-
-	if killStroke then
-		if not throwStroke then
-			throwStroke = Instance.new("UIStroke")
-			throwStroke.Parent = FloatingThrowAimbotHolder
-		end
-		throwStroke.Color = killStroke.Color
-		throwStroke.Thickness = killStroke.Thickness
-		throwStroke.Transparency = killStroke.Transparency
-		throwStroke.LineJoinMode = killStroke.LineJoinMode
-		throwStroke.ApplyStrokeMode = killStroke.ApplyStrokeMode
+	if not throwStroke then
+		throwStroke = Instance.new("UIStroke")
+		throwStroke.Thickness = 1.5
+		throwStroke.Parent = FloatingThrowAimbotHolder
 	end
+	throwStroke.Color = Color3.fromRGB(255,70,70)
 end
 
 --============================================================
