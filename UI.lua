@@ -1385,7 +1385,7 @@ UI.ToggleNotificationIcons = UI.ToggleNotificationIcons or {
 	CustomCrosshair = "crosshair",
 
 	-- Player
-	Fly = "wind",
+	Fly = "plane",
 	Noclip = "ghost",
 	InfiniteJump = "arrow-up",
 	WallClimb = "move-up",
