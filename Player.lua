@@ -537,7 +537,7 @@ local function TriggerBombJump()
 			"No bomb in inventory.",
 			2.5,
 			"package-x",
-			"Bomb Jump"
+			"Bomb Boost"
 		)
 		return false
 	end
@@ -589,7 +589,7 @@ local function CreateBombJumpButton()
 		UI.CreateMovableCardButton(
 			"FloatingBombJump",
 			"bomb",
-			"BOMB JUMP",
+			"BOMB BOOST",
 			UDim2.new(1,-80,0.68,0),
 			function()
 				TriggerBombJump()
@@ -618,7 +618,7 @@ UI.AddSection(UI.PlayerPage,"Movement","Movement and mobility controls")
 UI.CreateToggle(
 	UI.PlayerPage,
 	"Fly",
-	"PC: WASD + Space/Ctrl. Mobile: joystick + Up/Down",
+	"Fly with WASD, Space goes up; on mobile, joystick + Up and Down arrows",
 	"Fly",
 	function(on)
 		if on then StartFly() else StopFly() end
@@ -628,7 +628,7 @@ UI.CreateToggle(
 UI.CreateSlider(
 	UI.PlayerPage,
 	"Fly Speed",
-	"Adjust how fast you fly",
+	"Sets how fast you fly",
 	function() return Settings.FlySpeed end,
 	function(value) Settings.FlySpeed = value end,
 	10,200,5
@@ -637,7 +637,7 @@ UI.CreateSlider(
 UI.CreateToggle(
 	UI.PlayerPage,
 	"Noclip",
-	"Walk through objects with void protection",
+	"Walk through walls with free fall protection",
 	"Noclip",
 	function(on)
 		if on then StartPlayerNoclip() else StopPlayerNoclip() end
@@ -647,7 +647,7 @@ UI.CreateToggle(
 UI.CreateSlider(
 	UI.PlayerPage,
 	"Walk Speed",
-	"Sets and keeps your selected walk speed",
+	"Sets how fast you walk",
 	function()
 		return Settings.WalkSpeed
 	end,
@@ -698,8 +698,8 @@ UI.AddSection(UI.PlayerPage,"Bomb Boost","Fake Bomb movement techniques")
 
 UI.CreateActionFeature(
 	UI.PlayerPage,
-	"Bomb Jump",
-	"Perform one timed Fake Bomb jump",
+	"Bomb Boost",
+	"Sets up a bomb and rides the blast upward",
 	function() TriggerBombJump() end,
 	"bomb",
 	"orange"
@@ -707,8 +707,8 @@ UI.CreateActionFeature(
 
 UI.CreateToggle(
 	UI.PlayerPage,
-	"Show Bomb Jump Button",
-	"Show the movable bomb jump button",
+	"Bomb Boost Button",
+	"Shows a draggable Bomb Boost button on screen",
 	"BombJumpButton",
 	function(on) SetBombButtonVisible(on) end
 )
