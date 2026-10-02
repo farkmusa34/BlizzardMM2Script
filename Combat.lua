@@ -9,6 +9,15 @@ local Flags = MM2.Flags
 local UI = MM2.UI
 local Track = MM2.Track
 
+local CombatFeatureIcons = (UI.FeatureIcons and UI.FeatureIcons.Combat) or {}
+local function CombatFeatureIcon(name,fallback)
+	local icon = CombatFeatureIcons[name]
+	if typeof(icon) == "string" and icon ~= "" then
+		return icon
+	end
+	return fallback
+end
+
 -- Compact Combat section spacing without changing the shared UI framework.
 -- This only trims the outer top/bottom padding of each WindUI section;
 -- control/card internals are left untouched.
@@ -145,7 +154,7 @@ UI.CreateActionFeature(UI.CombatPage, "Kill All", "Stabs every player as murdere
 			NotifyKillAllResult(success,message)
 		end
 	end
-end, "skull")
+end, CombatFeatureIcon("KillAll","skull"))
 
 --============================================================
 -- KNIFE AURA
@@ -1196,7 +1205,7 @@ assert(
 local FloatingLegitShootButton,FloatingLegitShootHolder =
 	UI.CreateMovableCardButton(
 		"FloatingLegitShootMurderer",
-		"crosshair",
+		CombatFeatureIcon("LegitShoot","crosshair"),
 		"SHOOT",
 		UDim2.new(0.78,0,0.64,0),
 		function()
@@ -1224,7 +1233,7 @@ MM2.UI.FloatingLegitShootHolder = FloatingLegitShootHolder
 local FloatingShootButton,FloatingShootHolder =
 	UI.CreateMovableCardButton(
 		"FloatingShootMurderer",
-		"zap",
+		CombatFeatureIcon("RageShoot","zap"),
 		"RAGE SHOOT",
 		UDim2.new(0.78,0,0.76,0),
 		function()
@@ -1252,7 +1261,7 @@ MM2.UI.FloatingShootHolder = FloatingShootHolder
 local FloatingThrowAimbotButton,FloatingThrowAimbotHolder =
 	UI.CreateMovableCardButton(
 		"FloatingThrowAimbot",
-		"swords",
+		CombatFeatureIcon("ThrowAimbot","sword"),
 		"THROW\nKNIFE",
 		UDim2.new(0.67,-52,0.70,-42),
 		function()
@@ -1264,7 +1273,7 @@ local FloatingThrowAimbotButton,FloatingThrowAimbotHolder =
 					warn("[MM2 THROW AIMBOT BUTTON]",success)
 					CombatNotify("Throw Aimbot","Error","circle-x",2)
 				elseif success then
-					CombatNotify("Throw Aimbot","Knife Thrown","swords",1.8)
+					CombatNotify("Throw Aimbot","Knife Thrown",CombatFeatureIcon("ThrowAimbot","sword"),1.8)
 				elseif message then
 					CombatNotify("Throw Aimbot",message,"circle-x",2.5)
 				end
@@ -1280,7 +1289,7 @@ MM2.UI.FloatingThrowAimbotHolder = FloatingThrowAimbotHolder
 local FloatingKillAllButton,FloatingKillAllHolder =
 	UI.CreateMovableCardButton(
 		"FloatingKillAll",
-		"skull",
+		CombatFeatureIcon("KillAll","skull"),
 		"KILL ALL",
 		UDim2.new(0.67,-52,0.78,-42),
 		function()
