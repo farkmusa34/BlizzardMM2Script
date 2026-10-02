@@ -47,12 +47,22 @@ print("[SkinChanger] Starting...")
 --============================================================
 
 local SC_DIAG_T0 = os.clock()
+local SC_DIAG_RECORDING = false
+local SC_DIAG_LOGS = {}
+
 local function SCDiag(Message)
-	print(string.format(
+	if not SC_DIAG_RECORDING then
+		return
+	end
+
+	local Line = string.format(
 		"[SC-DIAG %.4f] %s",
 		os.clock() - SC_DIAG_T0,
 		tostring(Message or "")
-	))
+	)
+
+	table.insert(SC_DIAG_LOGS, Line)
+	print(Line)
 end
 
 local function SCDiagTool(Tool, Label)
@@ -76,6 +86,114 @@ local function SCDiagTool(Tool, Label)
 		Mesh and tostring(Mesh.TextureId) or "nil"
 	))
 end
+
+
+--============================================================
+-- DIAGNOSTIC CONTROL GUI
+-- START RECORDING / COPY LOGS / CLEAR
+--============================================================
+
+local function SCMakeButton(Parent, Text, Position, Width)
+	local Button = Instance.new("TextButton")
+	Button.Size = UDim2.fromOffset(Width, 38)
+	Button.Position = Position
+	Button.BackgroundColor3 = Color3.fromRGB(36, 36, 43)
+	Button.BorderSizePixel = 0
+	Button.Text = Text
+	Button.TextColor3 = Color3.fromRGB(255, 255, 255)
+	Button.TextSize = 12
+	Button.Font = Enum.Font.GothamBold
+	Button.Parent = Parent
+
+	local Corner = Instance.new("UICorner")
+	Corner.CornerRadius = UDim.new(0, 7)
+	Corner.Parent = Button
+
+	return Button
+end
+
+local SCGui = Instance.new("ScreenGui")
+SCGui.Name = "BlizzardSkinChangerDiagnostic"
+SCGui.ResetOnSpawn = false
+SCGui.DisplayOrder = 999999
+SCGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
+
+local SCMain = Instance.new("Frame")
+SCMain.Size = UDim2.fromOffset(390, 170)
+SCMain.Position = UDim2.new(0.5, -195, 0.5, -85)
+SCMain.BackgroundColor3 = Color3.fromRGB(20, 20, 24)
+SCMain.BorderSizePixel = 0
+SCMain.Active = true
+SCMain.Draggable = true
+SCMain.Parent = SCGui
+
+local SCCorner = Instance.new("UICorner")
+SCCorner.CornerRadius = UDim.new(0, 10)
+SCCorner.Parent = SCMain
+
+local SCTitle = Instance.new("TextLabel")
+SCTitle.Size = UDim2.new(1, -20, 0, 34)
+SCTitle.Position = UDim2.fromOffset(10, 7)
+SCTitle.BackgroundTransparency = 1
+SCTitle.Text = "SKIN CHANGER REAPPLY DIAGNOSTIC"
+SCTitle.TextColor3 = Color3.fromRGB(255, 255, 255)
+SCTitle.TextSize = 14
+SCTitle.Font = Enum.Font.GothamBold
+SCTitle.Parent = SCMain
+
+local SCStatus = Instance.new("TextLabel")
+SCStatus.Size = UDim2.new(1, -20, 0, 38)
+SCStatus.Position = UDim2.fromOffset(10, 40)
+SCStatus.BackgroundTransparency = 1
+SCStatus.Text = "Ready — press START RECORDING before the round transition."
+SCStatus.TextColor3 = Color3.fromRGB(190, 190, 200)
+SCStatus.TextSize = 11
+SCStatus.TextWrapped = true
+SCStatus.Font = Enum.Font.Gotham
+SCStatus.Parent = SCMain
+
+local SCStart = SCMakeButton(SCMain, "START RECORDING", UDim2.fromOffset(10, 91), 150)
+local SCCopy = SCMakeButton(SCMain, "COPY LOGS", UDim2.fromOffset(170, 91), 100)
+local SCClear = SCMakeButton(SCMain, "CLEAR", UDim2.fromOffset(280, 91), 100)
+
+SCStart.MouseButton1Click:Connect(function()
+	table.clear(SC_DIAG_LOGS)
+	SC_DIAG_T0 = os.clock()
+	SC_DIAG_RECORDING = true
+	SCDiag("============================================================")
+	SCDiag("BLIZZARD SKIN CHANGER INTERNAL REAPPLY DIAGNOSTIC")
+	SCDiag("============================================================")
+	SCDiag("RECORDING START")
+	SCDiag("SelectedGun=" .. tostring(SkinChanger.SelectedGun))
+	SCDiag("SelectedKnife=" .. tostring(SkinChanger.SelectedKnife))
+	SCStatus.Text = "RECORDING — keep the selected skin unchanged and get the Gun next round."
+end)
+
+SCCopy.MouseButton1Click:Connect(function()
+	local Output = table.concat(SC_DIAG_LOGS, "\\n")
+
+	if Output == "" then
+		Output = "BLIZZARD SKIN CHANGER DIAGNOSTIC: No logs recorded."
+	end
+
+	if setclipboard then
+		setclipboard(Output)
+	elseif toclipboard then
+		toclipboard(Output)
+	else
+		print(Output)
+	end
+
+	SCStatus.Text = "Logs copied."
+end)
+
+SCClear.MouseButton1Click:Connect(function()
+	table.clear(SC_DIAG_LOGS)
+	SC_DIAG_RECORDING = false
+	SC_DIAG_T0 = os.clock()
+	SCStatus.Text = "Cleared — press START RECORDING for another test."
+end)
+
 
 SCDiag("DIAGNOSTIC START | read-only logging added; SkinChanger behavior unchanged")
 
