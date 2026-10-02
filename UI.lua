@@ -1375,11 +1375,12 @@ UI.ToggleNotificationIcons = UI.ToggleNotificationIcons or {
 	TriggerBot = "zap",
 	AimLock = "target",
 	ShowLegitShootButton = "crosshair",
-	GeneralPredictionDiagnostic = "activity",
 	ShowShootButton = "crosshair",
 	AutoGrab = "hand",
 	LegitThrow = "sword",
 	RageThrow = "sword",
+	ShowThrowAimbotButton = "sword",
+	WallThrow = "sword",
 	ShowKillAllButton = "swords",
 	KnifeAura = "swords",
 	CustomCrosshair = "crosshair",
@@ -1410,6 +1411,16 @@ UI.ToggleNotificationIcons = UI.ToggleNotificationIcons or {
 	QuickButtonsLocked = "lock",
 	AntiAFK = "clock",
 	AutoSaveConfig = "save",
+}
+
+-- Shared feature icons used outside toggle notifications.
+-- Keep normal feature identities here; blocked/error states still use circle-x.
+UI.FeatureIcons = UI.FeatureIcons or {}
+UI.FeatureIcons.Combat = UI.FeatureIcons.Combat or {
+	LegitShoot = "crosshair",
+	RageShoot = "zap",
+	ThrowAimbot = "sword",
+	KillAll = "skull",
 }
 
 function UI.SetToggleNotificationIcon(flagName,icon)
