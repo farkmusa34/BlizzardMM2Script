@@ -13,6 +13,7 @@ local Flags = MM2.Flags
 local UI = MM2.UI
 local Track = MM2.Track
 local Settings = MM2.PlayerSettings
+Settings.BoostPower = tonumber(Settings.BoostPower) or 62
 
 --============================================================
 -- STATE
@@ -536,8 +537,8 @@ local function TriggerBombJump()
 		MM2.Notify(
 			"No bomb in inventory.",
 			2.5,
-			"package-x",
-			"Bomb Boost"
+			"bomb",
+			"Bomb Jump"
 		)
 		return false
 	end
@@ -555,16 +556,20 @@ local function TriggerBombJump()
 	humanoid.Jump = true
 	humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
 	task.wait(0.035)
+	local boostPower = math.clamp(tonumber(Settings.BoostPower) or 62,20,150)
 	local forward = Vector3.new(hrp.CFrame.LookVector.X,0,hrp.CFrame.LookVector.Z)
+	local velocity = hrp.AssemblyLinearVelocity
+	local boostX,boostZ = velocity.X,velocity.Z
 	if forward.Magnitude > 0.01 then
 		forward = forward.Unit
-		local velocity = hrp.AssemblyLinearVelocity
-		hrp.AssemblyLinearVelocity = Vector3.new(
-			velocity.X + forward.X * 8,
-			velocity.Y,
-			velocity.Z + forward.Z * 8
-		)
+		boostX = boostX + forward.X * 8
+		boostZ = boostZ + forward.Z * 8
 	end
+	hrp.AssemblyLinearVelocity = Vector3.new(
+		boostX,
+		math.max(velocity.Y,boostPower),
+		boostZ
+	)
 	task.delay(0.30,function()
 		BombJumpBusy = false
 	end)
@@ -589,7 +594,7 @@ local function CreateBombJumpButton()
 		UI.CreateMovableCardButton(
 			"FloatingBombJump",
 			"bomb",
-			"BOMB BOOST",
+			"BOMB JUMP",
 			UDim2.new(1,-80,0.68,0),
 			function()
 				TriggerBombJump()
@@ -618,7 +623,7 @@ UI.AddSection(UI.PlayerPage,"Movement","Movement and mobility controls")
 UI.CreateToggle(
 	UI.PlayerPage,
 	"Fly",
-	"Fly with WASD, Space goes up; on mobile, joystick + Up and Down arrows",
+	"PC: WASD + Space/Ctrl. Mobile: joystick + Up/Down",
 	"Fly",
 	function(on)
 		if on then StartFly() else StopFly() end
@@ -628,7 +633,7 @@ UI.CreateToggle(
 UI.CreateSlider(
 	UI.PlayerPage,
 	"Fly Speed",
-	"Sets how fast you fly",
+	"Adjust how fast you fly",
 	function() return Settings.FlySpeed end,
 	function(value) Settings.FlySpeed = value end,
 	10,200,5
@@ -637,17 +642,17 @@ UI.CreateSlider(
 UI.CreateToggle(
 	UI.PlayerPage,
 	"Noclip",
-	"Walk through walls with free fall protection",
+	"Walk through objects with void protection",
 	"Noclip",
 	function(on)
 		if on then StartPlayerNoclip() else StopPlayerNoclip() end
 	end
 )
 
-UI.CreateSlider(
+local WalkSpeedSlider = UI.CreateSlider(
 	UI.PlayerPage,
 	"Walk Speed",
-	"Sets how fast you walk",
+	"Sets and keeps your selected walk speed",
 	function()
 		return Settings.WalkSpeed
 	end,
@@ -664,6 +669,21 @@ UI.CreateSlider(
 
 StartWalkSpeedEnforcer()
 ApplyWalkSpeed()
+
+task.spawn(function()
+	task.wait(1.25)
+	ApplyWalkSpeed()
+	if WalkSpeedSlider then
+		local value = math.clamp(tonumber(Settings.WalkSpeed) or 16,16,120)
+		pcall(function()
+			if WalkSpeedSlider.Set then
+				WalkSpeedSlider:Set(value)
+			elseif WalkSpeedSlider.SetValue then
+				WalkSpeedSlider:SetValue(value)
+			end
+		end)
+	end
+end)
 
 --============================================================
 -- JUMP SECTION
@@ -698,17 +718,28 @@ UI.AddSection(UI.PlayerPage,"Bomb Boost","Fake Bomb movement techniques")
 
 UI.CreateActionFeature(
 	UI.PlayerPage,
-	"Bomb Boost",
-	"Sets up a bomb and rides the blast upward",
+	"Bomb Jump",
+	"Perform one timed Fake Bomb jump",
 	function() TriggerBombJump() end,
 	"bomb",
 	"orange"
 )
 
+UI.CreateSlider(
+	UI.PlayerPage,
+	"Boost Power",
+	"Sets how high the boost blasts you upward",
+	function() return Settings.BoostPower end,
+	function(value)
+		Settings.BoostPower = math.clamp(tonumber(value) or 62,20,150)
+	end,
+	20,150,2
+)
+
 UI.CreateToggle(
 	UI.PlayerPage,
-	"Bomb Boost Button",
-	"Shows a draggable Bomb Boost button on screen",
+	"Show Bomb Jump Button",
+	"Show the movable bomb jump button",
 	"BombJumpButton",
 	function(on) SetBombButtonVisible(on) end
 )

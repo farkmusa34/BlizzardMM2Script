@@ -286,10 +286,18 @@ local function KillLocalFlingVelocity(character,humanoid,hrp)
 				local verticalSpeed = math.abs(velocity.Y)
 				local walkSpeed = humanoid and humanoid.WalkSpeed or 16
 				local horizontalLimit = math.max(walkSpeed * 1.75, ANTI_FLING_LINEAR_LIMIT)
+				local playerSettings = MM2.PlayerSettings or {}
+				local jumpPower = tonumber(playerSettings.JumpPower) or 50
+				local boostPower = tonumber(playerSettings.BoostPower) or 62
+				local verticalLimit = math.max(
+					ANTI_FLING_LINEAR_LIMIT,
+					jumpPower * 1.35,
+					boostPower * 1.35
+				)
 
-				-- Allow intentional high WalkSpeed while still catching abnormal
-				-- vertical launches and horizontal velocity far beyond movement speed.
-				if verticalSpeed > ANTI_FLING_LINEAR_LIMIT or horizontalSpeed > horizontalLimit then
+				-- Preserve intentional Walk Speed, Jump Power and Bomb Boost velocity
+				-- while still catching abnormal fling launches.
+				if verticalSpeed > verticalLimit or horizontalSpeed > horizontalLimit then
 					part.AssemblyLinearVelocity = Vector3.zero
 					part.AssemblyAngularVelocity = Vector3.zero
 					killedLinear = true
