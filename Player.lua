@@ -738,7 +738,7 @@ UI.CreateSlider(
 
 UI.CreateToggle(
 	UI.PlayerPage,
-	"Show Bomb Jump Button",
+	"Bomb Jump Button",
 	"Show the movable bomb jump button",
 	"BombJumpButton",
 	function(on) SetBombButtonVisible(on) end
