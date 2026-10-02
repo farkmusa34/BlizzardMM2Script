@@ -1372,7 +1372,7 @@ UI.ToggleNotificationIcons = UI.ToggleNotificationIcons or {
 	ESPDistance = "ruler",
 
 	-- Combat
-	TriggerBot = "crosshair",
+	TriggerBot = "zap",
 	AimLock = "target",
 	ShowLegitShootButton = "crosshair",
 	GeneralPredictionDiagnostic = "activity",
