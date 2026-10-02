@@ -1419,7 +1419,7 @@ UI.FeatureIcons = UI.FeatureIcons or {}
 UI.FeatureIcons.Combat = UI.FeatureIcons.Combat or {
 	LegitShoot = "crosshair",
 	RageShoot = "zap",
-	ThrowAimbot = "sword",
+	ThrowAimbot = "swords",
 	KillAll = "skull",
 }
 
