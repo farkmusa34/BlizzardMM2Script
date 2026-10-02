@@ -39,7 +39,46 @@ assert(
 	"Load Shared.lua + UI.lua first"
 )
 
+
 print("[SkinChanger] Starting...")
+
+--============================================================
+-- READ-ONLY ROUND REAPPLY DIAGNOSTIC
+--============================================================
+
+local SC_DIAG_T0 = os.clock()
+local function SCDiag(Message)
+	print(string.format(
+		"[SC-DIAG %.4f] %s",
+		os.clock() - SC_DIAG_T0,
+		tostring(Message or "")
+	))
+end
+
+local function SCDiagTool(Tool, Label)
+	if not Tool then
+		SCDiag(tostring(Label) .. " | Tool=nil")
+		return
+	end
+
+	local Handle = Tool:FindFirstChild("Handle")
+	local Mesh = Handle and Handle:FindFirstChildOfClass("SpecialMesh")
+
+	SCDiag(string.format(
+		"%s | Name=%s | Parent=%s | TextureId=%s | Handle=%s | Mesh=%s | MeshId=%s | MeshTexture=%s",
+		tostring(Label),
+		tostring(Tool.Name),
+		Tool.Parent and Tool.Parent:GetFullName() or "nil",
+		tostring(Tool.TextureId),
+		tostring(Handle ~= nil),
+		tostring(Mesh ~= nil),
+		Mesh and tostring(Mesh.MeshId) or "nil",
+		Mesh and tostring(Mesh.TextureId) or "nil"
+	))
+end
+
+SCDiag("DIAGNOSTIC START | read-only logging added; SkinChanger behavior unchanged")
+
 
 --============================================================
 -- REFERENCES
@@ -2143,6 +2182,8 @@ local function ApplyGunSkinToTool(
 	Gun,
 	Skin
 )
+	SCDiag("ApplyGunSkinToTool ENTER | SelectedGun=" .. tostring(SkinChanger.SelectedGun))
+	SCDiagTool(Gun, "ApplyGunSkinToTool BEFORE")
 	if not Gun
 		or not Skin
 		or not Gun:IsA("Tool")
@@ -2240,6 +2281,8 @@ local function ApplyGunSkinToTool(
 		)
 	end
 
+	SCDiag("ApplyGunSkinToTool EXIT | Success=" .. tostring(Success) .. " | DesiredIcon=" .. tostring(Skin.Icon))
+	SCDiagTool(Gun, "ApplyGunSkinToTool AFTER")
 	return Success
 end
 
@@ -2934,6 +2977,11 @@ local function ApplyCurrentGunSkin()
 	local Gun =
 		GetGun()
 
+	SCDiag("ApplyCurrentGunSkin | SelectedGun=" .. tostring(Selected) .. " | Gun=" .. tostring(Gun and Gun:GetFullName() or "nil"))
+	if Gun then
+		SCDiagTool(Gun, "ApplyCurrentGunSkin FOUND")
+	end
+
 	if Selected == "Default" then
 
 		if Gun then
@@ -3500,6 +3548,8 @@ print(
 --============================================================
 
 local function WatchGun(Gun)
+	SCDiag("WatchGun ENTER | CurrentGunSame=" .. tostring(CurrentGun == Gun))
+	SCDiagTool(Gun, "WatchGun INPUT")
 	if not Gun
 		or not Gun:IsA("Tool")
 		or Gun.Name ~= "Gun"
@@ -3508,6 +3558,7 @@ local function WatchGun(Gun)
 	end
 
 	if CurrentGun == Gun then
+		SCDiag("WatchGun SAME TOOL branch -> existing reapply path")
 		-- MM2 can reuse the same Gun Tool between round states.
 		-- Reapply the selected cosmetic whenever that known Gun returns.
 		ApplyCurrentGunSkin()
@@ -3517,6 +3568,7 @@ local function WatchGun(Gun)
 	end
 
 	CurrentGun = Gun
+	SCDiag("WatchGun NEW TOOL branch | CurrentGun assigned")
 
 	-- A gun selected during intermission can be created before MM2 has
 	-- finished rebuilding BackpackUI. Do a short full refresh window so
@@ -3524,6 +3576,7 @@ local function WatchGun(Gun)
 	task.spawn(function()
 		for _,Delay in ipairs({0.10, 0.20, 0.35, 0.55, 0.80, 1.10}) do
 			task.wait(Delay)
+			SCDiag("WatchGun delayed reapply | Delay=" .. tostring(Delay) .. " | Parent=" .. tostring(Gun.Parent and Gun.Parent:GetFullName() or "nil"))
 
 			if not Gun.Parent then
 				return
@@ -3646,6 +3699,7 @@ local function HookCharacter(Character)
 	Track(
 		Character.ChildAdded:
 		Connect(function(Child)
+			SCDiag("Character.ChildAdded | Name=" .. tostring(Child.Name) .. " | Class=" .. tostring(Child.ClassName))
 
 			CheckChild(
 				Child
@@ -3736,6 +3790,10 @@ local WatcherOK, WatcherError =
 		Track(
 			Backpack.ChildAdded:
 			Connect(function(Child)
+				SCDiag("Backpack.ChildAdded | Name=" .. tostring(Child.Name) .. " | Class=" .. tostring(Child.ClassName))
+				if Child:IsA("Tool") then
+					SCDiagTool(Child, "Backpack.ChildAdded TOOL")
+				end
 
 				CheckChild(
 					Child
@@ -3767,6 +3825,7 @@ local WatcherOK, WatcherError =
 		Track(
 			LocalPlayer.CharacterAdded:
 			Connect(function(Character)
+				SCDiag("CharacterAdded | " .. tostring(Character:GetFullName()))
 
 				CurrentGun = nil
 				CurrentKnife = nil
@@ -3808,6 +3867,8 @@ local WatcherOK, WatcherError =
 				then
 					return
 				end
+
+				SCDiag("ToolIcon DescendantAdded | Path=" .. Descendant:GetFullName() .. " | Image=" .. tostring(Descendant.Image))
 
 				task.defer(function()
 
@@ -3998,6 +4059,9 @@ if ExistingKnife then
 		ApplyCurrentKnifeSkin()
 	end)
 end
+
+SCDiag("LOADED | SelectedGun=" .. tostring(SkinChanger.SelectedGun) .. " | SelectedKnife=" .. tostring(SkinChanger.SelectedKnife))
+SCDiagTool(GetGun(), "LOADED CURRENT GUN")
 
 print(
 	"[Blizzard MM2] SkinChanger.lua loaded"
