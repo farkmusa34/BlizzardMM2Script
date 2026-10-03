@@ -3951,3 +3951,294 @@ print(
 )
 
 return MM2
+
+
+--============================================================
+-- BLIZZARD EMBEDDED HOTBAR RACE DIAGNOSTIC
+-- READ ONLY: does not write ToolIcon.Image or Tool.TextureId.
+-- START RECORDING: clears old logs and starts a fresh capture.
+-- COPY LOGS: copies current capture.
+-- CLEAR / STOP: stops all diagnostic watchers and clears logs.
+--============================================================
+task.spawn(function()
+    local Players = game:GetService("Players")
+    local LocalPlayer = Players.LocalPlayer
+    if not LocalPlayer then return end
+    local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
+
+    local GUI_NAME = "BlizzardEmbeddedHotbarDiagnostic"
+    local old = PlayerGui:FindFirstChild(GUI_NAME)
+    if old then old:Destroy() end
+
+    local recording = false
+    local startedAt = 0
+    local logs = {}
+    local conns = {}
+    local watched = setmetatable({}, {__mode="k"})
+    local token = 0
+
+    local function stamp()
+        return recording and (os.clock() - startedAt) or 0
+    end
+    local function full(x)
+        local ok,v = pcall(function() return x:GetFullName() end)
+        return ok and v or tostring(x)
+    end
+    local function emit(s)
+        if not recording then return end
+        logs[#logs+1] = string.format("[%0.4f] %s", stamp(), s)
+    end
+    local function bind(c)
+        conns[#conns+1] = c
+    end
+    local function stopWatchers()
+        token += 1
+        for _,c in ipairs(conns) do pcall(function() c:Disconnect() end) end
+        table.clear(conns)
+        watched = setmetatable({}, {__mode="k"})
+    end
+
+    local gui = Instance.new("ScreenGui")
+    gui.Name = GUI_NAME
+    gui.ResetOnSpawn = false
+    gui.DisplayOrder = 999999
+    gui.Parent = PlayerGui
+
+    local main = Instance.new("Frame")
+    main.Size = UDim2.fromOffset(480,360)
+    main.Position = UDim2.new(.5,-240,.5,-180)
+    main.BackgroundColor3 = Color3.fromRGB(20,20,23)
+    main.BorderSizePixel = 0
+    main.Active = true
+    main.Draggable = true
+    main.Parent = gui
+    Instance.new("UICorner",main).CornerRadius = UDim.new(0,10)
+
+    local title = Instance.new("TextLabel")
+    title.BackgroundTransparency = 1
+    title.Position = UDim2.fromOffset(12,8)
+    title.Size = UDim2.new(1,-24,0,24)
+    title.Font = Enum.Font.GothamBold
+    title.TextSize = 14
+    title.TextColor3 = Color3.new(1,1,1)
+    title.TextXAlignment = Enum.TextXAlignment.Left
+    title.Text = "SkinChanger Hotbar Diagnostic"
+    title.Parent = main
+
+    local status = Instance.new("TextLabel")
+    status.BackgroundTransparency = 1
+    status.Position = UDim2.fromOffset(12,32)
+    status.Size = UDim2.new(1,-24,0,20)
+    status.Font = Enum.Font.Gotham
+    status.TextSize = 11
+    status.TextColor3 = Color3.fromRGB(185,185,190)
+    status.TextXAlignment = Enum.TextXAlignment.Left
+    status.Text = "Stopped"
+    status.Parent = main
+
+    local scroll = Instance.new("ScrollingFrame")
+    scroll.Position = UDim2.fromOffset(10,58)
+    scroll.Size = UDim2.new(1,-20,1,-108)
+    scroll.BackgroundColor3 = Color3.fromRGB(13,13,15)
+    scroll.BorderSizePixel = 0
+    scroll.ScrollBarThickness = 4
+    scroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
+    scroll.CanvasSize = UDim2.fromOffset(0,0)
+    scroll.Parent = main
+    Instance.new("UICorner",scroll).CornerRadius = UDim.new(0,7)
+
+    local output = Instance.new("TextLabel")
+    output.BackgroundTransparency = 1
+    output.Position = UDim2.fromOffset(7,6)
+    output.Size = UDim2.new(1,-14,0,0)
+    output.AutomaticSize = Enum.AutomaticSize.Y
+    output.Font = Enum.Font.Code
+    output.TextSize = 10
+    output.TextColor3 = Color3.fromRGB(225,225,230)
+    output.TextXAlignment = Enum.TextXAlignment.Left
+    output.TextYAlignment = Enum.TextYAlignment.Top
+    output.Text = ""
+    output.Parent = scroll
+
+    local buttons = Instance.new("Frame")
+    buttons.BackgroundTransparency = 1
+    buttons.Position = UDim2.new(0,10,1,-42)
+    buttons.Size = UDim2.new(1,-20,0,32)
+    buttons.Parent = main
+    local lay = Instance.new("UIListLayout",buttons)
+    lay.FillDirection = Enum.FillDirection.Horizontal
+    lay.Padding = UDim.new(0,7)
+
+    local function mk(text)
+        local b = Instance.new("TextButton")
+        b.Size = UDim2.new(1/3,-5,1,0)
+        b.BackgroundColor3 = Color3.fromRGB(39,39,44)
+        b.TextColor3 = Color3.new(1,1,1)
+        b.Font = Enum.Font.GothamSemibold
+        b.TextSize = 11
+        b.Text = text
+        b.Parent = buttons
+        Instance.new("UICorner",b).CornerRadius = UDim.new(0,7)
+        return b
+    end
+    local startB = mk("START RECORDING")
+    local copyB = mk("COPY LOGS")
+    local clearB = mk("CLEAR / STOP")
+
+    local function refresh()
+        output.Text = table.concat(logs,"\n")
+        task.defer(function()
+            scroll.CanvasPosition = Vector2.new(0, math.max(0,output.AbsoluteSize.Y-scroll.AbsoluteSize.Y+12))
+        end)
+    end
+    local oldEmit = emit
+    emit = function(s)
+        oldEmit(s)
+        refresh()
+    end
+
+    local function currentGun()
+        local bp = LocalPlayer:FindFirstChildOfClass("Backpack")
+        local ch = LocalPlayer.Character
+        return (bp and bp:FindFirstChild("Gun")) or (ch and ch:FindFirstChild("Gun"))
+    end
+
+    local function liveIcons()
+        local t = {}
+        for _,d in ipairs(PlayerGui:GetDescendants()) do
+            if d.Name=="ToolIcon" and (d:IsA("ImageLabel") or d:IsA("ImageButton"))
+                and d:FindFirstAncestor("BackpackFrame") then
+                t[#t+1]=d
+            end
+        end
+        return t
+    end
+
+    local function snapshot(reason)
+        if not recording then return end
+        local g=currentGun()
+        emit("SNAPSHOT | "..reason.." | Gun="..(g and full(g) or "nil")
+            .." | TextureId="..(g and tostring(g.TextureId) or "nil")
+            .." | Icons="..#liveIcons())
+        for i,ic in ipairs(liveIcons()) do
+            emit("  ICON#"..i.." | Image="..tostring(ic.Image).." | Path="..full(ic))
+        end
+    end
+
+    local function burst(reason)
+        local my=token
+        for _,delay in ipairs({0,.016,.05,.10,.20,.35,.55,.80,1.10}) do
+            task.delay(delay,function()
+                if recording and my==token then snapshot(reason.." +"..delay) end
+            end)
+        end
+    end
+
+    local function watchIcon(ic,source)
+        if watched[ic] then return end
+        watched[ic]=true
+        emit("TOOLICON DETECTED | Source="..source.." | Image="..tostring(ic.Image).." | Path="..full(ic))
+        bind(ic:GetPropertyChangedSignal("Image"):Connect(function()
+            emit(">>> TOOLICON IMAGE CHANGED | Image="..tostring(ic.Image).." | Path="..full(ic))
+            burst("ToolIcon.Image")
+        end))
+        bind(ic.AncestryChanged:Connect(function(_,p)
+            emit("TOOLICON ANCESTRY | Parent="..(p and full(p) or "nil").." | Image="..tostring(ic.Image))
+        end))
+    end
+
+    local function watchGun(g,source)
+        if watched[g] then return end
+        watched[g]=true
+        emit("GUN DETECTED | Source="..source.." | TextureId="..tostring(g.TextureId).." | Path="..full(g))
+        bind(g:GetPropertyChangedSignal("TextureId"):Connect(function()
+            emit(">>> GUN TEXTURE CHANGED | TextureId="..tostring(g.TextureId).." | Path="..full(g))
+            burst("Gun.TextureId")
+        end))
+        bind(g.AncestryChanged:Connect(function(_,p)
+            emit("GUN ANCESTRY | Parent="..(p and full(p) or "nil").." | TextureId="..tostring(g.TextureId))
+            burst("Gun.Ancestry")
+        end))
+    end
+
+    local function inspect(x,source)
+        if x.Name=="Gun" and x:IsA("Tool") then
+            watchGun(x,source)
+        elseif x.Name=="ToolIcon" and (x:IsA("ImageLabel") or x:IsA("ImageButton"))
+            and x:FindFirstAncestor("BackpackFrame") then
+            watchIcon(x,source)
+        elseif x.Name=="BackpackItem" or x.Name=="BackpackFrame" then
+            emit("HOTBAR INSTANCE | Source="..source.." | Name="..x.Name.." | Path="..full(x))
+        end
+    end
+
+    local function start()
+        stopWatchers()
+        table.clear(logs)
+        refresh()
+        startedAt=os.clock()
+        recording=true
+        status.Text="RECORDING — reproduce one working or failed gun load"
+        status.TextColor3=Color3.fromRGB(120,235,145)
+
+        emit("============================================================")
+        emit("BLIZZARD EMBEDDED HOTBAR RACE DIAGNOSTIC")
+        emit("READ ONLY - no Image/TextureId writes")
+        emit("============================================================")
+        emit("Player="..LocalPlayer.Name)
+
+        local bp=LocalPlayer:FindFirstChildOfClass("Backpack")
+        local ch=LocalPlayer.Character
+        for _,d in ipairs(PlayerGui:GetDescendants()) do inspect(d,"Initial PlayerGui") end
+        if bp then
+            for _,d in ipairs(bp:GetDescendants()) do inspect(d,"Initial Backpack") end
+            bind(bp.ChildAdded:Connect(function(x)
+                emit("BACKPACK CHILD ADDED | Name="..x.Name.." | Class="..x.ClassName)
+                inspect(x,"Backpack.ChildAdded"); burst("Backpack+"..x.Name)
+            end))
+            bind(bp.ChildRemoved:Connect(function(x)
+                emit("BACKPACK CHILD REMOVED | Name="..x.Name.." | Class="..x.ClassName)
+                burst("Backpack-"..x.Name)
+            end))
+        end
+        if ch then
+            for _,d in ipairs(ch:GetDescendants()) do inspect(d,"Initial Character") end
+            bind(ch.ChildAdded:Connect(function(x)
+                emit("CHARACTER CHILD ADDED | Name="..x.Name.." | Class="..x.ClassName)
+                inspect(x,"Character.ChildAdded"); burst("Character+"..x.Name)
+            end))
+            bind(ch.ChildRemoved:Connect(function(x)
+                emit("CHARACTER CHILD REMOVED | Name="..x.Name.." | Class="..x.ClassName)
+                burst("Character-"..x.Name)
+            end))
+        end
+        bind(PlayerGui.DescendantAdded:Connect(function(x)
+            inspect(x,"PlayerGui.DescendantAdded")
+            if x.Name=="ToolIcon" or x.Name=="BackpackItem" then burst("PlayerGui+"..x.Name) end
+        end))
+        bind(PlayerGui.DescendantRemoving:Connect(function(x)
+            if x.Name=="ToolIcon" or x.Name=="BackpackItem" or x.Name=="BackpackFrame" then
+                emit("HOTBAR REMOVING | Name="..x.Name.." | Path="..full(x))
+            end
+        end))
+        snapshot("START")
+        emit("LIVE WATCH ACTIVE")
+    end
+
+    startB.MouseButton1Click:Connect(start)
+    copyB.MouseButton1Click:Connect(function()
+        local s=table.concat(logs,"\n")
+        if setclipboard then pcall(setclipboard,s)
+        elseif toclipboard then pcall(toclipboard,s) end
+        status.Text=recording and "RECORDING — logs copied" or "Stopped — logs copied"
+    end)
+    clearB.MouseButton1Click:Connect(function()
+        recording=false
+        stopWatchers()
+        table.clear(logs)
+        refresh()
+        scroll.CanvasPosition=Vector2.zero
+        status.Text="Stopped — logs cleared"
+        status.TextColor3=Color3.fromRGB(185,185,190)
+    end)
+end)
