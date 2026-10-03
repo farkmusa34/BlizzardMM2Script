@@ -1814,16 +1814,9 @@ local function QueueHotbarIconRefresh(WeaponType)
 		for _,Delay in ipairs({0.05, 0.15, 0.30, 0.60, 1.00}) do
 			task.wait(Delay)
 
-			if WeaponType == "Gun" then
-				if not GetGun() then
-					continue
-				end
-			elseif WeaponType == "Knife" then
-				if not GetKnife() then
-					continue
-				end
-			end
-
+			-- Hotbar persistence must not depend on the physical Tool already
+			-- being discoverable. MM2 can create ToolIcon before Backpack/Character
+			-- contains Gun/Knife, which was the diagnosed failure case.
 			ReapplySelectedHotbarIcon(WeaponType)
 		end
 	end)
