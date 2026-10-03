@@ -538,12 +538,113 @@ UI.WindTabs.SkinChanger =
 		Icon = "palette"
 	})
 
+-- Real WindUI child pages for the expandable Skin Changer group.
+UI.WindTabs.SkinChangerGun =
+	Window:Tab({
+		Title = "Gun",
+		Icon = "crosshair"
+	})
+
+UI.WindTabs.SkinChangerKnife =
+	Window:Tab({
+		Title = "Knife",
+		Icon = "sword"
+	})
+
 UI.WindTabs.Misc =
 	Window:Tab({
 		Title = "Misc",
 		Icon = "settings"
 	})
 
+
+
+--============================================================
+-- SKIN CHANGER SIDEBAR GROUP
+-- Palette parent + arrow, with indented Gun / Knife child tabs.
+--============================================================
+
+task.spawn(function()
+	task.wait(0.8)
+
+	local roots = {CoreGui, PlayerGui}
+
+	local function findLabel(text)
+		for _,root in ipairs(roots) do
+			for _,obj in ipairs(root:GetDescendants()) do
+				if (obj:IsA("TextLabel") or obj:IsA("TextButton")) and obj.Text == text then
+					return obj
+				end
+			end
+		end
+	end
+
+	local skinLabel = findLabel("Skin Changer")
+	local gunLabel = findLabel("Gun")
+	local knifeLabel = findLabel("Knife")
+	if not skinLabel or not gunLabel or not knifeLabel then return end
+
+	local function rowFor(label)
+		local node = label
+		for _=1,6 do
+			if not node then break end
+			if node:IsA("GuiObject") and node.AbsoluteSize.X >= 120 and node.AbsoluteSize.Y >= 28 and node.AbsoluteSize.Y <= 70 then
+				return node
+			end
+			node = node.Parent
+		end
+	end
+
+	local skinRow = rowFor(skinLabel)
+	local gunRow = rowFor(gunLabel)
+	local knifeRow = rowFor(knifeLabel)
+	if not skinRow or not gunRow or not knifeRow then return end
+
+	-- Visually nest the two real WindUI tabs.
+	for _,row in ipairs({gunRow,knifeRow}) do
+		local pad = row:FindFirstChild("BlizzardChildPadding") or Instance.new("UIPadding")
+		pad.Name = "BlizzardChildPadding"
+		pad.PaddingLeft = UDim.new(0,18)
+		pad.Parent = row
+	end
+
+	local arrow = Instance.new("TextLabel")
+	arrow.Name = "BlizzardSkinChangerArrow"
+	arrow.AnchorPoint = Vector2.new(1,0.5)
+	arrow.Position = UDim2.new(1,-10,0.5,0)
+	arrow.Size = UDim2.fromOffset(18,18)
+	arrow.BackgroundTransparency = 1
+	arrow.Font = Enum.Font.GothamBold
+	arrow.Text = "⌃"
+	arrow.TextColor3 = Color3.fromRGB(180,180,188)
+	arrow.TextSize = 16
+	arrow.ZIndex = 100
+	arrow.Parent = skinRow
+
+	local expanded = true
+	local function setExpanded(value)
+		expanded = value
+		gunRow.Visible = value
+		knifeRow.Visible = value
+		arrow.Text = value and "⌃" or "⌄"
+	end
+
+	setExpanded(true)
+
+	local hit = Instance.new("TextButton")
+	hit.Name = "BlizzardSkinChangerExpandHitbox"
+	hit.AnchorPoint = Vector2.new(1,0)
+	hit.Position = UDim2.new(1,-2,0,0)
+	hit.Size = UDim2.fromOffset(36,skinRow.AbsoluteSize.Y)
+	hit.BackgroundTransparency = 1
+	hit.Text = ""
+	hit.ZIndex = 101
+	hit.Parent = skinRow
+
+	Track(hit.MouseButton1Click:Connect(function()
+		setExpanded(not expanded)
+	end))
+end)
 
 --============================================================
 -- SIDEBAR PLAYER PROFILE
@@ -699,6 +800,8 @@ UI.TeleportPage = NewLegacyPage("Teleport")
 UI.FlingPage = NewLegacyPage("Fling")
 UI.AutoFarmPage = NewLegacyPage("AutoFarm")
 UI.SkinChangerPage = NewLegacyPage("SkinChanger")
+UI.SkinChangerGunPage = NewLegacyPage("SkinChangerGun")
+UI.SkinChangerKnifePage = NewLegacyPage("SkinChangerKnife")
 UI.MiscPage = NewLegacyPage("Misc")
 
 UI.Pages = {
@@ -709,6 +812,8 @@ UI.Pages = {
 	Fling = UI.FlingPage,
 	AutoFarm = UI.AutoFarmPage,
 	SkinChanger = UI.SkinChangerPage,
+	SkinChangerGun = UI.SkinChangerGunPage,
+	SkinChangerKnife = UI.SkinChangerKnifePage,
 	Misc = UI.MiscPage,
 }
 
@@ -720,6 +825,8 @@ UI.PageMap = {
 	[UI.FlingPage] = UI.WindTabs.Fling,
 	[UI.AutoFarmPage] = UI.WindTabs.AutoFarm,
 	[UI.SkinChangerPage] = UI.WindTabs.SkinChanger,
+	[UI.SkinChangerGunPage] = UI.WindTabs.SkinChangerGun,
+	[UI.SkinChangerKnifePage] = UI.WindTabs.SkinChangerKnife,
 	[UI.MiscPage] = UI.WindTabs.Misc,
 }
 
@@ -1181,203 +1288,246 @@ function UI.CreateImageSkinSelector(
 	selectedValue,
 	callback
 )
-	local parent = GetControlParent(page)
-
-	if not parent then
-		warn("[Blizzard UI] Image selector has no parent:", titleText)
+	local tab = UI.PageMap[page]
+	if not tab then
+		warn("[Blizzard UI] Image selector has no WindUI tab:", titleText)
 		return nil
 	end
 
 	items = items or {}
-
-	local overlay
 	local selected = tostring(selectedValue or "Default")
+	local root
 
-	local function CloseGallery()
-		if overlay then
-			overlay:Destroy()
-			overlay = nil
+	-- WindUI does not expose a documented custom-content mount in every build.
+	-- Resolve the actual content ScrollingFrame/Frame from the tab object at runtime.
+	local function ResolveContent()
+		local candidates = {}
+		local seen = {}
+
+		local function scan(value, depth)
+			if depth > 4 or seen[value] then return end
+			if type(value) == "table" then
+				seen[value] = true
+				for _,v in pairs(value) do
+					scan(v, depth + 1)
+				end
+			elseif typeof(value) == "Instance" and value:IsA("GuiObject") then
+				table.insert(candidates, value)
+			end
 		end
+
+		scan(tab, 0)
+
+		local best, bestScore
+		for _,obj in ipairs(candidates) do
+			local score = 0
+			local n = string.lower(obj.Name or "")
+			if obj:IsA("ScrollingFrame") then score += 100 end
+			if string.find(n, "content") or string.find(n, "container") then score += 50 end
+			if obj.AbsoluteSize.X >= 300 then score += 30 end
+			if obj.AbsoluteSize.Y >= 250 then score += 20 end
+			if not bestScore or score > bestScore then
+				best, bestScore = obj, score
+			end
+		end
+		return best
 	end
 
-	local function OpenGallery()
-		CloseGallery()
+	local function Build()
+		if root and root.Parent then
+			root:Destroy()
+		end
 
-		overlay = Instance.new("Frame")
-		overlay.Name = "BlizzardSkinGallery_" .. tostring(titleText or "Skin")
-		overlay.AnchorPoint = Vector2.new(0.5,0.5)
-		overlay.Position = UDim2.fromScale(0.5,0.5)
-		overlay.Size = UDim2.new(0.72,0,0.78,0)
-		overlay.BackgroundColor3 = Color3.fromRGB(18,18,20)
-		overlay.BorderSizePixel = 0
-		overlay.ZIndex = 300
-		overlay.Parent = ScreenGui
+		pcall(function() tab:Select() end)
+		task.wait()
 
-		local sizeLimit = Instance.new("UISizeConstraint")
-		sizeLimit.MinSize = Vector2.new(330,330)
-		sizeLimit.MaxSize = Vector2.new(760,620)
-		sizeLimit.Parent = overlay
+		local parent = ResolveContent()
+		if not parent then
+			warn("[Blizzard UI] Could not resolve embedded gallery parent:", titleText)
+			return
+		end
 
-		local corner = Instance.new("UICorner")
-		corner.CornerRadius = UDim.new(0,14)
-		corner.Parent = overlay
+		root = Instance.new("Frame")
+		root.Name = "BlizzardEmbeddedSkinGallery_" .. tostring(titleText)
+		root.BackgroundTransparency = 1
+		root.Size = UDim2.new(1, -12, 0, 560)
+		root.AutomaticSize = Enum.AutomaticSize.None
+		root.LayoutOrder = -10000
+		root.Parent = parent
 
-		local stroke = Instance.new("UIStroke")
-		stroke.Thickness = 1.2
-		stroke.Transparency = 0.18
-		stroke.Color = UI.CurrentThemeAccent or Color3.fromRGB(70,150,255)
-		stroke.Parent = overlay
+		local search = Instance.new("TextBox")
+		search.Name = "Search"
+		search.Position = UDim2.fromOffset(6, 4)
+		search.Size = UDim2.new(1, -12, 0, 48)
+		search.BackgroundColor3 = Color3.fromRGB(27,27,30)
+		search.BorderSizePixel = 0
+		search.ClearTextOnFocus = false
+		search.Font = Enum.Font.Gotham
+		search.PlaceholderText = "Search " .. tostring(#items) .. " " .. string.lower(titleText) .. " skins..."
+		search.PlaceholderColor3 = Color3.fromRGB(125,125,132)
+		search.Text = ""
+		search.TextColor3 = Color3.fromRGB(235,235,240)
+		search.TextSize = 14
+		search.TextXAlignment = Enum.TextXAlignment.Left
+		search.ZIndex = 20
+		search.Parent = root
 
-		local header = Instance.new("TextLabel")
-		header.BackgroundTransparency = 1
-		header.Position = UDim2.fromOffset(18,12)
-		header.Size = UDim2.new(1,-72,0,24)
-		header.Font = Enum.Font.GothamBold
-		header.Text = tostring(titleText or "Skins")
-		header.TextColor3 = Color3.fromRGB(245,245,245)
-		header.TextSize = 17
-		header.TextXAlignment = Enum.TextXAlignment.Left
-		header.ZIndex = 301
-		header.Parent = overlay
+		local searchPadding = Instance.new("UIPadding")
+		searchPadding.PaddingLeft = UDim.new(0,16)
+		searchPadding.PaddingRight = UDim.new(0,16)
+		searchPadding.Parent = search
 
-		local hint = Instance.new("TextLabel")
-		hint.BackgroundTransparency = 1
-		hint.Position = UDim2.fromOffset(18,38)
-		hint.Size = UDim2.new(1,-36,0,20)
-		hint.Font = Enum.Font.Gotham
-		hint.Text = "Tap a skin to equip it"
-		hint.TextColor3 = Color3.fromRGB(155,155,165)
-		hint.TextSize = 12
-		hint.TextXAlignment = Enum.TextXAlignment.Left
-		hint.ZIndex = 301
-		hint.Parent = overlay
+		local searchCorner = Instance.new("UICorner")
+		searchCorner.CornerRadius = UDim.new(0,8)
+		searchCorner.Parent = search
 
-		local close = Instance.new("TextButton")
-		close.AnchorPoint = Vector2.new(1,0)
-		close.Position = UDim2.new(1,-12,0,12)
-		close.Size = UDim2.fromOffset(32,32)
-		close.BackgroundColor3 = Color3.fromRGB(34,34,38)
-		close.BorderSizePixel = 0
-		close.Font = Enum.Font.GothamBold
-		close.Text = "×"
-		close.TextColor3 = Color3.fromRGB(235,235,240)
-		close.TextSize = 22
-		close.ZIndex = 302
-		close.Parent = overlay
-
-		local closeCorner = Instance.new("UICorner")
-		closeCorner.CornerRadius = UDim.new(0,9)
-		closeCorner.Parent = close
-
-		Track(close.MouseButton1Click:Connect(CloseGallery))
+		local helper = Instance.new("TextLabel")
+		helper.Name = "Helper"
+		helper.BackgroundTransparency = 1
+		helper.Position = UDim2.fromOffset(6, 60)
+		helper.Size = UDim2.new(1,-12,0,24)
+		helper.Font = Enum.Font.Gotham
+		helper.Text = "Tap a skin to equip it."
+		helper.TextColor3 = Color3.fromRGB(175,175,182)
+		helper.TextSize = 14
+		helper.TextXAlignment = Enum.TextXAlignment.Left
+		helper.ZIndex = 20
+		helper.Parent = root
 
 		local scroll = Instance.new("ScrollingFrame")
-		scroll.Position = UDim2.fromOffset(14,68)
-		scroll.Size = UDim2.new(1,-28,1,-82)
+		scroll.Name = "SkinGrid"
+		scroll.Position = UDim2.fromOffset(6, 92)
+		scroll.Size = UDim2.new(1,-12,1,-98)
 		scroll.BackgroundTransparency = 1
 		scroll.BorderSizePixel = 0
-		scroll.ScrollBarThickness = 4
+		scroll.ScrollBarThickness = 3
 		scroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
 		scroll.CanvasSize = UDim2.fromOffset(0,0)
-		scroll.ZIndex = 301
-		scroll.Parent = overlay
+		scroll.ZIndex = 20
+		scroll.Parent = root
 
 		local grid = Instance.new("UIGridLayout")
 		grid.CellPadding = UDim2.fromOffset(9,9)
-		grid.CellSize = UDim2.fromOffset(92,108)
-		grid.FillDirectionMaxCells = 6
-		grid.HorizontalAlignment = Enum.HorizontalAlignment.Center
+		grid.CellSize = UDim2.fromOffset(108,118)
+		grid.HorizontalAlignment = Enum.HorizontalAlignment.Left
 		grid.SortOrder = Enum.SortOrder.LayoutOrder
 		grid.Parent = scroll
+
+		local tiles = {}
+
+		local function refreshSelection()
+			for name,data in pairs(tiles) do
+				local active = name == selected
+				data.Stroke.Thickness = active and 2 or 1
+				data.Stroke.Transparency = active and 0.02 or 0.18
+				data.Tile.BackgroundColor3 = active
+					and Color3.fromRGB(65,65,70)
+					or Color3.fromRGB(24,24,27)
+			end
+		end
 
 		for index,item in ipairs(items) do
 			local name = tostring(item.Name or "Skin")
 			local image = tostring(item.Image or "")
+			local rarity = tostring(item.Rarity or "")
 
 			local tile = Instance.new("ImageButton")
 			tile.Name = "Skin_" .. name
 			tile.LayoutOrder = index
-			tile.BackgroundColor3 =
-				(name == selected)
-				and Color3.fromRGB(48,62,82)
-				or Color3.fromRGB(28,28,32)
+			tile.BackgroundColor3 = Color3.fromRGB(24,24,27)
 			tile.BorderSizePixel = 0
 			tile.Image = ""
 			tile.AutoButtonColor = false
-			tile.ZIndex = 302
+			tile.ZIndex = 21
 			tile.Parent = scroll
 
-			local tileCorner = Instance.new("UICorner")
-			tileCorner.CornerRadius = UDim.new(0,10)
-			tileCorner.Parent = tile
+			local corner = Instance.new("UICorner")
+			corner.CornerRadius = UDim.new(0,10)
+			corner.Parent = tile
 
-			local tileStroke = Instance.new("UIStroke")
-			tileStroke.Thickness = (name == selected) and 1.5 or 1
-			tileStroke.Transparency = (name == selected) and 0.05 or 0.65
-			tileStroke.Color = UI.CurrentThemeAccent or Color3.fromRGB(70,150,255)
-			tileStroke.Parent = tile
+			local stroke = Instance.new("UIStroke")
+			stroke.Thickness = 1
+			stroke.Transparency = 0.18
+			stroke.Color = UI.CurrentThemeAccent or Color3.fromRGB(190,40,220)
+			stroke.Parent = tile
 
 			local preview = Instance.new("ImageLabel")
 			preview.BackgroundTransparency = 1
-			preview.Position = UDim2.fromOffset(8,7)
-			preview.Size = UDim2.new(1,-16,0,74)
+			preview.Position = UDim2.fromOffset(6,5)
+			preview.Size = UDim2.new(1,-12,0,86)
 			preview.Image = image
 			preview.ScaleType = Enum.ScaleType.Fit
-			preview.ZIndex = 303
+			preview.ZIndex = 22
 			preview.Parent = tile
 
 			local label = Instance.new("TextLabel")
 			label.BackgroundTransparency = 1
-			label.Position = UDim2.new(0,5,1,-24)
-			label.Size = UDim2.new(1,-10,0,20)
+			label.Position = UDim2.new(0,4,1,-28)
+			label.Size = UDim2.new(1,-8,0,25)
 			label.Font = Enum.Font.GothamMedium
 			label.Text = name
-			label.TextColor3 = Color3.fromRGB(225,225,230)
-			label.TextSize = 10
-			label.TextTruncate = Enum.TextTruncate.AtEnd
-			label.ZIndex = 303
+			label.TextWrapped = true
+			label.TextColor3 = Color3.fromRGB(240,240,244)
+			label.TextSize = 11
+			label.ZIndex = 23
 			label.Parent = tile
 
-			local function ShowName()
-				hint.Text = name
+			tiles[name] = {Tile=tile, Stroke=stroke, Item=item}
+
+			local function hoverOn()
+				helper.Text = rarity ~= "" and (name .. "  ·  " .. rarity) or name
+				if name ~= selected then
+					tile.BackgroundColor3 = Color3.fromRGB(48,48,53)
+				end
 			end
 
-			local function RestoreHint()
-				hint.Text = "Tap a skin to equip it"
+			local function hoverOff()
+				helper.Text = "Tap a skin to equip it."
+				refreshSelection()
 			end
 
-			Track(tile.MouseEnter:Connect(ShowName))
-			Track(tile.MouseLeave:Connect(RestoreHint))
-			Track(tile.SelectionGained:Connect(ShowName))
-			Track(tile.SelectionLost:Connect(RestoreHint))
+			Track(tile.MouseEnter:Connect(hoverOn))
+			Track(tile.MouseLeave:Connect(hoverOff))
+			Track(tile.SelectionGained:Connect(hoverOn))
+			Track(tile.SelectionLost:Connect(hoverOff))
 
 			Track(tile.MouseButton1Click:Connect(function()
 				selected = name
+				helper.Text = rarity ~= "" and (name .. "  ·  " .. rarity) or name
+				refreshSelection()
 				if callback then
 					local ok,err = pcall(callback,name)
 					if not ok then
 						warn("[Blizzard UI Image Selector]", titleText, err)
 					end
 				end
-				CloseGallery()
 			end))
 		end
+
+		local function applyFilter()
+			local q = string.lower(search.Text or "")
+			for name,data in pairs(tiles) do
+				data.Tile.Visible = q == "" or string.find(string.lower(name), q, 1, true) ~= nil
+			end
+		end
+
+		Track(search:GetPropertyChangedSignal("Text"):Connect(applyFilter))
+		refreshSelection()
 	end
 
-	local control = UI.CreateActionFeature(
-		page,
-		titleText,
-		description or "Tap to browse skins",
-		OpenGallery,
-		icon
-	)
+	task.defer(Build)
 
 	return {
-		Control = control,
-		Open = OpenGallery,
-		Close = CloseGallery,
+		Rebuild = Build,
 		SetValue = function(_,value)
 			selected = tostring(value or "Default")
+			if root and root.Parent then
+				for _,obj in ipairs(root:GetDescendants()) do
+					if obj:IsA("UIStroke") then
+						-- selection is refreshed by the next interaction/rebuild
+					end
+				end
+			end
 		end,
 	}
 end
