@@ -69,32 +69,6 @@ local Backpack =
 local PlayerGui =
 	LocalPlayer:WaitForChild("PlayerGui")
 
-
---============================================================
--- BLIZZARD SKIN CHANGER GUI DIAGNOSTIC (READ ONLY)
---============================================================
-local D={on=false,t=0,logs={},conns={}}
-local function disc() for _,c in ipairs(D.conns) do pcall(function() c:Disconnect() end) end table.clear(D.conns) end
-local old=PlayerGui:FindFirstChild("BlizzardSkinChangerDiagnostic") if old then old:Destroy() end
-local g=Instance.new("ScreenGui",PlayerGui); g.Name="BlizzardSkinChangerDiagnostic"; g.ResetOnSpawn=false; g.DisplayOrder=999999
-local f=Instance.new("Frame",g); f.Size=UDim2.fromOffset(440,400); f.Position=UDim2.new(.5,-220,.5,-200); f.BackgroundColor3=Color3.fromRGB(18,18,22); f.Active=true; f.Draggable=true
-Instance.new("UICorner",f).CornerRadius=UDim.new(0,10)
-local title=Instance.new("TextLabel",f); title.Size=UDim2.new(1,-20,0,30); title.Position=UDim2.fromOffset(10,8); title.BackgroundTransparency=1; title.Text="BLIZZARD SKIN CHANGER DIAGNOSTIC"; title.TextColor3=Color3.new(1,1,1); title.Font=Enum.Font.GothamBold; title.TextSize=14; title.TextXAlignment=Enum.TextXAlignment.Left
-local status=Instance.new("TextLabel",f); status.Size=UDim2.new(1,-20,0,36); status.Position=UDim2.fromOffset(10,40); status.BackgroundTransparency=1; status.Text="READY - press START RECORDING before the round transition."; status.TextColor3=Color3.fromRGB(205,205,215); status.Font=Enum.Font.Gotham; status.TextSize=11; status.TextWrapped=true; status.TextXAlignment=Enum.TextXAlignment.Left
-local sc=Instance.new("ScrollingFrame",f); sc.Size=UDim2.new(1,-20,1,-145); sc.Position=UDim2.fromOffset(10,80); sc.BackgroundColor3=Color3.fromRGB(9,9,12); sc.BorderSizePixel=0; sc.ScrollBarThickness=5; sc.AutomaticCanvasSize=Enum.AutomaticSize.Y; sc.CanvasSize=UDim2.new()
-Instance.new("UICorner",sc).CornerRadius=UDim.new(0,7)
-local tx=Instance.new("TextLabel",sc); tx.Size=UDim2.new(1,-12,0,0); tx.Position=UDim2.fromOffset(6,6); tx.AutomaticSize=Enum.AutomaticSize.Y; tx.BackgroundTransparency=1; tx.Text="Waiting to record..."; tx.TextColor3=Color3.fromRGB(230,230,235); tx.Font=Enum.Font.Code; tx.TextSize=11; tx.TextWrapped=true; tx.TextXAlignment=Enum.TextXAlignment.Left; tx.TextYAlignment=Enum.TextYAlignment.Top
-local function refresh() tx.Text=#D.logs>0 and table.concat(D.logs,"\n") or "Waiting to record..."; task.defer(function() sc.CanvasPosition=Vector2.new(0,sc.AbsoluteCanvasSize.Y) end) end
-local function log(m) if not D.on then return end local s=string.format("[%.4f] %s",os.clock()-D.t,tostring(m)); D.logs[#D.logs+1]=s; if #D.logs>500 then table.remove(D.logs,1) end; print("[SKIN-DIAG] "..s); refresh() end
-local function btn(txt,x,w) local b=Instance.new("TextButton",f); b.Size=UDim2.fromOffset(w,38); b.Position=UDim2.new(0,x,1,-48); b.BackgroundColor3=Color3.fromRGB(39,39,47); b.BorderSizePixel=0; b.Text=txt; b.TextColor3=Color3.new(1,1,1); b.Font=Enum.Font.GothamBold; b.TextSize=11; Instance.new("UICorner",b).CornerRadius=UDim.new(0,7); return b end
-local start=btn("START RECORDING",10,155); local copy=btn("COPY LOGS",175,115); local clear=btn("CLEAR",300,130)
-local function watchTool(tool,source) if not tool:IsA("Tool") or (tool.Name~="Gun" and tool.Name~="Knife") then return end; log("WEAPON DETECTED | Source="..source.." | Name="..tool.Name.." | TextureId="..tostring(tool.TextureId)); D.conns[#D.conns+1]=tool:GetPropertyChangedSignal("TextureId"):Connect(function() log(">>> WEAPON TEXTURE CHANGED | Name="..tool.Name.." | TextureId="..tostring(tool.TextureId)) end); D.conns[#D.conns+1]=tool:GetPropertyChangedSignal("Parent"):Connect(function() log("WEAPON PARENT CHANGED | Name="..tool.Name.." | Parent="..tostring(tool.Parent)) end) end
-local function watchIcon(x,source) if not x:IsA("ImageLabel") or x.Name~="ToolIcon" then return end; log("TOOLICON DETECTED | Source="..source.." | Path="..x:GetFullName().." | Image="..tostring(x.Image)); D.conns[#D.conns+1]=x:GetPropertyChangedSignal("Image"):Connect(function() log(">>> TOOLICON IMAGE CHANGED | Image="..tostring(x.Image).." | Path="..x:GetFullName()) end) end
-local function attach() disc(); for _,x in ipairs(Backpack:GetChildren()) do watchTool(x,"Initial Backpack") end; for _,x in ipairs(PlayerGui:GetDescendants()) do watchIcon(x,"Initial PlayerGui") end; D.conns[#D.conns+1]=Backpack.ChildAdded:Connect(function(x) if x:IsA("Tool") and (x.Name=="Gun" or x.Name=="Knife") then log(">>> BACKPACK WEAPON ADDED | Name="..x.Name.." | TextureId="..tostring(x.TextureId)); watchTool(x,"BACKPACK.ChildAdded") end end); D.conns[#D.conns+1]=PlayerGui.DescendantAdded:Connect(function(x) watchIcon(x,"PlayerGui.DescendantAdded") end); D.conns[#D.conns+1]=LocalPlayer.CharacterAdded:Connect(function(c) log(">>> CHARACTER ADDED | "..c:GetFullName()); D.conns[#D.conns+1]=c.ChildAdded:Connect(function(x) watchTool(x,"Character.ChildAdded") end) end); local c=LocalPlayer.Character; if c then D.conns[#D.conns+1]=c.ChildAdded:Connect(function(x) watchTool(x,"Character.ChildAdded") end) end end
-start.MouseButton1Click:Connect(function() disc(); table.clear(D.logs); D.t=os.clock(); D.on=true; status.Text="RECORDING - keep Gingerscope selected, let the round end, then receive Gun."; log("============================================================"); log("BLIZZARD SKIN CHANGER ROUND LIFECYCLE DIAGNOSTIC"); log("============================================================"); log("TEST START"); log("Player="..LocalPlayer.Name); log("SelectedGun="..tostring(MM2.SkinChanger and MM2.SkinChanger.SelectedGun)); log("SelectedKnife="..tostring(MM2.SkinChanger and MM2.SkinChanger.SelectedKnife)); attach(); log("LIVE WATCH ACTIVE - wait for the next Gun.") end)
-copy.MouseButton1Click:Connect(function() local s=table.concat(D.logs,"\n"); if s=="" then s="No diagnostic logs recorded." end; if setclipboard then setclipboard(s) elseif toclipboard then toclipboard(s) else print(s) end; status.Text="COPIED - send the logs back here." end)
-clear.MouseButton1Click:Connect(function() D.on=false; disc(); table.clear(D.logs); refresh(); status.Text="CLEARED - press START RECORDING for another test." end)
-
 --============================================================
 -- MODULE STATE
 --============================================================
@@ -1647,7 +1621,6 @@ local function SaveOriginalGun(Gun)
 	if not Gun
 		or SavedGunState[Gun]
 	then
-		log("INTERNAL ApplyGunSkinToTool REJECT | invalid Gun/tool/name")
 		return false
 	end
 
@@ -1658,7 +1631,6 @@ local function SaveOriginalGun(Gun)
 	if not Handle
 		or not Handle:IsA("BasePart")
 	then
-		log("INTERNAL ApplyGunSkinToTool REJECT | Handle missing/invalid")
 		return false
 	end
 
@@ -2171,15 +2143,6 @@ local function ApplyGunSkinToTool(
 	Gun,
 	Skin
 )
-	log(
-		"INTERNAL ApplyGunSkinToTool ENTER | Gun="
-		.. tostring(Gun and Gun:GetFullName() or "nil")
-		.. " | Skin="
-		.. tostring(SkinChanger.SelectedGun)
-		.. " | DesiredIcon="
-		.. tostring(Skin and Skin.Icon or "nil")
-	)
-
 	if not Gun
 		or not Skin
 		or not Gun:IsA("Tool")
@@ -2207,7 +2170,6 @@ local function ApplyGunSkinToTool(
 		)
 
 	if not Mesh then
-		log("INTERNAL ApplyGunSkinToTool REJECT | SpecialMesh missing")
 		return false
 	end
 
@@ -2277,15 +2239,6 @@ local function ApplyGunSkinToTool(
 			Skin.Icon
 		)
 	end
-
-	log(
-		"INTERNAL ApplyGunSkinToTool EXIT | Success="
-		.. tostring(Success)
-		.. " | TextureId="
-		.. tostring(Gun.TextureId)
-		.. " | Expected="
-		.. tostring(Skin.Icon)
-	)
 
 	return Success
 end
@@ -2981,22 +2934,6 @@ local function ApplyCurrentGunSkin()
 	local Gun =
 		GetGun()
 
-	log(
-		"INTERNAL ApplyCurrentGunSkin ENTER | SelectedGun="
-		.. tostring(Selected)
-		.. " | GetGun="
-		.. tostring(Gun and Gun:GetFullName() or "nil")
-	)
-
-	if Gun then
-		log(
-			"INTERNAL GetGun STATE | TextureId="
-			.. tostring(Gun.TextureId)
-			.. " | Parent="
-			.. tostring(Gun.Parent and Gun.Parent:GetFullName() or "nil")
-		)
-	end
-
 	if Selected == "Default" then
 
 		if Gun then
@@ -3016,12 +2953,7 @@ local function ApplyCurrentGunSkin()
 		]
 
 	if not Skin then
-		log("INTERNAL ApplyCurrentGunSkin EXIT | Skin lookup failed for " .. tostring(Selected))
 		return
-	end
-
-	if not Gun then
-		log("INTERNAL ApplyCurrentGunSkin | selected skin exists but GetGun=nil")
 	end
 
 	if Gun then
@@ -3327,48 +3259,59 @@ local GunSection =
 	UI.AddSection(
 		UI.SkinChangerPage,
 		"Gun",
-		"Change the appearance of your gun"
+		"Browse gun skins by image"
 	)
 
 if not GunSection then
-	warn(
-		"[SkinChanger] Failed to create Gun section"
-	)
+	warn("[SkinChanger] Failed to create Gun section")
 end
 
-local GunDropdown =
-	UI.CreateDropdown(
+local GunGalleryItems = {
+	{
+		Name = "Default",
+		Image = "",
+	},
+}
+
+for _,Name in ipairs(GunSkinOrder) do
+	if Name ~= "Default" then
+		local Skin = GunSkins[Name]
+		table.insert(
+			GunGalleryItems,
+			{
+				Name = Name,
+				Image = Skin and Skin.Icon or "",
+			}
+		)
+	end
+end
+
+local GunGallery =
+	UI.CreateImageSkinSelector(
 		UI.SkinChangerPage,
-		"Gun Skin",
-		"Select a gun skin",
-		GunSkinOrder,
+		"Gun",
+		"Tap to browse gun skins",
+		"crosshair",
+		GunGalleryItems,
 		SkinChanger.SelectedGun,
 		function(Value)
-
-			SelectGunSkin(
-				Value,
-				true
-			)
+			SelectGunSkin(Value,true)
 		end
 	)
 
-if not GunDropdown then
-	warn(
-		"[SkinChanger] Failed to create Gun dropdown"
-	)
+if not GunGallery then
+	warn("[SkinChanger] Failed to create Gun image gallery")
 end
 
 local KnifeSection =
 	UI.AddSection(
 		UI.SkinChangerPage,
 		"Knife",
-		"Change the appearance of your knife"
+		"Browse knife skins by image"
 	)
 
 if not KnifeSection then
-	warn(
-		"[SkinChanger] Failed to create Knife section"
-	)
+	warn("[SkinChanger] Failed to create Knife section")
 end
 
 local KnifeDropdownValues = {
@@ -3406,31 +3349,34 @@ local KnifeDropdownValues = {
 	"Winters Edge",
 }
 
-print(
-	"[SkinChanger] Knife dropdown entries:",
-	#KnifeDropdownValues
-)
+local KnifeGalleryItems = {}
 
-local KnifeDropdown =
-	UI.CreateDropdown(
+for _,Name in ipairs(KnifeDropdownValues) do
+	local Skin = KnifeSkins[Name]
+	table.insert(
+		KnifeGalleryItems,
+		{
+			Name = Name,
+			Image = Skin and Skin.Icon or "",
+		}
+	)
+end
+
+local KnifeGallery =
+	UI.CreateImageSkinSelector(
 		UI.SkinChangerPage,
-		"Knife Skin",
-		"Select a knife skin",
-		KnifeDropdownValues,
+		"Knife",
+		"Tap to browse knife skins",
+		"sword",
+		KnifeGalleryItems,
 		SkinChanger.SelectedKnife,
 		function(Value)
-
-			SelectKnifeSkin(
-				Value,
-				true
-			)
+			SelectKnifeSkin(Value,true)
 		end
 	)
 
-if not KnifeDropdown then
-	warn(
-		"[SkinChanger] Failed to create Knife dropdown"
-	)
+if not KnifeGallery then
+	warn("[SkinChanger] Failed to create Knife image gallery")
 end
 
 --============================================================
@@ -3568,13 +3514,6 @@ print(
 --============================================================
 
 local function WatchGun(Gun)
-	log(
-		"INTERNAL WatchGun ENTER | Gun="
-		.. tostring(Gun and Gun:GetFullName() or "nil")
-		.. " | SameAsCurrent="
-		.. tostring(CurrentGun == Gun)
-	)
-
 	if not Gun
 		or not Gun:IsA("Tool")
 		or Gun.Name ~= "Gun"
@@ -3583,7 +3522,6 @@ local function WatchGun(Gun)
 	end
 
 	if CurrentGun == Gun then
-		log("INTERNAL WatchGun BRANCH | reused/current Gun")
 		-- MM2 can reuse the same Gun Tool between round states.
 		-- Reapply the selected cosmetic whenever that known Gun returns.
 		ApplyCurrentGunSkin()
@@ -3593,7 +3531,6 @@ local function WatchGun(Gun)
 	end
 
 	CurrentGun = Gun
-	log("INTERNAL WatchGun BRANCH | new Gun assigned to CurrentGun")
 
 	-- A gun selected during intermission can be created before MM2 has
 	-- finished rebuilding BackpackUI. Do a short full refresh window so
@@ -3601,13 +3538,6 @@ local function WatchGun(Gun)
 	task.spawn(function()
 		for _,Delay in ipairs({0.10, 0.20, 0.35, 0.55, 0.80, 1.10}) do
 			task.wait(Delay)
-
-			log(
-				"INTERNAL WatchGun delayed refresh | Delay="
-				.. tostring(Delay)
-				.. " | Parent="
-				.. tostring(Gun.Parent and Gun.Parent:GetFullName() or "nil")
-			)
 
 			if not Gun.Parent then
 				return
@@ -3663,14 +3593,19 @@ local function WatchKnife(Knife)
 
 	CurrentKnife = Knife
 
-	task.defer(function()
+	-- Mirror the gun hotbar fix for Knife. MM2 may create/rebuild the
+	-- live BackpackUI slot after the Knife Tool already exists, so keep
+	-- reapplying both the cosmetic and selected icon during that window.
+	task.spawn(function()
+		for _,Delay in ipairs({0.10, 0.20, 0.35, 0.55, 0.80, 1.10}) do
+			task.wait(Delay)
 
-		task.wait(
-			0.15
-		)
+			if not Knife.Parent then
+				return
+			end
 
-		if Knife.Parent then
 			ApplyCurrentKnifeSkin()
+			ReapplySelectedHotbarIcon("Knife")
 		end
 	end)
 
@@ -3693,6 +3628,7 @@ local function WatchKnife(Knife)
 						== LocalPlayer.Character
 				then
 					ApplyCurrentKnifeSkin()
+					ReapplySelectedHotbarIcon("Knife")
 				end
 			end)
 		end)
@@ -3827,12 +3763,6 @@ local WatcherOK, WatcherError =
 
 				if Child:IsA("Tool") then
 					if Child.Name == "Gun" then
-						log(
-							"INTERNAL REAL Backpack.ChildAdded GUN | TextureId="
-							.. tostring(Child.TextureId)
-							.. " | SelectedGun="
-							.. tostring(SkinChanger.SelectedGun)
-						)
 						-- Force a complete refresh every time the round gives us Gun,
 						-- including cases where MM2 reuses an already-known Tool instance.
 						ApplyCurrentGunSkin()
@@ -3910,13 +3840,6 @@ local WatcherOK, WatcherError =
 
 					local Gun =
 						GetGun()
-
-					log(
-						"INTERNAL REAL ToolIcon +50ms | GetGun="
-						.. tostring(Gun and Gun:GetFullName() or "nil")
-						.. " | SelectedGun="
-						.. tostring(SkinChanger.SelectedGun)
-					)
 
 					if Knife
 						and SkinChanger.SelectedKnife
