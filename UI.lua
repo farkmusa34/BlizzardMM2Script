@@ -1164,9 +1164,11 @@ function UI.CreateImageSkinSelector(
 		root.Name = "BlizzardEmbeddedSkinGallery_" .. tostring(titleText)
 		root.BackgroundTransparency = 1
 		local rowCount = math.max(1, math.ceil(#items / 4))
-		local CARD_HEIGHT = 78
-		local CARD_GAP = 6
-		local gridHeight = rowCount * CARD_HEIGHT + math.max(0,rowCount - 1) * CARD_GAP
+		local CARD_HEIGHT = 64
+		local CARD_GAP = 5
+		local GRID_TOP_INSET = 3
+		local GRID_BOTTOM_INSET = 3
+		local gridHeight = GRID_TOP_INSET + rowCount * CARD_HEIGHT + math.max(0,rowCount - 1) * CARD_GAP + GRID_BOTTOM_INSET
 		root.Size = UDim2.new(1, -8, 0, 78 + gridHeight)
 		root.AutomaticSize = Enum.AutomaticSize.None
 		root.LayoutOrder = -10000
@@ -1216,8 +1218,8 @@ function UI.CreateImageSkinSelector(
 
 		local scroll = Instance.new("ScrollingFrame")
 		scroll.Name = "SkinGrid"
-		scroll.Position = UDim2.fromOffset(4, 74)
-		scroll.Size = UDim2.new(1,-8,0,gridHeight)
+		scroll.Position = UDim2.fromOffset(5, 74)
+		scroll.Size = UDim2.new(1,-12,0,gridHeight)
 		scroll.BackgroundTransparency = 1
 		scroll.BorderSizePixel = 0
 		scroll.ScrollBarThickness = 0
@@ -1231,10 +1233,18 @@ function UI.CreateImageSkinSelector(
 		-- Four equal columns at every supported window width.
 		-- A small negative offset leaves room for the three gaps and prevents right-edge clipping.
 		grid.CellPadding = UDim2.fromOffset(CARD_GAP,CARD_GAP)
-		grid.CellSize = UDim2.new(0.25,-5,0,CARD_HEIGHT)
+		grid.CellSize = UDim2.new(0.25,-8,0,CARD_HEIGHT)
 		grid.HorizontalAlignment = Enum.HorizontalAlignment.Left
+		grid.VerticalAlignment = Enum.VerticalAlignment.Top
 		grid.SortOrder = Enum.SortOrder.LayoutOrder
 		grid.Parent = scroll
+
+		local gridPadding = Instance.new("UIPadding")
+		gridPadding.PaddingTop = UDim.new(0,GRID_TOP_INSET)
+		gridPadding.PaddingLeft = UDim.new(0,1)
+		gridPadding.PaddingRight = UDim.new(0,3)
+		gridPadding.PaddingBottom = UDim.new(0,GRID_BOTTOM_INSET)
+		gridPadding.Parent = scroll
 
 		local tiles = {}
 
@@ -1242,7 +1252,7 @@ function UI.CreateImageSkinSelector(
 			for name,data in pairs(tiles) do
 				local active = name == selected
 				data.Stroke.Thickness = 1
-				data.Stroke.Transparency = 0.04
+				data.Stroke.Transparency = 0.18
 				data.Stroke.Color = data.OutlineColor or Color3.fromRGB(190,35,220)
 				data.Tile.BackgroundColor3 = active
 					and Color3.fromRGB(65,65,70)
@@ -1289,7 +1299,7 @@ function UI.CreateImageSkinSelector(
 
 			local stroke = Instance.new("UIStroke")
 			stroke.Thickness = 1
-			stroke.Transparency = 0.04
+			stroke.Transparency = 0.18
 			local specialPurple = (name == "Harvester" or name == "Gingerscope" or name == "Icepiercer")
 			local outlineColor = specialPurple and Color3.fromRGB(132,55,220) or rarityColor(rarity)
 			stroke.Color = outlineColor
@@ -1298,7 +1308,7 @@ function UI.CreateImageSkinSelector(
 			local preview = Instance.new("ImageLabel")
 			preview.BackgroundTransparency = 1
 			preview.Position = UDim2.fromOffset(4,3)
-			preview.Size = UDim2.new(1,-8,0,54)
+			preview.Size = UDim2.new(1,-8,0,41)
 			preview.Image = image
 			preview.ScaleType = Enum.ScaleType.Fit
 			preview.ZIndex = 22
@@ -1306,13 +1316,13 @@ function UI.CreateImageSkinSelector(
 
 			local label = Instance.new("TextLabel")
 			label.BackgroundTransparency = 1
-			label.Position = UDim2.new(0,3,1,-20)
-			label.Size = UDim2.new(1,-6,0,17)
+			label.Position = UDim2.new(0,3,1,-22)
+			label.Size = UDim2.new(1,-6,0,20)
 			label.Font = Enum.Font.GothamMedium
 			label.Text = name
 			label.TextWrapped = true
 			label.TextColor3 = Color3.fromRGB(240,240,244)
-			label.TextSize = 10
+			label.TextSize = 9
 			label.ZIndex = 23
 			label.Parent = tile
 
