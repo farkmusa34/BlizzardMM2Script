@@ -633,9 +633,9 @@ task.spawn(function()
 
 	local hit = Instance.new("TextButton")
 	hit.Name = "BlizzardSkinChangerExpandHitbox"
-	hit.AnchorPoint = Vector2.new(1,0)
-	hit.Position = UDim2.new(1,-2,0,0)
-	hit.Size = UDim2.fromOffset(44,skinRow.AbsoluteSize.Y)
+	hit.AnchorPoint = Vector2.new(0,0)
+	hit.Position = UDim2.fromOffset(0,0)
+	hit.Size = UDim2.new(1,0,1,0)
 	hit.BackgroundTransparency = 1
 	hit.Text = ""
 	hit.ZIndex = 101
@@ -1350,7 +1350,9 @@ function UI.CreateImageSkinSelector(
 		root = Instance.new("Frame")
 		root.Name = "BlizzardEmbeddedSkinGallery_" .. tostring(titleText)
 		root.BackgroundTransparency = 1
-		root.Size = UDim2.new(1, -8, 0, 560)
+		local rowCount = math.max(1, math.ceil(#items / 4))
+		local gridHeight = rowCount * 92 + math.max(0,rowCount - 1) * 7
+		root.Size = UDim2.new(1, -8, 0, 78 + gridHeight)
 		root.AutomaticSize = Enum.AutomaticSize.None
 		root.LayoutOrder = -10000
 		root.Parent = parent
@@ -1397,18 +1399,19 @@ function UI.CreateImageSkinSelector(
 		local scroll = Instance.new("ScrollingFrame")
 		scroll.Name = "SkinGrid"
 		scroll.Position = UDim2.fromOffset(4, 74)
-		scroll.Size = UDim2.new(1,-8,1,-78)
+		scroll.Size = UDim2.new(1,-8,0,gridHeight)
 		scroll.BackgroundTransparency = 1
 		scroll.BorderSizePixel = 0
-		scroll.ScrollBarThickness = 3
-		scroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
-		scroll.CanvasSize = UDim2.fromOffset(0,0)
+		scroll.ScrollBarThickness = 0
+		scroll.ScrollingEnabled = false
+		scroll.AutomaticCanvasSize = Enum.AutomaticSize.None
+		scroll.CanvasSize = UDim2.fromOffset(0,gridHeight)
 		scroll.ZIndex = 20
 		scroll.Parent = root
 
 		local grid = Instance.new("UIGridLayout")
 		grid.CellPadding = UDim2.fromOffset(7,7)
-		grid.CellSize = UDim2.new(0.25, -6, 0, 112)
+		grid.CellSize = UDim2.fromOffset(108,92)
 		grid.HorizontalAlignment = Enum.HorizontalAlignment.Left
 		grid.SortOrder = Enum.SortOrder.LayoutOrder
 		grid.Parent = scroll
@@ -1418,9 +1421,9 @@ function UI.CreateImageSkinSelector(
 		local function refreshSelection()
 			for name,data in pairs(tiles) do
 				local active = name == selected
-				data.Stroke.Thickness = active and 2 or 1.5
-				data.Stroke.Transparency = active and 0 or 0.06
-				data.Stroke.Color = Color3.fromRGB(190, 35, 220)
+				data.Stroke.Thickness = 1
+				data.Stroke.Transparency = 0.04
+				data.Stroke.Color = data.OutlineColor or Color3.fromRGB(190,35,220)
 				data.Tile.BackgroundColor3 = active
 					and Color3.fromRGB(65,65,70)
 					or Color3.fromRGB(24,24,27)
@@ -1465,15 +1468,17 @@ function UI.CreateImageSkinSelector(
 			corner.Parent = tile
 
 			local stroke = Instance.new("UIStroke")
-			stroke.Thickness = 1.5
-			stroke.Transparency = 0.06
-			stroke.Color = Color3.fromRGB(190, 35, 220)
+			stroke.Thickness = 1
+			stroke.Transparency = 0.04
+			local specialPurple = (name == "Harvester" or name == "Gingerscope" or name == "Icepiercer")
+			local outlineColor = specialPurple and Color3.fromRGB(132,55,220) or rarityColor(rarity)
+			stroke.Color = outlineColor
 			stroke.Parent = tile
 
 			local preview = Instance.new("ImageLabel")
 			preview.BackgroundTransparency = 1
 			preview.Position = UDim2.fromOffset(4,3)
-			preview.Size = UDim2.new(1,-8,0,82)
+			preview.Size = UDim2.new(1,-8,0,66)
 			preview.Image = image
 			preview.ScaleType = Enum.ScaleType.Fit
 			preview.ZIndex = 22
@@ -1481,8 +1486,8 @@ function UI.CreateImageSkinSelector(
 
 			local label = Instance.new("TextLabel")
 			label.BackgroundTransparency = 1
-			label.Position = UDim2.new(0,3,1,-27)
-			label.Size = UDim2.new(1,-6,0,24)
+			label.Position = UDim2.new(0,3,1,-22)
+			label.Size = UDim2.new(1,-6,0,19)
 			label.Font = Enum.Font.GothamMedium
 			label.Text = name
 			label.TextWrapped = true
@@ -1491,7 +1496,7 @@ function UI.CreateImageSkinSelector(
 			label.ZIndex = 23
 			label.Parent = tile
 
-			tiles[name] = {Tile=tile, Stroke=stroke, Item=item}
+			tiles[name] = {Tile=tile, Stroke=stroke, Item=item, OutlineColor=outlineColor}
 
 			local function hoverOn()
 				helper.Text = rarity ~= "" and (name .. "  ·  " .. rarity) or name
@@ -1522,7 +1527,7 @@ function UI.CreateImageSkinSelector(
 					end
 				end
 				if ok then
-					helper.Text = name .. "  •  Skin Changed"
+					helper.Text = name .. ", Skin Changed."
 					task.delay(2,function()
 						if helper and helper.Parent then
 							helper.Text = "Tap a skin to equip it."

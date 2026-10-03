@@ -597,8 +597,8 @@ local GunSkins = {
 SkinChanger.GunSkins = GunSkins
 
 local GunSkinOrder = {
-	"Harvester",
 	"Gingerscope",
+	"Harvester",
 	"Icepiercer",
 	"Chroma Bauble",
 	"Chroma Blizzard",
@@ -3362,129 +3362,82 @@ local KnifeGallery =
 
 --============================================================
 -- HELD WEAPON POSITION UI
+-- Each weapon owns its controls, placed after its complete skin gallery.
 --============================================================
 
-local PositionSection =
+local function SetWeaponPositionAxis(Target, Axis, Value)
+	Value = math.clamp(tonumber(Value) or 0, HELD_POSITION_MIN, HELD_POSITION_MAX)
+	local Data = GetHeldPosition(Target)
+	Data[Axis] = Value
+	if Target == "Knife" then
+		ApplyCurrentKnifeSkin()
+	else
+		ApplyCurrentGunSkin()
+	end
+end
+
+local function ResetWeaponPosition(Target)
+	local Data = GetHeldPosition(Target)
+	Data.X, Data.Y, Data.Z = 0, 0, 0
+	if Target == "Knife" then
+		ApplyCurrentKnifeSkin()
+	else
+		ApplyCurrentGunSkin()
+	end
+	NotifySkinChanger(Target .. " position reset")
+end
+
+local function CreateHeldPositionControls(Page, Target)
 	UI.AddSection(
-		UI.SkinChangerPage,
+		Page,
 		"Held Weapon Position",
-		"Move held weapon left/right, down/up, and backward/forward"
+		"Move the held " .. string.lower(Target) .. " left/right, down/up, and backward/forward"
 	)
 
-if not PositionSection then
-	warn(
-		"[SkinChanger] Failed to create Held Weapon Position section"
+	UI.CreateSlider(
+		Page,
+		"Left / Right",
+		"Negative = left, positive = right",
+		function() return GetHeldPosition(Target).X end,
+		function(Value) SetWeaponPositionAxis(Target, "X", Value) end,
+		HELD_POSITION_MIN,
+		HELD_POSITION_MAX,
+		HELD_POSITION_STEP
+	)
+
+	UI.CreateSlider(
+		Page,
+		"Down / Up",
+		"Negative = down, positive = up",
+		function() return GetHeldPosition(Target).Y end,
+		function(Value) SetWeaponPositionAxis(Target, "Y", Value) end,
+		HELD_POSITION_MIN,
+		HELD_POSITION_MAX,
+		HELD_POSITION_STEP
+	)
+
+	UI.CreateSlider(
+		Page,
+		"Backward / Forward",
+		"Negative = backward, positive = forward",
+		function() return GetHeldPosition(Target).Z end,
+		function(Value) SetWeaponPositionAxis(Target, "Z", Value) end,
+		HELD_POSITION_MIN,
+		HELD_POSITION_MAX,
+		HELD_POSITION_STEP
+	)
+
+	UI.CreateActionFeature(
+		Page,
+		"Reset Position",
+		"Reset the held " .. string.lower(Target) .. " to its normal position",
+		function() ResetWeaponPosition(Target) end,
+		"undo-2"
 	)
 end
 
-local PositionTargetDropdown =
-	UI.CreateDropdown(
-		UI.SkinChangerPage,
-		"Held Weapon",
-		"Choose which held weapon to move",
-		{
-			"Gun",
-			"Knife",
-		},
-		SkinChanger.HeldPositionTarget,
-		function(Value)
-
-			if Value ~= "Gun"
-				and Value ~= "Knife"
-			then
-				return
-			end
-
-			SkinChanger.HeldPositionTarget =
-				Value
-
-			RefreshPositionSliders()
-		end
-	)
-
-XPositionSlider =
-	UI.CreateSlider(
-		UI.SkinChangerPage,
-		"Left / Right",
-		"Negative = left, positive = right",
-		function()
-
-			return
-				GetHeldPosition(
-					SkinChanger.HeldPositionTarget
-				).X
-		end,
-		function(Value)
-
-			SetHeldPositionAxis(
-				"X",
-				Value
-			)
-		end,
-		HELD_POSITION_MIN,
-		HELD_POSITION_MAX,
-		HELD_POSITION_STEP
-	)
-
-YPositionSlider =
-	UI.CreateSlider(
-		UI.SkinChangerPage,
-		"Down / Up",
-		"Negative = down, positive = up",
-		function()
-
-			return
-				GetHeldPosition(
-					SkinChanger.HeldPositionTarget
-				).Y
-		end,
-		function(Value)
-
-			SetHeldPositionAxis(
-				"Y",
-				Value
-			)
-		end,
-		HELD_POSITION_MIN,
-		HELD_POSITION_MAX,
-		HELD_POSITION_STEP
-	)
-
-ZPositionSlider =
-	UI.CreateSlider(
-		UI.SkinChangerPage,
-		"Backward / Forward",
-		"Negative = backward, positive = forward",
-		function()
-
-			return
-				GetHeldPosition(
-					SkinChanger.HeldPositionTarget
-				).Z
-		end,
-		function(Value)
-
-			SetHeldPositionAxis(
-				"Z",
-				Value
-			)
-		end,
-		HELD_POSITION_MIN,
-		HELD_POSITION_MAX,
-		HELD_POSITION_STEP
-	)
-
-local ResetPositionButton =
-	UI.CreateActionFeature(
-		UI.SkinChangerPage,
-		"Reset Position",
-		"Reset the selected held weapon to its normal position",
-		function()
-
-			ResetHeldPosition()
-		end,
-		"undo-2"
-	)
+CreateHeldPositionControls(UI.SkinChangerGunPage, "Gun")
+CreateHeldPositionControls(UI.SkinChangerKnifePage, "Knife")
 
 print(
 	"[SkinChanger] UI created successfully"
