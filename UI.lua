@@ -532,21 +532,24 @@ UI.WindTabs.AutoFarm =
 -- Expandable sidebar category
 --============================================================
 
+-- Use WindUI's native sidebar Section as the expandable parent.
+-- This gives Skin Changer its own arrow without creating/selecting an empty page.
 UI.WindTabs.SkinChanger =
-	Window:Tab({
+	Window:Section({
 		Title = "Skin Changer",
-		Icon = "palette"
+		Icon = "palette",
+		Opened = true
 	})
 
--- Real WindUI child pages for the expandable Skin Changer group.
+-- Gun / Knife are real child tabs owned by the Skin Changer section.
 UI.WindTabs.SkinChangerGun =
-	Window:Tab({
+	UI.WindTabs.SkinChanger:Tab({
 		Title = "Gun",
 		Icon = "crosshair"
 	})
 
 UI.WindTabs.SkinChangerKnife =
-	Window:Tab({
+	UI.WindTabs.SkinChanger:Tab({
 		Title = "Knife",
 		Icon = "sword"
 	})
@@ -561,90 +564,9 @@ UI.WindTabs.Misc =
 
 --============================================================
 -- SKIN CHANGER SIDEBAR GROUP
--- Palette parent + arrow, with indented Gun / Knife child tabs.
+-- Native WindUI Window:Section handles expand/collapse + arrow.
+-- No custom overlay/hitbox is needed, so the parent never opens an empty tab.
 --============================================================
-
-task.spawn(function()
-	task.wait(0.8)
-
-	local roots = {CoreGui, PlayerGui}
-
-	local function findLabel(text)
-		for _,root in ipairs(roots) do
-			for _,obj in ipairs(root:GetDescendants()) do
-				if (obj:IsA("TextLabel") or obj:IsA("TextButton")) and obj.Text == text then
-					return obj
-				end
-			end
-		end
-	end
-
-	local skinLabel = findLabel("Skin Changer")
-	local gunLabel = findLabel("Gun")
-	local knifeLabel = findLabel("Knife")
-	if not skinLabel or not gunLabel or not knifeLabel then return end
-
-	local function rowFor(label)
-		local node = label
-		for _=1,6 do
-			if not node then break end
-			if node:IsA("GuiObject") and node.AbsoluteSize.X >= 120 and node.AbsoluteSize.Y >= 28 and node.AbsoluteSize.Y <= 70 then
-				return node
-			end
-			node = node.Parent
-		end
-	end
-
-	local skinRow = rowFor(skinLabel)
-	local gunRow = rowFor(gunLabel)
-	local knifeRow = rowFor(knifeLabel)
-	if not skinRow or not gunRow or not knifeRow then return end
-
-	-- Visually nest the two real WindUI tabs.
-	for _,row in ipairs({gunRow,knifeRow}) do
-		local pad = row:FindFirstChild("BlizzardChildPadding") or Instance.new("UIPadding")
-		pad.Name = "BlizzardChildPadding"
-		pad.PaddingLeft = UDim.new(0,18)
-		pad.Parent = row
-	end
-
-	local arrow = Instance.new("TextLabel")
-	arrow.Name = "BlizzardSkinChangerArrow"
-	arrow.AnchorPoint = Vector2.new(1,0.5)
-	arrow.Position = UDim2.new(1,-12,0.5,0)
-	arrow.Size = UDim2.fromOffset(18,18)
-	arrow.BackgroundTransparency = 1
-	arrow.Font = Enum.Font.GothamBold
-	arrow.Text = "⌃"
-	arrow.TextColor3 = Color3.fromRGB(165,165,174)
-	arrow.TextSize = 16
-	arrow.ZIndex = 100
-	arrow.Parent = skinRow
-
-	local expanded = true
-	local function setExpanded(value)
-		expanded = value
-		gunRow.Visible = value
-		knifeRow.Visible = value
-		arrow.Text = value and "⌃" or "⌄"
-	end
-
-	setExpanded(true)
-
-	local hit = Instance.new("TextButton")
-	hit.Name = "BlizzardSkinChangerExpandHitbox"
-	hit.AnchorPoint = Vector2.new(0,0)
-	hit.Position = UDim2.fromOffset(0,0)
-	hit.Size = UDim2.new(1,0,1,0)
-	hit.BackgroundTransparency = 1
-	hit.Text = ""
-	hit.ZIndex = 101
-	hit.Parent = skinRow
-
-	Track(hit.MouseButton1Click:Connect(function()
-		setExpanded(not expanded)
-	end))
-end)
 
 --============================================================
 -- SIDEBAR PLAYER PROFILE REMOVED
@@ -1242,7 +1164,9 @@ function UI.CreateImageSkinSelector(
 		root.Name = "BlizzardEmbeddedSkinGallery_" .. tostring(titleText)
 		root.BackgroundTransparency = 1
 		local rowCount = math.max(1, math.ceil(#items / 4))
-		local gridHeight = rowCount * 92 + math.max(0,rowCount - 1) * 7
+		local CARD_HEIGHT = 78
+		local CARD_GAP = 6
+		local gridHeight = rowCount * CARD_HEIGHT + math.max(0,rowCount - 1) * CARD_GAP
 		root.Size = UDim2.new(1, -8, 0, 78 + gridHeight)
 		root.AutomaticSize = Enum.AutomaticSize.None
 		root.LayoutOrder = -10000
@@ -1304,8 +1228,10 @@ function UI.CreateImageSkinSelector(
 		scroll.Parent = root
 
 		local grid = Instance.new("UIGridLayout")
-		grid.CellPadding = UDim2.fromOffset(7,7)
-		grid.CellSize = UDim2.fromOffset(108,92)
+		-- Four equal columns at every supported window width.
+		-- A small negative offset leaves room for the three gaps and prevents right-edge clipping.
+		grid.CellPadding = UDim2.fromOffset(CARD_GAP,CARD_GAP)
+		grid.CellSize = UDim2.new(0.25,-5,0,CARD_HEIGHT)
 		grid.HorizontalAlignment = Enum.HorizontalAlignment.Left
 		grid.SortOrder = Enum.SortOrder.LayoutOrder
 		grid.Parent = scroll
@@ -1327,7 +1253,7 @@ function UI.CreateImageSkinSelector(
 		local function rarityColor(rarity)
 			rarity = string.lower(tostring(rarity or ""))
 			if rarity == "ancient" then
-				return Color3.fromRGB(255,70,70)
+				return Color3.fromRGB(132,55,220)
 			elseif rarity == "chroma" then
 				return Color3.fromRGB(210,70,255)
 			elseif rarity == "godly" then
@@ -1372,7 +1298,7 @@ function UI.CreateImageSkinSelector(
 			local preview = Instance.new("ImageLabel")
 			preview.BackgroundTransparency = 1
 			preview.Position = UDim2.fromOffset(4,3)
-			preview.Size = UDim2.new(1,-8,0,66)
+			preview.Size = UDim2.new(1,-8,0,54)
 			preview.Image = image
 			preview.ScaleType = Enum.ScaleType.Fit
 			preview.ZIndex = 22
@@ -1380,8 +1306,8 @@ function UI.CreateImageSkinSelector(
 
 			local label = Instance.new("TextLabel")
 			label.BackgroundTransparency = 1
-			label.Position = UDim2.new(0,3,1,-22)
-			label.Size = UDim2.new(1,-6,0,19)
+			label.Position = UDim2.new(0,3,1,-20)
+			label.Size = UDim2.new(1,-6,0,17)
 			label.Font = Enum.Font.GothamMedium
 			label.Text = name
 			label.TextWrapped = true
