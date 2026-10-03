@@ -35,7 +35,9 @@ local MM2 =
 assert(
 	MM2
 	and MM2.UI
-	and MM2.UI.SkinChangerPage,
+	and MM2.UI.SkinChangerPage
+	and MM2.UI.SkinChangerGunPage
+	and MM2.UI.SkinChangerKnifePage,
 	"Load Shared.lua + UI.lua first"
 )
 
@@ -3255,42 +3257,48 @@ print(
 	"[SkinChanger] Creating UI..."
 )
 
-local GunSection =
-	UI.AddSection(
-		UI.SkinChangerPage,
-		"Gun",
-		"Browse gun skins by image"
-	)
+local function GetSkinRarity(Name, WeaponType)
+	if Name == "Default" then
+		return "Default"
+	end
+	if string.sub(Name,1,7) == "Chroma " then
+		return "Chroma"
+	end
 
-if not GunSection then
-	warn("[SkinChanger] Failed to create Gun section")
+	local AncientGun = {
+		Gingerscope=true, Harvester=true, Icepiercer=true,
+		["Traveler's Gun"]=true, ["Vampire's Gun"]=true,
+	}
+	local AncientKnife = {
+		["Elderwood Scythe"]=true, Hallowscythe=true, Icebreaker=true,
+		Icewing=true, Logchopper=true, ["Nik's Scythe"]=true,
+		["Swirly Axe"]=true, ["Traveler's Axe"]=true, ["Vampire's Axe"]=true,
+	}
+	if WeaponType == "Gun" and AncientGun[Name] then return "Ancient" end
+	if WeaponType == "Knife" and AncientKnife[Name] then return "Ancient" end
+	return "Godly"
 end
 
 local GunGalleryItems = {
-	{
-		Name = "Default",
-		Image = "",
-	},
+	{Name="Default", Image="", Rarity="Default"},
 }
 
 for _,Name in ipairs(GunSkinOrder) do
 	if Name ~= "Default" then
 		local Skin = GunSkins[Name]
-		table.insert(
-			GunGalleryItems,
-			{
-				Name = Name,
-				Image = Skin and Skin.Icon or "",
-			}
-		)
+		table.insert(GunGalleryItems,{
+			Name = Name,
+			Image = Skin and Skin.Icon or "",
+			Rarity = GetSkinRarity(Name,"Gun"),
+		})
 	end
 end
 
 local GunGallery =
 	UI.CreateImageSkinSelector(
-		UI.SkinChangerPage,
+		UI.SkinChangerGunPage,
 		"Gun",
-		"Tap to browse gun skins",
+		"Tap a skin to equip it.",
 		"crosshair",
 		GunGalleryItems,
 		SkinChanger.SelectedGun,
@@ -3298,21 +3306,6 @@ local GunGallery =
 			SelectGunSkin(Value,true)
 		end
 	)
-
-if not GunGallery then
-	warn("[SkinChanger] Failed to create Gun image gallery")
-end
-
-local KnifeSection =
-	UI.AddSection(
-		UI.SkinChangerPage,
-		"Knife",
-		"Browse knife skins by image"
-	)
-
-if not KnifeSection then
-	warn("[SkinChanger] Failed to create Knife section")
-end
 
 local KnifeDropdownValues = {
 	"Default",
@@ -3350,23 +3343,20 @@ local KnifeDropdownValues = {
 }
 
 local KnifeGalleryItems = {}
-
 for _,Name in ipairs(KnifeDropdownValues) do
 	local Skin = KnifeSkins[Name]
-	table.insert(
-		KnifeGalleryItems,
-		{
-			Name = Name,
-			Image = Skin and Skin.Icon or "",
-		}
-	)
+	table.insert(KnifeGalleryItems,{
+		Name = Name,
+		Image = Skin and Skin.Icon or "",
+		Rarity = GetSkinRarity(Name,"Knife"),
+	})
 end
 
 local KnifeGallery =
 	UI.CreateImageSkinSelector(
-		UI.SkinChangerPage,
+		UI.SkinChangerKnifePage,
 		"Knife",
-		"Tap to browse knife skins",
+		"Tap a skin to equip it.",
 		"sword",
 		KnifeGalleryItems,
 		SkinChanger.SelectedKnife,
@@ -3374,10 +3364,6 @@ local KnifeGallery =
 			SelectKnifeSkin(Value,true)
 		end
 	)
-
-if not KnifeGallery then
-	warn("[SkinChanger] Failed to create Knife image gallery")
-end
 
 --============================================================
 -- HELD WEAPON POSITION UI
