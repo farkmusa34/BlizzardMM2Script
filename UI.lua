@@ -1169,6 +1169,220 @@ function UI.CreateDropdown(
 end
 
 --============================================================
+-- IMAGE SKIN SELECTOR
+--============================================================
+
+function UI.CreateImageSkinSelector(
+	page,
+	titleText,
+	description,
+	icon,
+	items,
+	selectedValue,
+	callback
+)
+	local parent = GetControlParent(page)
+
+	if not parent then
+		warn("[Blizzard UI] Image selector has no parent:", titleText)
+		return nil
+	end
+
+	items = items or {}
+
+	local overlay
+	local selected = tostring(selectedValue or "Default")
+
+	local function CloseGallery()
+		if overlay then
+			overlay:Destroy()
+			overlay = nil
+		end
+	end
+
+	local function OpenGallery()
+		CloseGallery()
+
+		overlay = Instance.new("Frame")
+		overlay.Name = "BlizzardSkinGallery_" .. tostring(titleText or "Skin")
+		overlay.AnchorPoint = Vector2.new(0.5,0.5)
+		overlay.Position = UDim2.fromScale(0.5,0.5)
+		overlay.Size = UDim2.new(0.72,0,0.78,0)
+		overlay.BackgroundColor3 = Color3.fromRGB(18,18,20)
+		overlay.BorderSizePixel = 0
+		overlay.ZIndex = 300
+		overlay.Parent = ScreenGui
+
+		local sizeLimit = Instance.new("UISizeConstraint")
+		sizeLimit.MinSize = Vector2.new(330,330)
+		sizeLimit.MaxSize = Vector2.new(760,620)
+		sizeLimit.Parent = overlay
+
+		local corner = Instance.new("UICorner")
+		corner.CornerRadius = UDim.new(0,14)
+		corner.Parent = overlay
+
+		local stroke = Instance.new("UIStroke")
+		stroke.Thickness = 1.2
+		stroke.Transparency = 0.18
+		stroke.Color = UI.CurrentThemeAccent or Color3.fromRGB(70,150,255)
+		stroke.Parent = overlay
+
+		local header = Instance.new("TextLabel")
+		header.BackgroundTransparency = 1
+		header.Position = UDim2.fromOffset(18,12)
+		header.Size = UDim2.new(1,-72,0,24)
+		header.Font = Enum.Font.GothamBold
+		header.Text = tostring(titleText or "Skins")
+		header.TextColor3 = Color3.fromRGB(245,245,245)
+		header.TextSize = 17
+		header.TextXAlignment = Enum.TextXAlignment.Left
+		header.ZIndex = 301
+		header.Parent = overlay
+
+		local hint = Instance.new("TextLabel")
+		hint.BackgroundTransparency = 1
+		hint.Position = UDim2.fromOffset(18,38)
+		hint.Size = UDim2.new(1,-36,0,20)
+		hint.Font = Enum.Font.Gotham
+		hint.Text = "Tap a skin to equip it"
+		hint.TextColor3 = Color3.fromRGB(155,155,165)
+		hint.TextSize = 12
+		hint.TextXAlignment = Enum.TextXAlignment.Left
+		hint.ZIndex = 301
+		hint.Parent = overlay
+
+		local close = Instance.new("TextButton")
+		close.AnchorPoint = Vector2.new(1,0)
+		close.Position = UDim2.new(1,-12,0,12)
+		close.Size = UDim2.fromOffset(32,32)
+		close.BackgroundColor3 = Color3.fromRGB(34,34,38)
+		close.BorderSizePixel = 0
+		close.Font = Enum.Font.GothamBold
+		close.Text = "×"
+		close.TextColor3 = Color3.fromRGB(235,235,240)
+		close.TextSize = 22
+		close.ZIndex = 302
+		close.Parent = overlay
+
+		local closeCorner = Instance.new("UICorner")
+		closeCorner.CornerRadius = UDim.new(0,9)
+		closeCorner.Parent = close
+
+		Track(close.MouseButton1Click:Connect(CloseGallery))
+
+		local scroll = Instance.new("ScrollingFrame")
+		scroll.Position = UDim2.fromOffset(14,68)
+		scroll.Size = UDim2.new(1,-28,1,-82)
+		scroll.BackgroundTransparency = 1
+		scroll.BorderSizePixel = 0
+		scroll.ScrollBarThickness = 4
+		scroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
+		scroll.CanvasSize = UDim2.fromOffset(0,0)
+		scroll.ZIndex = 301
+		scroll.Parent = overlay
+
+		local grid = Instance.new("UIGridLayout")
+		grid.CellPadding = UDim2.fromOffset(9,9)
+		grid.CellSize = UDim2.fromOffset(92,108)
+		grid.FillDirectionMaxCells = 6
+		grid.HorizontalAlignment = Enum.HorizontalAlignment.Center
+		grid.SortOrder = Enum.SortOrder.LayoutOrder
+		grid.Parent = scroll
+
+		for index,item in ipairs(items) do
+			local name = tostring(item.Name or "Skin")
+			local image = tostring(item.Image or "")
+
+			local tile = Instance.new("ImageButton")
+			tile.Name = "Skin_" .. name
+			tile.LayoutOrder = index
+			tile.BackgroundColor3 =
+				(name == selected)
+				and Color3.fromRGB(48,62,82)
+				or Color3.fromRGB(28,28,32)
+			tile.BorderSizePixel = 0
+			tile.Image = ""
+			tile.AutoButtonColor = false
+			tile.ZIndex = 302
+			tile.Parent = scroll
+
+			local tileCorner = Instance.new("UICorner")
+			tileCorner.CornerRadius = UDim.new(0,10)
+			tileCorner.Parent = tile
+
+			local tileStroke = Instance.new("UIStroke")
+			tileStroke.Thickness = (name == selected) and 1.5 or 1
+			tileStroke.Transparency = (name == selected) and 0.05 or 0.65
+			tileStroke.Color = UI.CurrentThemeAccent or Color3.fromRGB(70,150,255)
+			tileStroke.Parent = tile
+
+			local preview = Instance.new("ImageLabel")
+			preview.BackgroundTransparency = 1
+			preview.Position = UDim2.fromOffset(8,7)
+			preview.Size = UDim2.new(1,-16,0,74)
+			preview.Image = image
+			preview.ScaleType = Enum.ScaleType.Fit
+			preview.ZIndex = 303
+			preview.Parent = tile
+
+			local label = Instance.new("TextLabel")
+			label.BackgroundTransparency = 1
+			label.Position = UDim2.new(0,5,1,-24)
+			label.Size = UDim2.new(1,-10,0,20)
+			label.Font = Enum.Font.GothamMedium
+			label.Text = name
+			label.TextColor3 = Color3.fromRGB(225,225,230)
+			label.TextSize = 10
+			label.TextTruncate = Enum.TextTruncate.AtEnd
+			label.ZIndex = 303
+			label.Parent = tile
+
+			local function ShowName()
+				hint.Text = name
+			end
+
+			local function RestoreHint()
+				hint.Text = "Tap a skin to equip it"
+			end
+
+			Track(tile.MouseEnter:Connect(ShowName))
+			Track(tile.MouseLeave:Connect(RestoreHint))
+			Track(tile.SelectionGained:Connect(ShowName))
+			Track(tile.SelectionLost:Connect(RestoreHint))
+
+			Track(tile.MouseButton1Click:Connect(function()
+				selected = name
+				if callback then
+					local ok,err = pcall(callback,name)
+					if not ok then
+						warn("[Blizzard UI Image Selector]", titleText, err)
+					end
+				end
+				CloseGallery()
+			end))
+		end
+	end
+
+	local control = UI.CreateActionFeature(
+		page,
+		titleText,
+		description or "Tap to browse skins",
+		OpenGallery,
+		icon
+	)
+
+	return {
+		Control = control,
+		Open = OpenGallery,
+		Close = CloseGallery,
+		SetValue = function(_,value)
+			selected = tostring(value or "Default")
+		end,
+	}
+end
+
+--============================================================
 -- DYNAMIC INFO / PARAGRAPH
 --============================================================
 
