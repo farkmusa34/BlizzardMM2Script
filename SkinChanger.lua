@@ -39,164 +39,7 @@ assert(
 	"Load Shared.lua + UI.lua first"
 )
 
-
 print("[SkinChanger] Starting...")
-
---============================================================
--- READ-ONLY ROUND REAPPLY DIAGNOSTIC
---============================================================
-
-local SC_DIAG_T0 = os.clock()
-local SC_DIAG_RECORDING = false
-local SC_DIAG_LOGS = {}
-
-local function SCDiag(Message)
-	if not SC_DIAG_RECORDING then
-		return
-	end
-
-	local Line = string.format(
-		"[SC-DIAG %.4f] %s",
-		os.clock() - SC_DIAG_T0,
-		tostring(Message or "")
-	)
-
-	table.insert(SC_DIAG_LOGS, Line)
-	print(Line)
-end
-
-local function SCDiagTool(Tool, Label)
-	if not Tool then
-		SCDiag(tostring(Label) .. " | Tool=nil")
-		return
-	end
-
-	local Handle = Tool:FindFirstChild("Handle")
-	local Mesh = Handle and Handle:FindFirstChildOfClass("SpecialMesh")
-
-	SCDiag(string.format(
-		"%s | Name=%s | Parent=%s | TextureId=%s | Handle=%s | Mesh=%s | MeshId=%s | MeshTexture=%s",
-		tostring(Label),
-		tostring(Tool.Name),
-		Tool.Parent and Tool.Parent:GetFullName() or "nil",
-		tostring(Tool.TextureId),
-		tostring(Handle ~= nil),
-		tostring(Mesh ~= nil),
-		Mesh and tostring(Mesh.MeshId) or "nil",
-		Mesh and tostring(Mesh.TextureId) or "nil"
-	))
-end
-
-
---============================================================
--- DIAGNOSTIC CONTROL GUI
--- START RECORDING / COPY LOGS / CLEAR
---============================================================
-
-local function SCMakeButton(Parent, Text, Position, Width)
-	local Button = Instance.new("TextButton")
-	Button.Size = UDim2.fromOffset(Width, 38)
-	Button.Position = Position
-	Button.BackgroundColor3 = Color3.fromRGB(36, 36, 43)
-	Button.BorderSizePixel = 0
-	Button.Text = Text
-	Button.TextColor3 = Color3.fromRGB(255, 255, 255)
-	Button.TextSize = 12
-	Button.Font = Enum.Font.GothamBold
-	Button.Parent = Parent
-
-	local Corner = Instance.new("UICorner")
-	Corner.CornerRadius = UDim.new(0, 7)
-	Corner.Parent = Button
-
-	return Button
-end
-
-local SCGui = Instance.new("ScreenGui")
-SCGui.Name = "BlizzardSkinChangerDiagnostic"
-SCGui.ResetOnSpawn = false
-SCGui.DisplayOrder = 999999
-SCGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
-
-local SCMain = Instance.new("Frame")
-SCMain.Size = UDim2.fromOffset(390, 170)
-SCMain.Position = UDim2.new(0.5, -195, 0.5, -85)
-SCMain.BackgroundColor3 = Color3.fromRGB(20, 20, 24)
-SCMain.BorderSizePixel = 0
-SCMain.Active = true
-SCMain.Draggable = true
-SCMain.Parent = SCGui
-
-local SCCorner = Instance.new("UICorner")
-SCCorner.CornerRadius = UDim.new(0, 10)
-SCCorner.Parent = SCMain
-
-local SCTitle = Instance.new("TextLabel")
-SCTitle.Size = UDim2.new(1, -20, 0, 34)
-SCTitle.Position = UDim2.fromOffset(10, 7)
-SCTitle.BackgroundTransparency = 1
-SCTitle.Text = "SKIN CHANGER REAPPLY DIAGNOSTIC"
-SCTitle.TextColor3 = Color3.fromRGB(255, 255, 255)
-SCTitle.TextSize = 14
-SCTitle.Font = Enum.Font.GothamBold
-SCTitle.Parent = SCMain
-
-local SCStatus = Instance.new("TextLabel")
-SCStatus.Size = UDim2.new(1, -20, 0, 38)
-SCStatus.Position = UDim2.fromOffset(10, 40)
-SCStatus.BackgroundTransparency = 1
-SCStatus.Text = "Ready — press START RECORDING before the round transition."
-SCStatus.TextColor3 = Color3.fromRGB(190, 190, 200)
-SCStatus.TextSize = 11
-SCStatus.TextWrapped = true
-SCStatus.Font = Enum.Font.Gotham
-SCStatus.Parent = SCMain
-
-local SCStart = SCMakeButton(SCMain, "START RECORDING", UDim2.fromOffset(10, 91), 150)
-local SCCopy = SCMakeButton(SCMain, "COPY LOGS", UDim2.fromOffset(170, 91), 100)
-local SCClear = SCMakeButton(SCMain, "CLEAR", UDim2.fromOffset(280, 91), 100)
-
-SCStart.MouseButton1Click:Connect(function()
-	table.clear(SC_DIAG_LOGS)
-	SC_DIAG_T0 = os.clock()
-	SC_DIAG_RECORDING = true
-	SCDiag("============================================================")
-	SCDiag("BLIZZARD SKIN CHANGER INTERNAL REAPPLY DIAGNOSTIC")
-	SCDiag("============================================================")
-	SCDiag("RECORDING START")
-	SCDiag("SelectedGun=" .. tostring(SkinChanger.SelectedGun))
-	SCDiag("SelectedKnife=" .. tostring(SkinChanger.SelectedKnife))
-	SCStatus.Text = "RECORDING — keep the selected skin unchanged and get the Gun next round."
-end)
-
-SCCopy.MouseButton1Click:Connect(function()
-	local Output = table.concat(SC_DIAG_LOGS, "\\n")
-
-	if Output == "" then
-		Output = "BLIZZARD SKIN CHANGER DIAGNOSTIC: No logs recorded."
-	end
-
-	if setclipboard then
-		setclipboard(Output)
-	elseif toclipboard then
-		toclipboard(Output)
-	else
-		print(Output)
-	end
-
-	SCStatus.Text = "Logs copied."
-end)
-
-SCClear.MouseButton1Click:Connect(function()
-	table.clear(SC_DIAG_LOGS)
-	SC_DIAG_RECORDING = false
-	SC_DIAG_T0 = os.clock()
-	SCStatus.Text = "Cleared — press START RECORDING for another test."
-end)
-
-
-SCDiag("DIAGNOSTIC START | read-only logging added; SkinChanger behavior unchanged")
-
 
 --============================================================
 -- REFERENCES
@@ -225,6 +68,32 @@ local Backpack =
 
 local PlayerGui =
 	LocalPlayer:WaitForChild("PlayerGui")
+
+
+--============================================================
+-- BLIZZARD SKIN CHANGER GUI DIAGNOSTIC (READ ONLY)
+--============================================================
+local D={on=false,t=0,logs={},conns={}}
+local function disc() for _,c in ipairs(D.conns) do pcall(function() c:Disconnect() end) end table.clear(D.conns) end
+local old=PlayerGui:FindFirstChild("BlizzardSkinChangerDiagnostic") if old then old:Destroy() end
+local g=Instance.new("ScreenGui",PlayerGui); g.Name="BlizzardSkinChangerDiagnostic"; g.ResetOnSpawn=false; g.DisplayOrder=999999
+local f=Instance.new("Frame",g); f.Size=UDim2.fromOffset(440,400); f.Position=UDim2.new(.5,-220,.5,-200); f.BackgroundColor3=Color3.fromRGB(18,18,22); f.Active=true; f.Draggable=true
+Instance.new("UICorner",f).CornerRadius=UDim.new(0,10)
+local title=Instance.new("TextLabel",f); title.Size=UDim2.new(1,-20,0,30); title.Position=UDim2.fromOffset(10,8); title.BackgroundTransparency=1; title.Text="BLIZZARD SKIN CHANGER DIAGNOSTIC"; title.TextColor3=Color3.new(1,1,1); title.Font=Enum.Font.GothamBold; title.TextSize=14; title.TextXAlignment=Enum.TextXAlignment.Left
+local status=Instance.new("TextLabel",f); status.Size=UDim2.new(1,-20,0,36); status.Position=UDim2.fromOffset(10,40); status.BackgroundTransparency=1; status.Text="READY - press START RECORDING before the round transition."; status.TextColor3=Color3.fromRGB(205,205,215); status.Font=Enum.Font.Gotham; status.TextSize=11; status.TextWrapped=true; status.TextXAlignment=Enum.TextXAlignment.Left
+local sc=Instance.new("ScrollingFrame",f); sc.Size=UDim2.new(1,-20,1,-145); sc.Position=UDim2.fromOffset(10,80); sc.BackgroundColor3=Color3.fromRGB(9,9,12); sc.BorderSizePixel=0; sc.ScrollBarThickness=5; sc.AutomaticCanvasSize=Enum.AutomaticSize.Y; sc.CanvasSize=UDim2.new()
+Instance.new("UICorner",sc).CornerRadius=UDim.new(0,7)
+local tx=Instance.new("TextLabel",sc); tx.Size=UDim2.new(1,-12,0,0); tx.Position=UDim2.fromOffset(6,6); tx.AutomaticSize=Enum.AutomaticSize.Y; tx.BackgroundTransparency=1; tx.Text="Waiting to record..."; tx.TextColor3=Color3.fromRGB(230,230,235); tx.Font=Enum.Font.Code; tx.TextSize=11; tx.TextWrapped=true; tx.TextXAlignment=Enum.TextXAlignment.Left; tx.TextYAlignment=Enum.TextYAlignment.Top
+local function refresh() tx.Text=#D.logs>0 and table.concat(D.logs,"\n") or "Waiting to record..."; task.defer(function() sc.CanvasPosition=Vector2.new(0,sc.AbsoluteCanvasSize.Y) end) end
+local function log(m) if not D.on then return end local s=string.format("[%.4f] %s",os.clock()-D.t,tostring(m)); D.logs[#D.logs+1]=s; if #D.logs>500 then table.remove(D.logs,1) end; print("[SKIN-DIAG] "..s); refresh() end
+local function btn(txt,x,w) local b=Instance.new("TextButton",f); b.Size=UDim2.fromOffset(w,38); b.Position=UDim2.new(0,x,1,-48); b.BackgroundColor3=Color3.fromRGB(39,39,47); b.BorderSizePixel=0; b.Text=txt; b.TextColor3=Color3.new(1,1,1); b.Font=Enum.Font.GothamBold; b.TextSize=11; Instance.new("UICorner",b).CornerRadius=UDim.new(0,7); return b end
+local start=btn("START RECORDING",10,155); local copy=btn("COPY LOGS",175,115); local clear=btn("CLEAR",300,130)
+local function watchTool(tool,source) if not tool:IsA("Tool") or (tool.Name~="Gun" and tool.Name~="Knife") then return end; log("WEAPON DETECTED | Source="..source.." | Name="..tool.Name.." | TextureId="..tostring(tool.TextureId)); D.conns[#D.conns+1]=tool:GetPropertyChangedSignal("TextureId"):Connect(function() log(">>> WEAPON TEXTURE CHANGED | Name="..tool.Name.." | TextureId="..tostring(tool.TextureId)) end); D.conns[#D.conns+1]=tool:GetPropertyChangedSignal("Parent"):Connect(function() log("WEAPON PARENT CHANGED | Name="..tool.Name.." | Parent="..tostring(tool.Parent)) end) end
+local function watchIcon(x,source) if not x:IsA("ImageLabel") or x.Name~="ToolIcon" then return end; log("TOOLICON DETECTED | Source="..source.." | Path="..x:GetFullName().." | Image="..tostring(x.Image)); D.conns[#D.conns+1]=x:GetPropertyChangedSignal("Image"):Connect(function() log(">>> TOOLICON IMAGE CHANGED | Image="..tostring(x.Image).." | Path="..x:GetFullName()) end) end
+local function attach() disc(); for _,x in ipairs(Backpack:GetChildren()) do watchTool(x,"Initial Backpack") end; for _,x in ipairs(PlayerGui:GetDescendants()) do watchIcon(x,"Initial PlayerGui") end; D.conns[#D.conns+1]=Backpack.ChildAdded:Connect(function(x) if x:IsA("Tool") and (x.Name=="Gun" or x.Name=="Knife") then log(">>> BACKPACK WEAPON ADDED | Name="..x.Name.." | TextureId="..tostring(x.TextureId)); watchTool(x,"BACKPACK.ChildAdded") end end); D.conns[#D.conns+1]=PlayerGui.DescendantAdded:Connect(function(x) watchIcon(x,"PlayerGui.DescendantAdded") end); D.conns[#D.conns+1]=LocalPlayer.CharacterAdded:Connect(function(c) log(">>> CHARACTER ADDED | "..c:GetFullName()); D.conns[#D.conns+1]=c.ChildAdded:Connect(function(x) watchTool(x,"Character.ChildAdded") end) end); local c=LocalPlayer.Character; if c then D.conns[#D.conns+1]=c.ChildAdded:Connect(function(x) watchTool(x,"Character.ChildAdded") end) end end
+start.MouseButton1Click:Connect(function() disc(); table.clear(D.logs); D.t=os.clock(); D.on=true; status.Text="RECORDING - keep Gingerscope selected, let the round end, then receive Gun."; log("============================================================"); log("BLIZZARD SKIN CHANGER ROUND LIFECYCLE DIAGNOSTIC"); log("============================================================"); log("TEST START"); log("Player="..LocalPlayer.Name); log("SelectedGun="..tostring(MM2.SkinChanger and MM2.SkinChanger.SelectedGun)); log("SelectedKnife="..tostring(MM2.SkinChanger and MM2.SkinChanger.SelectedKnife)); attach(); log("LIVE WATCH ACTIVE - wait for the next Gun.") end)
+copy.MouseButton1Click:Connect(function() local s=table.concat(D.logs,"\n"); if s=="" then s="No diagnostic logs recorded." end; if setclipboard then setclipboard(s) elseif toclipboard then toclipboard(s) else print(s) end; status.Text="COPIED - send the logs back here." end)
+clear.MouseButton1Click:Connect(function() D.on=false; disc(); table.clear(D.logs); refresh(); status.Text="CLEARED - press START RECORDING for another test." end)
 
 --============================================================
 -- MODULE STATE
@@ -2300,8 +2169,6 @@ local function ApplyGunSkinToTool(
 	Gun,
 	Skin
 )
-	SCDiag("ApplyGunSkinToTool ENTER | SelectedGun=" .. tostring(SkinChanger.SelectedGun))
-	SCDiagTool(Gun, "ApplyGunSkinToTool BEFORE")
 	if not Gun
 		or not Skin
 		or not Gun:IsA("Tool")
@@ -2399,8 +2266,6 @@ local function ApplyGunSkinToTool(
 		)
 	end
 
-	SCDiag("ApplyGunSkinToTool EXIT | Success=" .. tostring(Success) .. " | DesiredIcon=" .. tostring(Skin.Icon))
-	SCDiagTool(Gun, "ApplyGunSkinToTool AFTER")
 	return Success
 end
 
@@ -3095,11 +2960,6 @@ local function ApplyCurrentGunSkin()
 	local Gun =
 		GetGun()
 
-	SCDiag("ApplyCurrentGunSkin | SelectedGun=" .. tostring(Selected) .. " | Gun=" .. tostring(Gun and Gun:GetFullName() or "nil"))
-	if Gun then
-		SCDiagTool(Gun, "ApplyCurrentGunSkin FOUND")
-	end
-
 	if Selected == "Default" then
 
 		if Gun then
@@ -3666,8 +3526,6 @@ print(
 --============================================================
 
 local function WatchGun(Gun)
-	SCDiag("WatchGun ENTER | CurrentGunSame=" .. tostring(CurrentGun == Gun))
-	SCDiagTool(Gun, "WatchGun INPUT")
 	if not Gun
 		or not Gun:IsA("Tool")
 		or Gun.Name ~= "Gun"
@@ -3676,7 +3534,6 @@ local function WatchGun(Gun)
 	end
 
 	if CurrentGun == Gun then
-		SCDiag("WatchGun SAME TOOL branch -> existing reapply path")
 		-- MM2 can reuse the same Gun Tool between round states.
 		-- Reapply the selected cosmetic whenever that known Gun returns.
 		ApplyCurrentGunSkin()
@@ -3686,7 +3543,6 @@ local function WatchGun(Gun)
 	end
 
 	CurrentGun = Gun
-	SCDiag("WatchGun NEW TOOL branch | CurrentGun assigned")
 
 	-- A gun selected during intermission can be created before MM2 has
 	-- finished rebuilding BackpackUI. Do a short full refresh window so
@@ -3694,7 +3550,6 @@ local function WatchGun(Gun)
 	task.spawn(function()
 		for _,Delay in ipairs({0.10, 0.20, 0.35, 0.55, 0.80, 1.10}) do
 			task.wait(Delay)
-			SCDiag("WatchGun delayed reapply | Delay=" .. tostring(Delay) .. " | Parent=" .. tostring(Gun.Parent and Gun.Parent:GetFullName() or "nil"))
 
 			if not Gun.Parent then
 				return
@@ -3817,7 +3672,6 @@ local function HookCharacter(Character)
 	Track(
 		Character.ChildAdded:
 		Connect(function(Child)
-			SCDiag("Character.ChildAdded | Name=" .. tostring(Child.Name) .. " | Class=" .. tostring(Child.ClassName))
 
 			CheckChild(
 				Child
@@ -3908,10 +3762,6 @@ local WatcherOK, WatcherError =
 		Track(
 			Backpack.ChildAdded:
 			Connect(function(Child)
-				SCDiag("Backpack.ChildAdded | Name=" .. tostring(Child.Name) .. " | Class=" .. tostring(Child.ClassName))
-				if Child:IsA("Tool") then
-					SCDiagTool(Child, "Backpack.ChildAdded TOOL")
-				end
 
 				CheckChild(
 					Child
@@ -3943,7 +3793,6 @@ local WatcherOK, WatcherError =
 		Track(
 			LocalPlayer.CharacterAdded:
 			Connect(function(Character)
-				SCDiag("CharacterAdded | " .. tostring(Character:GetFullName()))
 
 				CurrentGun = nil
 				CurrentKnife = nil
@@ -3985,8 +3834,6 @@ local WatcherOK, WatcherError =
 				then
 					return
 				end
-
-				SCDiag("ToolIcon DescendantAdded | Path=" .. Descendant:GetFullName() .. " | Image=" .. tostring(Descendant.Image))
 
 				task.defer(function()
 
@@ -4177,9 +4024,6 @@ if ExistingKnife then
 		ApplyCurrentKnifeSkin()
 	end)
 end
-
-SCDiag("LOADED | SelectedGun=" .. tostring(SkinChanger.SelectedGun) .. " | SelectedKnife=" .. tostring(SkinChanger.SelectedKnife))
-SCDiagTool(GetGun(), "LOADED CURRENT GUN")
 
 print(
 	"[Blizzard MM2] SkinChanger.lua loaded"
