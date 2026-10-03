@@ -1647,6 +1647,7 @@ local function SaveOriginalGun(Gun)
 	if not Gun
 		or SavedGunState[Gun]
 	then
+		log("INTERNAL ApplyGunSkinToTool REJECT | invalid Gun/tool/name")
 		return false
 	end
 
@@ -1657,6 +1658,7 @@ local function SaveOriginalGun(Gun)
 	if not Handle
 		or not Handle:IsA("BasePart")
 	then
+		log("INTERNAL ApplyGunSkinToTool REJECT | Handle missing/invalid")
 		return false
 	end
 
@@ -2169,6 +2171,15 @@ local function ApplyGunSkinToTool(
 	Gun,
 	Skin
 )
+	log(
+		"INTERNAL ApplyGunSkinToTool ENTER | Gun="
+		.. tostring(Gun and Gun:GetFullName() or "nil")
+		.. " | Skin="
+		.. tostring(SkinChanger.SelectedGun)
+		.. " | DesiredIcon="
+		.. tostring(Skin and Skin.Icon or "nil")
+	)
+
 	if not Gun
 		or not Skin
 		or not Gun:IsA("Tool")
@@ -2196,6 +2207,7 @@ local function ApplyGunSkinToTool(
 		)
 
 	if not Mesh then
+		log("INTERNAL ApplyGunSkinToTool REJECT | SpecialMesh missing")
 		return false
 	end
 
@@ -2265,6 +2277,15 @@ local function ApplyGunSkinToTool(
 			Skin.Icon
 		)
 	end
+
+	log(
+		"INTERNAL ApplyGunSkinToTool EXIT | Success="
+		.. tostring(Success)
+		.. " | TextureId="
+		.. tostring(Gun.TextureId)
+		.. " | Expected="
+		.. tostring(Skin.Icon)
+	)
 
 	return Success
 end
@@ -2960,6 +2981,22 @@ local function ApplyCurrentGunSkin()
 	local Gun =
 		GetGun()
 
+	log(
+		"INTERNAL ApplyCurrentGunSkin ENTER | SelectedGun="
+		.. tostring(Selected)
+		.. " | GetGun="
+		.. tostring(Gun and Gun:GetFullName() or "nil")
+	)
+
+	if Gun then
+		log(
+			"INTERNAL GetGun STATE | TextureId="
+			.. tostring(Gun.TextureId)
+			.. " | Parent="
+			.. tostring(Gun.Parent and Gun.Parent:GetFullName() or "nil")
+		)
+	end
+
 	if Selected == "Default" then
 
 		if Gun then
@@ -2979,7 +3016,12 @@ local function ApplyCurrentGunSkin()
 		]
 
 	if not Skin then
+		log("INTERNAL ApplyCurrentGunSkin EXIT | Skin lookup failed for " .. tostring(Selected))
 		return
+	end
+
+	if not Gun then
+		log("INTERNAL ApplyCurrentGunSkin | selected skin exists but GetGun=nil")
 	end
 
 	if Gun then
@@ -3526,6 +3568,13 @@ print(
 --============================================================
 
 local function WatchGun(Gun)
+	log(
+		"INTERNAL WatchGun ENTER | Gun="
+		.. tostring(Gun and Gun:GetFullName() or "nil")
+		.. " | SameAsCurrent="
+		.. tostring(CurrentGun == Gun)
+	)
+
 	if not Gun
 		or not Gun:IsA("Tool")
 		or Gun.Name ~= "Gun"
@@ -3534,6 +3583,7 @@ local function WatchGun(Gun)
 	end
 
 	if CurrentGun == Gun then
+		log("INTERNAL WatchGun BRANCH | reused/current Gun")
 		-- MM2 can reuse the same Gun Tool between round states.
 		-- Reapply the selected cosmetic whenever that known Gun returns.
 		ApplyCurrentGunSkin()
@@ -3543,6 +3593,7 @@ local function WatchGun(Gun)
 	end
 
 	CurrentGun = Gun
+	log("INTERNAL WatchGun BRANCH | new Gun assigned to CurrentGun")
 
 	-- A gun selected during intermission can be created before MM2 has
 	-- finished rebuilding BackpackUI. Do a short full refresh window so
@@ -3550,6 +3601,13 @@ local function WatchGun(Gun)
 	task.spawn(function()
 		for _,Delay in ipairs({0.10, 0.20, 0.35, 0.55, 0.80, 1.10}) do
 			task.wait(Delay)
+
+			log(
+				"INTERNAL WatchGun delayed refresh | Delay="
+				.. tostring(Delay)
+				.. " | Parent="
+				.. tostring(Gun.Parent and Gun.Parent:GetFullName() or "nil")
+			)
 
 			if not Gun.Parent then
 				return
@@ -3769,6 +3827,12 @@ local WatcherOK, WatcherError =
 
 				if Child:IsA("Tool") then
 					if Child.Name == "Gun" then
+						log(
+							"INTERNAL REAL Backpack.ChildAdded GUN | TextureId="
+							.. tostring(Child.TextureId)
+							.. " | SelectedGun="
+							.. tostring(SkinChanger.SelectedGun)
+						)
 						-- Force a complete refresh every time the round gives us Gun,
 						-- including cases where MM2 reuses an already-known Tool instance.
 						ApplyCurrentGunSkin()
@@ -3846,6 +3910,13 @@ local WatcherOK, WatcherError =
 
 					local Gun =
 						GetGun()
+
+					log(
+						"INTERNAL REAL ToolIcon +50ms | GetGun="
+						.. tostring(Gun and Gun:GetFullName() or "nil")
+						.. " | SelectedGun="
+						.. tostring(SkinChanger.SelectedGun)
+					)
 
 					if Knife
 						and SkinChanger.SelectedKnife
