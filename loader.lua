@@ -672,7 +672,8 @@ if not RequireModule("Player.lua") then return end
 if not RequireModule("Teleport.lua") then return end
 if not RequireModule("Fling.lua") then return end
 if not RequireModule("Misc.lua") then return end
-if not RequireModule("SkinChanger.lua") then return end
+if not RequireModule("GunSkin.lua") then return end
+if not RequireModule("KnifeSkin.lua") then return end
 if not RequireModule("Main.lua") then return end
 
 --============================================================
