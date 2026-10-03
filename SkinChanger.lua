@@ -2956,6 +2956,11 @@ local function ApplyCurrentGunSkin()
 			Gun,
 			Skin
 		)
+	else
+		-- Hotbar persistence is independent of the physical Gun.
+		ReapplySelectedHotbarIcon(
+			"Gun"
+		)
 	end
 
 	ApplyGunSkinToHolster(
@@ -3673,357 +3678,6 @@ local function HookWeaponDisplays(
 	)
 end
 
-
---============================================================
--- BLIZZARD HOTBAR DIAGNOSTIC V2
--- Integrated into this exact SkinChanger build.
--- Diagnostic is observation-only: it never writes Image/TextureId.
---============================================================
-
-local HotbarDiag = {
-	Recording = false,
-	StartClock = 0,
-	Logs = {},
-	Connections = {},
-	Watched = setmetatable({}, {__mode = "k"}),
-}
-
-local function HDTime()
-	return HotbarDiag.Recording and (os.clock() - HotbarDiag.StartClock) or 0
-end
-
-local function HDPath(Object)
-	local OK, Result = pcall(function()
-		return Object:GetFullName()
-	end)
-	return OK and Result or tostring(Object)
-end
-
-local function HDLog(Message)
-	if not HotbarDiag.Recording then
-		return
-	end
-
-	table.insert(
-		HotbarDiag.Logs,
-		string.format("[%0.4f] %s", HDTime(), tostring(Message))
-	)
-
-	if HotbarDiag.Output then
-		HotbarDiag.Output.Text = table.concat(HotbarDiag.Logs, "\n")
-	end
-end
-
-local function HDTrack(Connection)
-	table.insert(HotbarDiag.Connections, Connection)
-end
-
-local function HDDisconnect()
-	for _, Connection in ipairs(HotbarDiag.Connections) do
-		pcall(function()
-			Connection:Disconnect()
-		end)
-	end
-	table.clear(HotbarDiag.Connections)
-	HotbarDiag.Watched = setmetatable({}, {__mode = "k"})
-end
-
-local function HDWatchGun(Gun, Source)
-	if not HotbarDiag.Recording
-		or not Gun
-		or HotbarDiag.Watched[Gun]
-	then
-		return
-	end
-
-	HotbarDiag.Watched[Gun] = true
-
-	HDLog(
-		"GUN DETECTED | Source=" .. tostring(Source)
-		.. " | TextureId=" .. tostring(Gun.TextureId)
-		.. " | Path=" .. HDPath(Gun)
-		.. " | SelectedGun=" .. tostring(SkinChanger.SelectedGun)
-	)
-
-	HDTrack(
-		Gun:GetPropertyChangedSignal("TextureId"):Connect(function()
-			HDLog(
-				">>> GUN TextureId CHANGED | TextureId="
-				.. tostring(Gun.TextureId)
-				.. " | SelectedGun=" .. tostring(SkinChanger.SelectedGun)
-				.. " | Path=" .. HDPath(Gun)
-			)
-		end)
-	)
-
-	HDTrack(
-		Gun.AncestryChanged:Connect(function(_, Parent)
-			HDLog(
-				"GUN PARENT CHANGED | Parent="
-				.. (Parent and HDPath(Parent) or "nil")
-				.. " | TextureId=" .. tostring(Gun.TextureId)
-			)
-		end)
-	)
-end
-
-local function HDWatchToolIcon(ToolIcon, Source)
-	if not HotbarDiag.Recording
-		or not ToolIcon
-		or HotbarDiag.Watched[ToolIcon]
-	then
-		return
-	end
-
-	HotbarDiag.Watched[ToolIcon] = true
-
-	HDLog(
-		"TOOLICON DETECTED | Source=" .. tostring(Source)
-		.. " | Image=" .. tostring(ToolIcon.Image)
-		.. " | Path=" .. HDPath(ToolIcon)
-		.. " | SelectedGun=" .. tostring(SkinChanger.SelectedGun)
-	)
-
-	HDTrack(
-		ToolIcon:GetPropertyChangedSignal("Image"):Connect(function()
-			HDLog(
-				">>> TOOLICON IMAGE CHANGED | Image="
-				.. tostring(ToolIcon.Image)
-				.. " | SelectedGun=" .. tostring(SkinChanger.SelectedGun)
-				.. " | GetGun=" .. tostring(GetGun())
-				.. " | Path=" .. HDPath(ToolIcon)
-			)
-		end)
-	)
-
-	HDTrack(
-		ToolIcon.AncestryChanged:Connect(function(_, Parent)
-			HDLog(
-				"TOOLICON PARENT CHANGED | Parent="
-				.. (Parent and HDPath(Parent) or "nil")
-				.. " | Image=" .. tostring(ToolIcon.Image)
-			)
-		end)
-	)
-end
-
-local function HDSnapshot(Reason)
-	if not HotbarDiag.Recording then
-		return
-	end
-
-	local Gun = GetGun()
-	local Icons = GetVisibleToolIcons()
-
-	HDLog(
-		"SNAPSHOT | Reason=" .. tostring(Reason)
-		.. " | SelectedGun=" .. tostring(SkinChanger.SelectedGun)
-		.. " | GetGun=" .. tostring(Gun)
-		.. " | GunTexture=" .. tostring(Gun and Gun.TextureId or "nil")
-		.. " | ToolIcons=" .. tostring(#Icons)
-	)
-
-	for Index, ToolIcon in ipairs(Icons) do
-		HDLog(
-			"  ICON #" .. tostring(Index)
-			.. " | Image=" .. tostring(ToolIcon.Image)
-			.. " | Path=" .. HDPath(ToolIcon)
-		)
-	end
-end
-
-local function HDScan()
-	local Gun = GetGun()
-	if Gun then
-		HDWatchGun(Gun, "SCAN")
-	end
-
-	for _, ToolIcon in ipairs(GetVisibleToolIcons()) do
-		HDWatchToolIcon(ToolIcon, "SCAN")
-	end
-end
-
-local function HDStart()
-	HDDisconnect()
-	table.clear(HotbarDiag.Logs)
-	HotbarDiag.StartClock = os.clock()
-	HotbarDiag.Recording = true
-
-	HDLog("============================================================")
-	HDLog("BLIZZARD HOTBAR DIAGNOSTIC V2")
-	HDLog("============================================================")
-	HDLog("TEST START")
-	HDLog("SelectedGun=" .. tostring(SkinChanger.SelectedGun))
-	HDLog("READ ONLY: diagnostic does not write ToolIcon.Image or Gun.TextureId")
-
-	HDScan()
-	HDSnapshot("START")
-
-	HDTrack(
-		Backpack.ChildAdded:Connect(function(Child)
-			if Child:IsA("Tool") and Child.Name == "Gun" then
-				HDLog(
-					"BACKPACK GUN ADDED | TextureId="
-					.. tostring(Child.TextureId)
-					.. " | SelectedGun=" .. tostring(SkinChanger.SelectedGun)
-				)
-				HDWatchGun(Child, "Backpack.ChildAdded")
-				task.defer(function()
-					task.wait(0.05)
-					HDSnapshot("50ms after Backpack Gun")
-				end)
-			end
-		end)
-	)
-
-	HDTrack(
-		PlayerGui.DescendantAdded:Connect(function(Descendant)
-			if Descendant.Name == "ToolIcon"
-				and (
-					Descendant:IsA("ImageLabel")
-					or Descendant:IsA("ImageButton")
-				)
-				and Descendant:FindFirstAncestor("BackpackFrame")
-			then
-				HDWatchToolIcon(Descendant, "PlayerGui.DescendantAdded")
-				task.defer(function()
-					task.wait(0.05)
-					HDSnapshot("50ms after ToolIcon")
-				end)
-			end
-		end)
-	)
-
-	HDLog("LIVE WATCH ACTIVE")
-end
-
-local function HDClearStop()
-	HotbarDiag.Recording = false
-	HDDisconnect()
-	table.clear(HotbarDiag.Logs)
-	if HotbarDiag.Output then
-		HotbarDiag.Output.Text = ""
-	end
-	if HotbarDiag.Status then
-		HotbarDiag.Status.Text = "Stopped - logs cleared"
-	end
-end
-
--- Small independent diagnostic panel. It is parented directly to PlayerGui
--- and does not create/replace any WindUI tab or SkinChanger section.
-local function HDCreatePanel()
-	local Old = PlayerGui:FindFirstChild("BlizzardHotbarDiagnosticV2")
-	if Old then
-		Old:Destroy()
-	end
-
-	local Gui = Instance.new("ScreenGui")
-	Gui.Name = "BlizzardHotbarDiagnosticV2"
-	Gui.ResetOnSpawn = false
-	Gui.DisplayOrder = 999999
-	Gui.Parent = PlayerGui
-
-	local Main = Instance.new("Frame")
-	Main.Size = UDim2.fromOffset(430, 310)
-	Main.Position = UDim2.new(0.5, -215, 0.5, -155)
-	Main.BackgroundColor3 = Color3.fromRGB(20, 20, 23)
-	Main.BorderSizePixel = 0
-	Main.Active = true
-	Main.Draggable = true
-	Main.Parent = Gui
-	Instance.new("UICorner", Main).CornerRadius = UDim.new(0, 9)
-
-	local Title = Instance.new("TextLabel")
-	Title.BackgroundTransparency = 1
-	Title.Position = UDim2.fromOffset(10, 7)
-	Title.Size = UDim2.new(1, -20, 0, 22)
-	Title.Font = Enum.Font.GothamBold
-	Title.TextSize = 13
-	Title.TextColor3 = Color3.new(1, 1, 1)
-	Title.TextXAlignment = Enum.TextXAlignment.Left
-	Title.Text = "Hotbar Diagnostic"
-	Title.Parent = Main
-
-	local Status = Instance.new("TextLabel")
-	Status.BackgroundTransparency = 1
-	Status.Position = UDim2.fromOffset(10, 29)
-	Status.Size = UDim2.new(1, -20, 0, 18)
-	Status.Font = Enum.Font.Gotham
-	Status.TextSize = 10
-	Status.TextColor3 = Color3.fromRGB(190, 190, 195)
-	Status.TextXAlignment = Enum.TextXAlignment.Left
-	Status.Text = "Stopped"
-	Status.Parent = Main
-	HotbarDiag.Status = Status
-
-	local Scroll = Instance.new("ScrollingFrame")
-	Scroll.Position = UDim2.fromOffset(8, 52)
-	Scroll.Size = UDim2.new(1, -16, 1, -94)
-	Scroll.BackgroundColor3 = Color3.fromRGB(13, 13, 15)
-	Scroll.BorderSizePixel = 0
-	Scroll.ScrollBarThickness = 3
-	Scroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
-	Scroll.CanvasSize = UDim2.fromOffset(0, 0)
-	Scroll.Parent = Main
-	Instance.new("UICorner", Scroll).CornerRadius = UDim.new(0, 6)
-
-	local Output = Instance.new("TextLabel")
-	Output.BackgroundTransparency = 1
-	Output.Position = UDim2.fromOffset(6, 5)
-	Output.Size = UDim2.new(1, -12, 0, 0)
-	Output.AutomaticSize = Enum.AutomaticSize.Y
-	Output.Font = Enum.Font.Code
-	Output.TextSize = 9
-	Output.TextColor3 = Color3.fromRGB(225, 225, 230)
-	Output.TextXAlignment = Enum.TextXAlignment.Left
-	Output.TextYAlignment = Enum.TextYAlignment.Top
-	Output.Text = ""
-	Output.Parent = Scroll
-	HotbarDiag.Output = Output
-
-	local function MakeButton(Text, X)
-		local Button = Instance.new("TextButton")
-		Button.Size = UDim2.new(1/3, -7, 0, 28)
-		Button.Position = UDim2.new(X, 0, 1, -34)
-		Button.BackgroundColor3 = Color3.fromRGB(40, 40, 45)
-		Button.TextColor3 = Color3.new(1, 1, 1)
-		Button.Font = Enum.Font.GothamSemibold
-		Button.TextSize = 10
-		Button.Text = Text
-		Button.Parent = Main
-		Instance.new("UICorner", Button).CornerRadius = UDim.new(0, 6)
-		return Button
-	end
-
-	local Start = MakeButton("START RECORDING", 0)
-	Start.Position = UDim2.new(0, 8, 1, -34)
-
-	local Copy = MakeButton("COPY LOGS", 1/3)
-	Copy.Position = UDim2.new(1/3, 3, 1, -34)
-
-	local Clear = MakeButton("CLEAR / STOP", 2/3)
-	Clear.Position = UDim2.new(2/3, -2, 1, -34)
-
-	Start.MouseButton1Click:Connect(function()
-		HDStart()
-		Status.Text = "RECORDING - reproduce the hotbar failure"
-	end)
-
-	Copy.MouseButton1Click:Connect(function()
-		local Combined = table.concat(HotbarDiag.Logs, "\n")
-		if setclipboard then
-			pcall(setclipboard, Combined)
-		elseif toclipboard then
-			pcall(toclipboard, Combined)
-		end
-		Status.Text = HotbarDiag.Recording and "RECORDING - logs copied" or "Stopped - logs copied"
-	end)
-
-	Clear.MouseButton1Click:Connect(HDClearStop)
-end
-
-HDCreatePanel()
-
 --============================================================
 -- START WATCHERS
 --============================================================
@@ -4041,10 +3695,6 @@ local WatcherOK, WatcherError =
 
 				if Child:IsA("Tool") then
 					if Child.Name == "Gun" then
-						if HotbarDiag.Recording then
-							HDLog("SKINCHANGER WATCHER | Backpack Gun branch entered | SelectedGun=" .. tostring(SkinChanger.SelectedGun))
-							HDWatchGun(Child, "SkinChanger Backpack watcher")
-						end
 						-- Force a complete refresh every time the round gives us Gun,
 						-- including cases where MM2 reuses an already-known Tool instance.
 						ApplyCurrentGunSkin()
@@ -4117,17 +3767,22 @@ local WatcherOK, WatcherError =
 						0.05
 					)
 
-					if HotbarDiag.Recording then
-						HDLog("SKINCHANGER WATCHER | ToolIcon 50ms handler entered | Image=" .. tostring(Descendant.Image) .. " | SelectedGun=" .. tostring(SkinChanger.SelectedGun))
-						HDWatchToolIcon(Descendant, "SkinChanger ToolIcon watcher")
-					end
-
 					local Knife =
 						GetKnife()
 
 					local Gun =
 						GetGun()
 
+					-- IMPORTANT:
+					-- MM2 can create the live Gun hotbar slot before the
+					-- physical Gun exists in Backpack/Character. The selected
+					-- hotbar cosmetic must therefore be restored independently
+					-- of GetGun().
+					--
+					-- If a real Knife/Gun already exists, preserve the normal
+					-- physical-tool application path. If neither exists yet,
+					-- the live ToolIcon's default Gun image tells us this is
+					-- the Gun slot, so restore the selected Gun icon directly.
 					if Knife
 						and SkinChanger.SelectedKnife
 							~= "Default"
@@ -4141,6 +3796,27 @@ local WatcherOK, WatcherError =
 					then
 						ApplyCurrentGunSkin()
 						QueueHotbarIconRefresh("Gun")
+
+					elseif not Knife
+						and not Gun
+						and SkinChanger.SelectedGun
+							~= "Default"
+						and tostring(Descendant.Image):
+							find(
+								"197518111",
+								1,
+								true
+							)
+					then
+						-- Diagnosed failure path:
+						-- ToolIcon exists and MM2 has written the default Gun
+						-- icon, but GetGun() is still nil.
+						ReapplySelectedHotbarIcon(
+							"Gun"
+						)
+						QueueHotbarIconRefresh(
+							"Gun"
+						)
 					end
 				end)
 			end)
