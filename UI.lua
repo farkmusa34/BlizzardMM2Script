@@ -1307,12 +1307,20 @@ function UI.CreateImageSkinSelector(
 
 			local preview = Instance.new("ImageLabel")
 			preview.BackgroundTransparency = 1
-			preview.Position = UDim2.fromOffset(4,3)
+			-- Keep the existing 4x4 cards unchanged; enlarge only the weapon art.
+			-- Center anchoring makes the 1.25x growth expand evenly in every direction.
+			preview.AnchorPoint = Vector2.new(0.5,0.5)
+			preview.Position = UDim2.new(0.5,0,0,23)
 			preview.Size = UDim2.new(1,-8,0,41)
 			preview.Image = image
 			preview.ScaleType = Enum.ScaleType.Fit
 			preview.ZIndex = 22
 			preview.Parent = tile
+
+			local previewScale = Instance.new("UIScale")
+			previewScale.Name = "WeaponPreviewScale"
+			previewScale.Scale = 1.25
+			previewScale.Parent = preview
 
 			local label = Instance.new("TextLabel")
 			label.BackgroundTransparency = 1
