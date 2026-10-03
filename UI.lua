@@ -611,12 +611,12 @@ task.spawn(function()
 	local arrow = Instance.new("TextLabel")
 	arrow.Name = "BlizzardSkinChangerArrow"
 	arrow.AnchorPoint = Vector2.new(1,0.5)
-	arrow.Position = UDim2.new(1,-10,0.5,0)
+	arrow.Position = UDim2.new(1,-12,0.5,0)
 	arrow.Size = UDim2.fromOffset(18,18)
 	arrow.BackgroundTransparency = 1
 	arrow.Font = Enum.Font.GothamBold
 	arrow.Text = "⌃"
-	arrow.TextColor3 = Color3.fromRGB(180,180,188)
+	arrow.TextColor3 = Color3.fromRGB(165,165,174)
 	arrow.TextSize = 16
 	arrow.ZIndex = 100
 	arrow.Parent = skinRow
@@ -635,7 +635,7 @@ task.spawn(function()
 	hit.Name = "BlizzardSkinChangerExpandHitbox"
 	hit.AnchorPoint = Vector2.new(1,0)
 	hit.Position = UDim2.new(1,-2,0,0)
-	hit.Size = UDim2.fromOffset(36,skinRow.AbsoluteSize.Y)
+	hit.Size = UDim2.fromOffset(44,skinRow.AbsoluteSize.Y)
 	hit.BackgroundTransparency = 1
 	hit.Text = ""
 	hit.ZIndex = 101
@@ -1350,15 +1350,15 @@ function UI.CreateImageSkinSelector(
 		root = Instance.new("Frame")
 		root.Name = "BlizzardEmbeddedSkinGallery_" .. tostring(titleText)
 		root.BackgroundTransparency = 1
-		root.Size = UDim2.new(1, -12, 0, 560)
+		root.Size = UDim2.new(1, -8, 0, 560)
 		root.AutomaticSize = Enum.AutomaticSize.None
 		root.LayoutOrder = -10000
 		root.Parent = parent
 
 		local search = Instance.new("TextBox")
 		search.Name = "Search"
-		search.Position = UDim2.fromOffset(6, 4)
-		search.Size = UDim2.new(1, -12, 0, 48)
+		search.Position = UDim2.fromOffset(4, 2)
+		search.Size = UDim2.new(1, -8, 0, 42)
 		search.BackgroundColor3 = Color3.fromRGB(27,27,30)
 		search.BorderSizePixel = 0
 		search.ClearTextOnFocus = false
@@ -1373,8 +1373,8 @@ function UI.CreateImageSkinSelector(
 		search.Parent = root
 
 		local searchPadding = Instance.new("UIPadding")
-		searchPadding.PaddingLeft = UDim.new(0,16)
-		searchPadding.PaddingRight = UDim.new(0,16)
+		searchPadding.PaddingLeft = UDim.new(0,14)
+		searchPadding.PaddingRight = UDim.new(0,14)
 		searchPadding.Parent = search
 
 		local searchCorner = Instance.new("UICorner")
@@ -1384,8 +1384,8 @@ function UI.CreateImageSkinSelector(
 		local helper = Instance.new("TextLabel")
 		helper.Name = "Helper"
 		helper.BackgroundTransparency = 1
-		helper.Position = UDim2.fromOffset(6, 60)
-		helper.Size = UDim2.new(1,-12,0,24)
+		helper.Position = UDim2.fromOffset(4, 49)
+		helper.Size = UDim2.new(1,-8,0,21)
 		helper.Font = Enum.Font.Gotham
 		helper.Text = "Tap a skin to equip it."
 		helper.TextColor3 = Color3.fromRGB(175,175,182)
@@ -1396,8 +1396,8 @@ function UI.CreateImageSkinSelector(
 
 		local scroll = Instance.new("ScrollingFrame")
 		scroll.Name = "SkinGrid"
-		scroll.Position = UDim2.fromOffset(6, 92)
-		scroll.Size = UDim2.new(1,-12,1,-98)
+		scroll.Position = UDim2.fromOffset(4, 74)
+		scroll.Size = UDim2.new(1,-8,1,-78)
 		scroll.BackgroundTransparency = 1
 		scroll.BorderSizePixel = 0
 		scroll.ScrollBarThickness = 3
@@ -1407,8 +1407,8 @@ function UI.CreateImageSkinSelector(
 		scroll.Parent = root
 
 		local grid = Instance.new("UIGridLayout")
-		grid.CellPadding = UDim2.fromOffset(9,9)
-		grid.CellSize = UDim2.fromOffset(108,118)
+		grid.CellPadding = UDim2.fromOffset(7,7)
+		grid.CellSize = UDim2.new(0.25, -6, 0, 112)
 		grid.HorizontalAlignment = Enum.HorizontalAlignment.Left
 		grid.SortOrder = Enum.SortOrder.LayoutOrder
 		grid.Parent = scroll
@@ -1418,8 +1418,9 @@ function UI.CreateImageSkinSelector(
 		local function refreshSelection()
 			for name,data in pairs(tiles) do
 				local active = name == selected
-				data.Stroke.Thickness = active and 2 or 1
-				data.Stroke.Transparency = active and 0.02 or 0.18
+				data.Stroke.Thickness = active and 2 or 1.5
+				data.Stroke.Transparency = active and 0 or 0.06
+				data.Stroke.Color = Color3.fromRGB(190, 35, 220)
 				data.Tile.BackgroundColor3 = active
 					and Color3.fromRGB(65,65,70)
 					or Color3.fromRGB(24,24,27)
@@ -1442,19 +1443,19 @@ function UI.CreateImageSkinSelector(
 			tile.Parent = scroll
 
 			local corner = Instance.new("UICorner")
-			corner.CornerRadius = UDim.new(0,10)
+			corner.CornerRadius = UDim.new(0,8)
 			corner.Parent = tile
 
 			local stroke = Instance.new("UIStroke")
-			stroke.Thickness = 1
-			stroke.Transparency = 0.18
-			stroke.Color = UI.CurrentThemeAccent or Color3.fromRGB(190,40,220)
+			stroke.Thickness = 1.5
+			stroke.Transparency = 0.06
+			stroke.Color = Color3.fromRGB(190, 35, 220)
 			stroke.Parent = tile
 
 			local preview = Instance.new("ImageLabel")
 			preview.BackgroundTransparency = 1
-			preview.Position = UDim2.fromOffset(6,5)
-			preview.Size = UDim2.new(1,-12,0,86)
+			preview.Position = UDim2.fromOffset(4,3)
+			preview.Size = UDim2.new(1,-8,0,82)
 			preview.Image = image
 			preview.ScaleType = Enum.ScaleType.Fit
 			preview.ZIndex = 22
@@ -1462,8 +1463,8 @@ function UI.CreateImageSkinSelector(
 
 			local label = Instance.new("TextLabel")
 			label.BackgroundTransparency = 1
-			label.Position = UDim2.new(0,4,1,-28)
-			label.Size = UDim2.new(1,-8,0,25)
+			label.Position = UDim2.new(0,3,1,-27)
+			label.Size = UDim2.new(1,-6,0,24)
 			label.Font = Enum.Font.GothamMedium
 			label.Text = name
 			label.TextWrapped = true

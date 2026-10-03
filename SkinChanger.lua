@@ -597,7 +597,6 @@ local GunSkins = {
 SkinChanger.GunSkins = GunSkins
 
 local GunSkinOrder = {
-	"Default",
 	"Harvester",
 	"Gingerscope",
 	"Icepiercer",
@@ -1005,7 +1004,6 @@ local KnifeSkins = {
 SkinChanger.KnifeSkins = KnifeSkins
 
 local KnifeSkinOrder = {
-	"Default",
 	"Elderwood Scythe",
 	"Hallowscythe",
 	"Icebreaker",
