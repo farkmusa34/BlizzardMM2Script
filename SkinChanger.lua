@@ -3277,9 +3277,7 @@ local function GetSkinRarity(Name, WeaponType)
 	return "Godly"
 end
 
-local GunGalleryItems = {
-	{Name="Default", Image="", Rarity="Default"},
-}
+local GunGalleryItems = {}
 
 for _,Name in ipairs(GunSkinOrder) do
 	if Name ~= "Default" then
@@ -3306,7 +3304,6 @@ local GunGallery =
 	)
 
 local KnifeDropdownValues = {
-	"Default",
 	"Elderwood Scythe",
 	"Hallowscythe",
 	"Icebreaker",

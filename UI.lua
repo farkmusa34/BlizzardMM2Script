@@ -1427,6 +1427,24 @@ function UI.CreateImageSkinSelector(
 			end
 		end
 
+		local function rarityColor(rarity)
+			rarity = string.lower(tostring(rarity or ""))
+			if rarity == "ancient" then
+				return Color3.fromRGB(255,70,70)
+			elseif rarity == "chroma" then
+				return Color3.fromRGB(210,70,255)
+			elseif rarity == "godly" then
+				return Color3.fromRGB(255,80,220)
+			elseif rarity == "legendary" then
+				return Color3.fromRGB(255,90,90)
+			elseif rarity == "rare" then
+				return Color3.fromRGB(80,145,255)
+			elseif rarity == "uncommon" then
+				return Color3.fromRGB(70,220,115)
+			end
+			return Color3.fromRGB(150,150,160)
+		end
+
 		for index,item in ipairs(items) do
 			local name = tostring(item.Name or "Skin")
 			local image = tostring(item.Image or "")
@@ -1469,7 +1487,7 @@ function UI.CreateImageSkinSelector(
 			label.Text = name
 			label.TextWrapped = true
 			label.TextColor3 = Color3.fromRGB(240,240,244)
-			label.TextSize = 11
+			label.TextSize = 10
 			label.ZIndex = 23
 			label.Parent = tile
 
@@ -1494,13 +1512,22 @@ function UI.CreateImageSkinSelector(
 
 			Track(tile.MouseButton1Click:Connect(function()
 				selected = name
-				helper.Text = rarity ~= "" and (name .. "  ·  " .. rarity) or name
 				refreshSelection()
+				local ok = true
 				if callback then
-					local ok,err = pcall(callback,name)
-					if not ok then
-						warn("[Blizzard UI Image Selector]", titleText, err)
+					local callOk,result = pcall(callback,name)
+					ok = callOk and result ~= false
+					if not callOk then
+						warn("[Blizzard UI Image Selector]", titleText, result)
 					end
+				end
+				if ok then
+					helper.Text = name .. "  •  Skin Changed"
+					task.delay(2,function()
+						if helper and helper.Parent then
+							helper.Text = "Tap a skin to equip it."
+						end
+					end)
 				end
 			end))
 		end
