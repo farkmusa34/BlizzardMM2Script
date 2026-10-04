@@ -22,7 +22,6 @@ Settings.BoostPower = tonumber(Settings.BoostPower) or 62
 local PlayerNoclipOriginal = {}
 
 local FlyConnection = nil
-local FlyAttachment = nil
 local FlyVelocity = nil
 local FlyOrientation = nil
 local FlyHumanoid = nil
@@ -223,6 +222,7 @@ end
 
 --============================================================
 -- FLY
+-- Reconstructed from the read-only Fly diagnostics.
 --============================================================
 
 local function StopFly()
@@ -230,111 +230,121 @@ local function StopFly()
 		FlyConnection:Disconnect()
 		FlyConnection = nil
 	end
+
+	-- Match the observed shutdown order: velocity mover first, gyro second.
 	if FlyVelocity then
 		FlyVelocity:Destroy()
 		FlyVelocity = nil
 	end
+
 	if FlyOrientation then
 		FlyOrientation:Destroy()
 		FlyOrientation = nil
 	end
-	if FlyAttachment then
-		FlyAttachment:Destroy()
-		FlyAttachment = nil
-	end
+
 	if FlyHumanoid and FlyHumanoid.Parent then
-		pcall(function()
-			FlyHumanoid.AutoRotate = true
-			FlyHumanoid:SetStateEnabled(Enum.HumanoidStateType.Freefall,true)
-			FlyHumanoid:ChangeState(Enum.HumanoidStateType.GettingUp)
-		end)
+		FlyHumanoid.PlatformStand = false
+		FlyHumanoid.AutoRotate = true
 	end
+
 	FlyHumanoid = nil
 	MobileFlyUp = false
 	MobileFlyDown = false
 	SetMobileFlyButtonsVisible(false)
-	local _,_,hrp = MM2.GetLocalCharacter()
-	if hrp then
-		hrp.AssemblyLinearVelocity = Vector3.zero
-		hrp.AssemblyAngularVelocity = Vector3.zero
-	end
 end
 
 MM2.Functions.StopFly = StopFly
 
 local function StartFly()
 	StopFly()
+
 	local char,humanoid,hrp = MM2.GetLocalCharacter()
 	if not char or not humanoid or not hrp then
 		return
 	end
+
 	FlyHumanoid = humanoid
+
+	-- Observed startup state.
+	humanoid.PlatformStand = true
 	humanoid.AutoRotate = false
-	pcall(function()
-		humanoid:SetStateEnabled(Enum.HumanoidStateType.Freefall,false)
-		humanoid:ChangeState(Enum.HumanoidStateType.Physics)
-	end)
-	FlyAttachment = Instance.new("Attachment")
-	FlyAttachment.Name = "MM2_V8_FlyAttachment"
-	FlyAttachment.Parent = hrp
-	FlyVelocity = Instance.new("LinearVelocity")
-	FlyVelocity.Name = "MM2_V8_FlyVelocity"
-	FlyVelocity.Attachment0 = FlyAttachment
-	FlyVelocity.MaxForce = math.huge
-	FlyVelocity.VectorVelocity = Vector3.zero
+
+	FlyVelocity = Instance.new("BodyVelocity")
+	FlyVelocity.Name = "MarbegPlayerFlyVelocity"
+	FlyVelocity.MaxForce = Vector3.new(math.huge,math.huge,math.huge)
+	FlyVelocity.P = 12000
+	FlyVelocity.Velocity = Vector3.zero
 	FlyVelocity.Parent = hrp
-	FlyOrientation = Instance.new("AlignOrientation")
-	FlyOrientation.Name = "MM2_V8_FlyOrientation"
-	FlyOrientation.Mode = Enum.OrientationAlignmentMode.OneAttachment
-	FlyOrientation.Attachment0 = FlyAttachment
-	FlyOrientation.MaxTorque = math.huge
-	FlyOrientation.Responsiveness = 30
-	FlyOrientation.RigidityEnabled = false
+
+	FlyOrientation = Instance.new("BodyGyro")
+	FlyOrientation.Name = "MarbegPlayerFlyGyro"
+	FlyOrientation.MaxTorque = Vector3.new(math.huge,math.huge,math.huge)
+	FlyOrientation.P = 9000
+	FlyOrientation.D = 500
+	FlyOrientation.CFrame = hrp.CFrame
 	FlyOrientation.Parent = hrp
+
 	if IsMobileFlyDevice() then
 		SetMobileFlyButtonsVisible(true)
 	end
+
 	FlyConnection = RunService.RenderStepped:Connect(function()
 		if not Flags.Fly then
 			return
 		end
+
 		local currentChar,currentHumanoid,currentHRP = MM2.GetLocalCharacter()
 		if not currentChar or not currentHumanoid or not currentHRP
+			or currentHumanoid ~= FlyHumanoid
 			or not FlyVelocity or not FlyVelocity.Parent
+			or not FlyOrientation or not FlyOrientation.Parent
 		then
 			return
 		end
+
 		local cam = workspace.CurrentCamera
 		if not cam then
 			return
 		end
-		local look = cam.CFrame.LookVector
-		local right = cam.CFrame.RightVector
+
+		local camCF = cam.CFrame
+		local look = camCF.LookVector
+		local right = camCF.RightVector
+
+		-- Gyro follows camera yaw only. The diagnostic showed Y=0 on its
+		-- LookVector even while camera pitch affected flight direction.
 		local flatLook = Vector3.new(look.X,0,look.Z)
-		local flatRight = Vector3.new(right.X,0,right.Z)
 		if flatLook.Magnitude > 0.01 then
-			flatLook = flatLook.Unit
+			FlyOrientation.CFrame = CFrame.lookAt(Vector3.zero,flatLook.Unit)
 		end
-		if flatRight.Magnitude > 0.01 then
-			flatRight = flatRight.Unit
-		end
+
 		local move = Vector3.zero
-		if UIS.TouchEnabled then
-			local mobileMove = currentHumanoid.MoveDirection
-			if mobileMove.Magnitude > 0.01 then
-				move += Vector3.new(mobileMove.X,0,mobileMove.Z)
+
+		if IsMobileFlyDevice() then
+			-- Roblox MoveDirection is world-space, so project it onto the
+			-- camera's horizontal forward/right axes, then rebuild movement
+			-- with full camera LookVector so forward/backward keeps pitch.
+			local md = currentHumanoid.MoveDirection
+			if md.Magnitude > 0.01 then
+				local flatForward = flatLook.Magnitude > 0.01 and flatLook.Unit or Vector3.zAxis
+				local flatRight = Vector3.new(right.X,0,right.Z)
+				if flatRight.Magnitude > 0.01 then
+					flatRight = flatRight.Unit
+				end
+
+				local forwardAmount = md:Dot(flatForward)
+				local rightAmount = md:Dot(flatRight)
+				move += look * forwardAmount
+				move += right * rightAmount
 			end
-			if MobileFlyUp then
-				move += Vector3.yAxis
-			end
-			if MobileFlyDown then
-				move -= Vector3.yAxis
-			end
+
+			if MobileFlyUp then move += Vector3.yAxis end
+			if MobileFlyDown then move -= Vector3.yAxis end
 		else
-			if UIS:IsKeyDown(Enum.KeyCode.W) then move += flatLook end
-			if UIS:IsKeyDown(Enum.KeyCode.S) then move -= flatLook end
-			if UIS:IsKeyDown(Enum.KeyCode.A) then move -= flatRight end
-			if UIS:IsKeyDown(Enum.KeyCode.D) then move += flatRight end
+			if UIS:IsKeyDown(Enum.KeyCode.W) then move += look end
+			if UIS:IsKeyDown(Enum.KeyCode.S) then move -= look end
+			if UIS:IsKeyDown(Enum.KeyCode.A) then move -= right end
+			if UIS:IsKeyDown(Enum.KeyCode.D) then move += right end
 			if UIS:IsKeyDown(Enum.KeyCode.Space) then move += Vector3.yAxis end
 			if UIS:IsKeyDown(Enum.KeyCode.LeftControl)
 				or UIS:IsKeyDown(Enum.KeyCode.LeftShift)
@@ -342,13 +352,15 @@ local function StartFly()
 				move -= Vector3.yAxis
 			end
 		end
-		if move.Magnitude > 0 then
-			move = move.Unit * Settings.FlySpeed
+
+		local speed = math.clamp(tonumber(Settings.FlySpeed) or 65,10,200)
+		if move.Magnitude > 0.01 then
+			move = move.Unit * speed
+		else
+			move = Vector3.zero
 		end
-		FlyVelocity.VectorVelocity = move
-		if flatLook.Magnitude > 0.01 then
-			FlyOrientation.CFrame = CFrame.lookAt(Vector3.zero,flatLook.Unit)
-		end
+
+		FlyVelocity.Velocity = move
 	end)
 end
 
