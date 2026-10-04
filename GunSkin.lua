@@ -1465,7 +1465,25 @@ local ChromaGunData = {
 	["Chroma Evergun"] = {
 		Material = Enum.Material.Plastic,
 		AnimatePartColor = true,
-		Decals = {},
+		ChromaSpeed = 0.33,
+		DecalPhase = 0,
+		Decals = {
+			{
+				Name = "Decal",
+				Texture = "rbxassetid://15694616343",
+				Face = Enum.NormalId.Front,
+				ZIndex = 1,
+				Transparency = 0.8,
+			},
+			{
+				Name = "Decal",
+				Texture = "rbxassetid://15694615445",
+				Face = Enum.NormalId.Front,
+				ZIndex = 1,
+				Transparency = 0,
+				AnimateColor = false,
+			},
+		},
 	},
 
 	["Chroma Laser"] = {
@@ -1710,17 +1728,27 @@ local ChromaConnection =
 				continue
 			end
 
+			local Speed =
+				Data.Config.ChromaSpeed
+				or CHROMA_SPEED
+
+			local Phase =
+				Data.Config.DecalPhase
+			if Phase == nil then
+				Phase = CHROMA_DECAL_PHASE
+			end
+
 			local PartHue =
 				(
 					Time
-					* CHROMA_SPEED
+					* Speed
 				) % 1
 
 			local DecalHue =
 				(
 					Time
-					* CHROMA_SPEED
-					+ CHROMA_DECAL_PHASE
+					* Speed
+					+ Phase
 				) % 1
 
 			if Data.Config.AnimatePartColor then
