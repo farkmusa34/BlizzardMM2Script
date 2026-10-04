@@ -1413,36 +1413,39 @@ end
 -- VISIBLE MM2 HOTBAR
 --============================================================
 
-local function GetVisibleToolIcons()
-	local BackpackUI =
-		PlayerGui:
-		FindFirstChild(
-			"BackpackUI"
-		)
+-- Shared ownership table so GunSkin and KnifeSkin never fight over
+-- the same BackpackUI ToolIcon.
+SkinChanger.HotbarIconOwners =
+	SkinChanger.HotbarIconOwners
+	or setmetatable({}, {__mode = "k"})
 
+SkinChanger.HotbarOriginalImages =
+	SkinChanger.HotbarOriginalImages
+	or {}
+
+local HotbarIconOwners = SkinChanger.HotbarIconOwners
+local HotbarOriginalImages = SkinChanger.HotbarOriginalImages
+
+local function NormalizeAssetId(Value)
+	local Text = tostring(Value or "")
+	local Id = Text:match("(%d+)")
+	return Id or Text
+end
+
+local function GetVisibleToolIcons()
+	local BackpackUI = PlayerGui:FindFirstChild("BackpackUI")
 	if not BackpackUI then
 		return {}
 	end
 
-	local BackpackFrame =
-		BackpackUI:
-		FindFirstChild(
-			"BackpackFrame"
-		)
-
+	local BackpackFrame = BackpackUI:FindFirstChild("BackpackFrame")
 	if not BackpackFrame then
 		return {}
 	end
 
 	local Icons = {}
 
-	-- MM2 can keep a BackpackItem template and create another
-	-- BackpackItem for the live round slot. FindFirstChild() can
-	-- therefore hit the wrong ToolIcon. Update every ToolIcon
-	-- inside BackpackFrame so the live slot and template stay synced.
-	for _,Descendant in ipairs(
-		BackpackFrame:GetDescendants()
-	) do
+	for _,Descendant in ipairs(BackpackFrame:GetDescendants()) do
 		if Descendant.Name == "ToolIcon"
 			and (
 				Descendant:IsA("ImageLabel")
@@ -1456,13 +1459,58 @@ local function GetVisibleToolIcons()
 	return Icons
 end
 
-local function GetVisibleToolIcon()
-	local Icons = GetVisibleToolIcons()
-	return Icons[1]
+local function ClaimHotbarIcon(OriginalImage)
+	if OriginalImage == nil or tostring(OriginalImage) == "" then
+		return nil
+	end
+
+	local Wanted = NormalizeAssetId(OriginalImage)
+	HotbarOriginalImages["Knife"] = tostring(OriginalImage)
+
+	for _,ToolIcon in ipairs(GetVisibleToolIcons()) do
+		local Owner = HotbarIconOwners[ToolIcon]
+
+		if (Owner == nil or Owner == "Knife")
+			and NormalizeAssetId(ToolIcon.Image) == Wanted
+		then
+			HotbarIconOwners[ToolIcon] = "Knife"
+			return ToolIcon
+		end
+	end
+
+	return nil
 end
 
-local function SetVisibleHotbarIcon(Image)
-	local Icons = GetVisibleToolIcons()
+local function GetOwnedHotbarIcons()
+	local Result = {}
+
+	for _,ToolIcon in ipairs(GetVisibleToolIcons()) do
+		if HotbarIconOwners[ToolIcon] == "Knife" then
+			table.insert(Result, ToolIcon)
+		end
+	end
+
+	return Result
+end
+
+local function SetVisibleHotbarIcon(Image, OriginalImage)
+	-- First establish ownership from the real Tool texture/icon pair captured
+	-- before the cosmetic changes it. Never write to an unclaimed slot.
+	if OriginalImage ~= nil then
+		ClaimHotbarIcon(OriginalImage)
+	end
+
+	local Icons = GetOwnedHotbarIcons()
+
+	-- BackpackUI may have been rebuilt. Reclaim only by the saved original
+	-- image; do not fall back to "first ToolIcon".
+	if #Icons == 0 then
+		local SavedOriginal = HotbarOriginalImages["Knife"]
+		if SavedOriginal then
+			ClaimHotbarIcon(SavedOriginal)
+			Icons = GetOwnedHotbarIcons()
+		end
+	end
 
 	if #Icons == 0 then
 		return false
@@ -1471,11 +1519,9 @@ local function SetVisibleHotbarIcon(Image)
 	local Changed = false
 
 	for _,ToolIcon in ipairs(Icons) do
-		local Success = pcall(function()
+		if pcall(function()
 			ToolIcon.Image = tostring(Image or "")
-		end)
-
-		if Success then
+		end) then
 			Changed = true
 		end
 	end
@@ -1483,19 +1529,9 @@ local function SetVisibleHotbarIcon(Image)
 	return Changed
 end
 
--- Reapply the selected cosmetic icon after MM2 rebuilds/overwrites
--- BackpackUI at the start of a round. This is especially important
--- when a skin was selected during intermission before the tool existed.
-local function ReapplySelectedHotbarIcon(WeaponType)
-	local Selected
-	local Skin
-
-	if WeaponType == "Knife" then
-		Selected = SkinChanger.SelectedKnife
-		Skin = KnifeSkins[Selected]
-	else
-		return false
-	end
+local function ReapplySelectedHotbarIcon()
+	local Selected = SkinChanger.SelectedKnife
+	local Skin = KnifeSkins[Selected]
 
 	if Selected == "Default" or not Skin then
 		return false
@@ -1504,21 +1540,14 @@ local function ReapplySelectedHotbarIcon(WeaponType)
 	return SetVisibleHotbarIcon(Skin.Icon)
 end
 
-local function QueueHotbarIconRefresh(WeaponType)
+local function QueueHotbarIconRefresh()
 	task.spawn(function()
-		-- MM2 can create ToolIcon first and overwrite Image shortly after,
-		-- so retry briefly while the round inventory finishes building.
 		for _,Delay in ipairs({0.05, 0.15, 0.30, 0.60, 1.00}) do
 			task.wait(Delay)
-
-			-- Hotbar persistence must not depend on the physical Tool already
-			-- being discoverable. MM2 can create ToolIcon before Backpack/Character
-			-- contains Gun/Knife, which was the diagnosed failure case.
-			ReapplySelectedHotbarIcon(WeaponType)
+			ReapplySelectedHotbarIcon()
 		end
 	end)
 end
-
 
 --============================================================
 -- LOCAL KNIFE DISPLAY
@@ -1803,7 +1832,8 @@ local function ApplyKnifeSkinToTool(
 
 	if Success then
 		SetVisibleHotbarIcon(
-			Skin.Icon
+			Skin.Icon,
+			Original.TextureId
 		)
 	end
 
@@ -1989,6 +2019,7 @@ local function RestoreKnife(
 
 	if Success then
 		SetVisibleHotbarIcon(
+			Original.TextureId,
 			Original.TextureId
 		)
 	end
@@ -2341,8 +2372,8 @@ local function WatchKnife(Knife)
 		-- MM2 may reuse the same Knife Tool between rounds.
 		-- Reapply the selected cosmetic whenever the known Tool comes back.
 		ApplyCurrentKnifeSkin()
-		ReapplySelectedHotbarIcon("Knife")
-		QueueHotbarIconRefresh("Knife")
+		ReapplySelectedHotbarIcon()
+		QueueHotbarIconRefresh()
 		return
 	end
 
@@ -2360,7 +2391,7 @@ local function WatchKnife(Knife)
 			end
 
 			ApplyCurrentKnifeSkin()
-			ReapplySelectedHotbarIcon("Knife")
+			ReapplySelectedHotbarIcon()
 		end
 	end)
 
@@ -2383,7 +2414,7 @@ local function WatchKnife(Knife)
 						== LocalPlayer.Character
 				then
 					ApplyCurrentKnifeSkin()
-					ReapplySelectedHotbarIcon("Knife")
+					ReapplySelectedHotbarIcon()
 				end
 			end)
 		end)
@@ -2466,8 +2497,8 @@ local WatcherOK, WatcherError =
 					and Child.Name == "Knife"
 				then
 					ApplyCurrentKnifeSkin()
-					ReapplySelectedHotbarIcon("Knife")
-					QueueHotbarIconRefresh("Knife")
+					ReapplySelectedHotbarIcon()
+					QueueHotbarIconRefresh()
 				end
 			end)
 		)
@@ -2513,9 +2544,9 @@ local WatcherOK, WatcherError =
 						and SkinChanger.SelectedKnife ~= "Default"
 					then
 						ApplyCurrentKnifeSkin()
-						QueueHotbarIconRefresh("Knife")
+						QueueHotbarIconRefresh()
 					else
-						ReapplySelectedHotbarIcon("Knife")
+						ReapplySelectedHotbarIcon()
 					end
 				end)
 			end)
