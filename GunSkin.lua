@@ -1893,104 +1893,142 @@ end
 
 
 --============================================================
--- VISIBLE MM2 HOTBAR - WEAPON OWNER BASED
+-- VISIBLE MM2 HOTBAR - EVENT DRIVEN / HYBRID
 --============================================================
+
+local HOTBAR_WEAPON = "Gun"
+local VANILLA_HOTBAR_ID = "197518111"
+local WatchedHotbarIcons = setmetatable({}, {__mode = "k"})
+local HotbarConnections = {}
+local ApplyingHotbarIcon = false
+
+local function NormalizeAssetId(Value)
+	return tostring(Value or ""):match("(%d+)") or tostring(Value or "")
+end
 
 local function GetOwnedWeapon()
 	local Character = LocalPlayer.Character
-	local Tool =
-		(Character and Character:FindFirstChild("Gun"))
-		or Backpack:FindFirstChild("Gun")
+	local Tool = (Character and Character:FindFirstChild(HOTBAR_WEAPON))
+		or Backpack:FindFirstChild(HOTBAR_WEAPON)
+	return (Tool and Tool:IsA("Tool")) and Tool or nil
+end
 
-	if Tool and Tool:IsA("Tool") then
-		return Tool
-	end
-
-	return nil
+local function GetSelectedHotbarImage()
+	local Selected = SkinChanger.SelectedGun
+	local Skin = GunSkins[Selected]
+	if Selected == "Default" or not Skin then return nil end
+	return tostring(Skin.Icon or "")
 end
 
 local function GetVisibleToolIcons()
-	local BackpackUI = PlayerGui:FindFirstChild("BackpackUI")
-	if not BackpackUI then
-		return {}
-	end
-
-	local BackpackFrame = BackpackUI:FindFirstChild("BackpackFrame")
-	if not BackpackFrame then
-		return {}
-	end
-
+	local UI = PlayerGui:FindFirstChild("BackpackUI")
+	local Frame = UI and UI:FindFirstChild("BackpackFrame")
+	if not Frame then return {} end
 	local Icons = {}
-	for _,Descendant in ipairs(BackpackFrame:GetDescendants()) do
-		if Descendant.Name == "ToolIcon"
-			and (
-				Descendant:IsA("ImageLabel")
-				or Descendant:IsA("ImageButton")
-			)
-		then
-			table.insert(Icons, Descendant)
+	for _,D in ipairs(Frame:GetDescendants()) do
+		if D.Name == "ToolIcon" and (D:IsA("ImageLabel") or D:IsA("ImageButton")) then
+			table.insert(Icons, D)
 		end
 	end
-
 	return Icons
 end
 
-local function SetVisibleHotbarIcon(Image)
-	-- This module may force the visible hotbar only while its weapon
-	-- is the weapon the player currently owns.
-	if not GetOwnedWeapon() then
+local function IconRepresentsThisWeapon(Icon)
+	if GetOwnedWeapon() then return true end
+	-- Gun diagnostic proved BackpackUI can identify the Gun before the Gun Tool exists.
+	if HOTBAR_WEAPON == "Gun" then
+		return NormalizeAssetId(Icon.Image) == VANILLA_HOTBAR_ID
+	end
+	return false
+end
+
+local function ApplySelectedIconTo(Icon)
+	local Image = GetSelectedHotbarImage()
+	if not Image or not Icon or not Icon.Parent or not IconRepresentsThisWeapon(Icon) then
 		return false
 	end
-
-	local Icons = GetVisibleToolIcons()
-	if #Icons == 0 then
-		return false
-	end
-
-	local Changed = false
-	for _,ToolIcon in ipairs(Icons) do
-		if pcall(function()
-			ToolIcon.Image = tostring(Image or "")
-		end) then
-			Changed = true
-		end
-	end
-
-	return Changed
+	if tostring(Icon.Image) == Image then return true end
+	ApplyingHotbarIcon = true
+	local Ok = pcall(function() Icon.Image = Image end)
+	ApplyingHotbarIcon = false
+	return Ok
 end
 
 local function ReapplySelectedHotbarIcon()
-	if not GetOwnedWeapon() then
-		return false
+	-- Default deliberately does nothing: MM2 keeps/restores the real inventory icon.
+	if not GetSelectedHotbarImage() then return false end
+	local Changed = false
+	for _,Icon in ipairs(GetVisibleToolIcons()) do
+		if ApplySelectedIconTo(Icon) then Changed = true end
 	end
+	return Changed
+end
 
-	local Selected = SkinChanger.SelectedGun
-	local Skin = GunSkins[Selected]
+local function WatchHotbarIcon(Icon)
+	if WatchedHotbarIcons[Icon] then return end
+	WatchedHotbarIcons[Icon] = true
 
-	if Selected == "Default" or not Skin then
-		return false
-	end
+	table.insert(HotbarConnections,
+		Icon:GetPropertyChangedSignal("Image"):Connect(function()
+			if ApplyingHotbarIcon then return end
+			-- React immediately after MM2 writes its Gun/Knife image.
+			task.defer(function()
+				if Icon.Parent then ApplySelectedIconTo(Icon) end
+			end)
+		end)
+	)
 
-	return SetVisibleHotbarIcon(Skin.Icon)
+	task.defer(function()
+		if Icon.Parent then ApplySelectedIconTo(Icon) end
+	end)
+end
+
+local function ScanHotbarIcons()
+	for _,Icon in ipairs(GetVisibleToolIcons()) do WatchHotbarIcon(Icon) end
 end
 
 local function QueueHotbarIconRefresh()
+	ScanHotbarIcons()
+	ReapplySelectedHotbarIcon()
 	task.spawn(function()
-		for _,Delay in ipairs({0, 0.03, 0.08, 0.15, 0.30, 0.60, 1.00}) do
-			if Delay > 0 then
-				task.wait(Delay)
-			end
-
-			-- Ownership is checked again on every pass, so an old Gun
-			-- refresh cannot overwrite Knife after the role/tool changes.
-			if not GetOwnedWeapon() then
-				return
-			end
-
+		for _,Delay in ipairs({0.03, 0.08, 0.15, 0.30}) do
+			task.wait(Delay)
+			ScanHotbarIcons()
 			ReapplySelectedHotbarIcon()
 		end
 	end)
 end
+
+table.insert(HotbarConnections,
+	PlayerGui.DescendantAdded:Connect(function(Object)
+		if Object.Name == "ToolIcon" and (Object:IsA("ImageLabel") or Object:IsA("ImageButton")) then
+			WatchHotbarIcon(Object)
+		end
+	end)
+)
+
+local function HookWeaponContainer(Container)
+	if not Container then return end
+	table.insert(HotbarConnections,
+		Container.ChildAdded:Connect(function(Object)
+			if Object.Name == HOTBAR_WEAPON and Object:IsA("Tool") then
+				QueueHotbarIconRefresh()
+			end
+		end)
+	)
+end
+
+HookWeaponContainer(Backpack)
+HookWeaponContainer(LocalPlayer.Character)
+
+table.insert(HotbarConnections,
+	LocalPlayer.CharacterAdded:Connect(function(Character)
+		HookWeaponContainer(Character)
+		QueueHotbarIconRefresh()
+	end)
+)
+
+ScanHotbarIcons()
 
 -- LOCAL GUN DISPLAY
 --============================================================
@@ -2281,7 +2319,7 @@ local function ApplyGunSkinToTool(
 		end)
 
 	if Success then
-		SetVisibleHotbarIcon(Skin.Icon)
+		QueueHotbarIconRefresh()
 	end
 
 	return Success
@@ -2473,7 +2511,7 @@ local function RestoreGun(
 		end)
 
 	if Success then
-		SetVisibleHotbarIcon(Original.TextureId)
+		QueueHotbarIconRefresh()
 	end
 
 	return Success
