@@ -1896,28 +1896,39 @@ end
 -- VISIBLE MM2 HOTBAR
 --============================================================
 
-local function GetVisibleToolIcons()
-	local BackpackUI =
-		PlayerGui:
-		FindFirstChild("BackpackUI")
+-- Shared ownership table so GunSkin and KnifeSkin never fight over
+-- the same BackpackUI ToolIcon.
+SkinChanger.HotbarIconOwners =
+	SkinChanger.HotbarIconOwners
+	or setmetatable({}, {__mode = "k"})
 
+SkinChanger.HotbarOriginalImages =
+	SkinChanger.HotbarOriginalImages
+	or {}
+
+local HotbarIconOwners = SkinChanger.HotbarIconOwners
+local HotbarOriginalImages = SkinChanger.HotbarOriginalImages
+
+local function NormalizeAssetId(Value)
+	local Text = tostring(Value or "")
+	local Id = Text:match("(%d+)")
+	return Id or Text
+end
+
+local function GetVisibleToolIcons()
+	local BackpackUI = PlayerGui:FindFirstChild("BackpackUI")
 	if not BackpackUI then
 		return {}
 	end
 
-	local BackpackFrame =
-		BackpackUI:
-		FindFirstChild("BackpackFrame")
-
+	local BackpackFrame = BackpackUI:FindFirstChild("BackpackFrame")
 	if not BackpackFrame then
 		return {}
 	end
 
 	local Icons = {}
 
-	for _,Descendant in ipairs(
-		BackpackFrame:GetDescendants()
-	) do
+	for _,Descendant in ipairs(BackpackFrame:GetDescendants()) do
 		if Descendant.Name == "ToolIcon"
 			and (
 				Descendant:IsA("ImageLabel")
@@ -1931,13 +1942,58 @@ local function GetVisibleToolIcons()
 	return Icons
 end
 
-local function GetVisibleToolIcon()
-	local Icons = GetVisibleToolIcons()
-	return Icons[1]
+local function ClaimHotbarIcon(OriginalImage)
+	if OriginalImage == nil or tostring(OriginalImage) == "" then
+		return nil
+	end
+
+	local Wanted = NormalizeAssetId(OriginalImage)
+	HotbarOriginalImages["Gun"] = tostring(OriginalImage)
+
+	for _,ToolIcon in ipairs(GetVisibleToolIcons()) do
+		local Owner = HotbarIconOwners[ToolIcon]
+
+		if (Owner == nil or Owner == "Gun")
+			and NormalizeAssetId(ToolIcon.Image) == Wanted
+		then
+			HotbarIconOwners[ToolIcon] = "Gun"
+			return ToolIcon
+		end
+	end
+
+	return nil
 end
 
-local function SetVisibleHotbarIcon(Image)
-	local Icons = GetVisibleToolIcons()
+local function GetOwnedHotbarIcons()
+	local Result = {}
+
+	for _,ToolIcon in ipairs(GetVisibleToolIcons()) do
+		if HotbarIconOwners[ToolIcon] == "Gun" then
+			table.insert(Result, ToolIcon)
+		end
+	end
+
+	return Result
+end
+
+local function SetVisibleHotbarIcon(Image, OriginalImage)
+	-- First establish ownership from the real Tool texture/icon pair captured
+	-- before the cosmetic changes it. Never write to an unclaimed slot.
+	if OriginalImage ~= nil then
+		ClaimHotbarIcon(OriginalImage)
+	end
+
+	local Icons = GetOwnedHotbarIcons()
+
+	-- BackpackUI may have been rebuilt. Reclaim only by the saved original
+	-- image; do not fall back to "first ToolIcon".
+	if #Icons == 0 then
+		local SavedOriginal = HotbarOriginalImages["Gun"]
+		if SavedOriginal then
+			ClaimHotbarIcon(SavedOriginal)
+			Icons = GetOwnedHotbarIcons()
+		end
+	end
 
 	if #Icons == 0 then
 		return false
@@ -2266,7 +2322,8 @@ local function ApplyGunSkinToTool(
 
 	if Success then
 		SetVisibleHotbarIcon(
-			Skin.Icon
+			Skin.Icon,
+			Original.TextureId
 		)
 	end
 
@@ -2460,6 +2517,7 @@ local function RestoreGun(
 
 	if Success then
 		SetVisibleHotbarIcon(
+			Original.TextureId,
 			Original.TextureId
 		)
 	end
