@@ -1451,11 +1451,22 @@ local function GetVisibleToolIcons()
 end
 
 local function IconRepresentsThisWeapon(Icon)
-	if GetOwnedWeapon() then return true end
-	-- Gun diagnostic proved BackpackUI can identify the Gun before the Gun Tool exists.
+	if GetOwnedWeapon() then
+		return true
+	end
+
+	-- V3 diagnostics proved the Knife hotbar can appear as vanilla
+	-- Knife ID 584555920 while Knife is still NONE locally.
+	-- Treat that vanilla ID as sufficient Knife identification,
+	-- matching the already-working Gun fallback.
+	if HOTBAR_WEAPON == "Knife" then
+		return NormalizeAssetId(Icon.Image) == VANILLA_HOTBAR_ID
+	end
+
 	if HOTBAR_WEAPON == "Gun" then
 		return NormalizeAssetId(Icon.Image) == VANILLA_HOTBAR_ID
 	end
+
 	return false
 end
 
