@@ -404,7 +404,7 @@ local GunSkins = {
 		),
 	},
 
-	["Chroma Shark"] = {
+	["Chroma Stark"] = {
 		Icon = "rbxassetid://3187421856",
 		MeshId = "rbxassetid://118269783",
 		TextureId = "rbxassetid://3171214838",
@@ -1376,7 +1376,7 @@ local GunSkinOrder = {
 	"Chroma Lightbringer",
 	"Chroma Luger",
 	"Chroma Raygun",
-	"Chroma Shark",
+	"Chroma Stark",
 	"Chroma Snowcannon",
 	"Chroma Sunrise",
 	"Chroma Swirly Gun",
@@ -1464,6 +1464,7 @@ local ChromaGunData = {
 
 	["Chroma Evergun"] = {
 		Material = Enum.Material.Plastic,
+		AnimatePartColor = true,
 		Decals = {},
 	},
 
@@ -1495,7 +1496,7 @@ local ChromaGunData = {
 		},
 	},
 
-	["Chroma Shark"] = {
+	["Chroma Stark"] = {
 		Material = Enum.Material.Plastic,
 		Decals = {
 			{Texture = "rbxassetid://3171214969", Face = Enum.NormalId.Back, ZIndex = 1},
@@ -1722,12 +1723,14 @@ local ChromaConnection =
 					+ CHROMA_DECAL_PHASE
 				) % 1
 
-			Part.Color =
-				Color3.fromHSV(
-					PartHue,
-					1,
-					1
-				)
+			if Data.Config.AnimatePartColor then
+				Part.Color =
+					Color3.fromHSV(
+						PartHue,
+						1,
+						1
+					)
+			end
 
 			local DecalColor =
 				Color3.fromHSV(
@@ -1736,11 +1739,19 @@ local ChromaConnection =
 					1
 				)
 
-			for _,Decal in ipairs(
+			for Index,Decal in ipairs(
 				Data.Decals
 			) do
+				local Info =
+					Data.Config.Decals
+					and Data.Config.Decals[Index]
+
 				if Decal
 					and Decal.Parent
+					and (
+						not Info
+						or Info.AnimateColor ~= false
+					)
 				then
 					Decal.Color3 =
 						DecalColor
