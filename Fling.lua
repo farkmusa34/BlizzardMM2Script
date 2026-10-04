@@ -1,7 +1,7 @@
 --============================================================
 -- MM2 V8.8.4 STABLE - Fling.lua
 -- WindUI dropdown migration + existing fling logic
--- Fling status notifications + 50-stud success detection
+-- Fling status notifications + 1000-stud success detection + 5-second max attempt
 --============================================================
 
 local MM2 = getgenv and getgenv().MM2_V85_SPLIT or _G.MM2_V85_SPLIT
@@ -19,10 +19,10 @@ UI.AddSection(
 	"Role and selected-player fling actions"
 )
 
-local FLING_DURATION = 1.30
+local FLING_DURATION = 5.00
 local FLING_HUGE = 900000000
 local FLING_FORCE_NAME = "MarbegFlingVelocity"
-local FLING_SUCCESS_DISTANCE = 50
+local FLING_SUCCESS_DISTANCE = 1000
 
 local FLING_POSITION_PATTERN = {
 	Vector3.new(0, 1.5, -12.80),
@@ -109,6 +109,7 @@ local function ExecuteYeet(targetPlayer,successLabel)
 		if not targetHRP then break end
 		if (targetHRP.Position - startTargetPosition).Magnitude >= FLING_SUCCESS_DISTANCE then
 			targetMovedEnough = true
+			break
 		end
 		frame += 1
 		local offset = FLING_POSITION_PATTERN[patternIndex]
