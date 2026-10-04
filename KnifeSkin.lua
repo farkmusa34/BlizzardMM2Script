@@ -1779,6 +1779,20 @@ local function ApplyKnifeSkinToTool(
 					Handle,
 					Chroma
 				)
+
+				-- Real Chroma Evergreen hides its decorative Christmas-light
+				-- decal layers while the knife is actively held. Keep the
+				-- Handle chroma cycle itself running; the back/display copy
+				-- still receives the captured 0.6 + 0.0 decal transparencies.
+				if SkinChanger.SelectedKnife == "Chroma Evergreen" then
+					for _,Child in ipairs(Handle:GetChildren()) do
+						if Child:IsA("Decal")
+							and Child:GetAttribute("BlizzardChroma")
+						then
+							Child.Transparency = 1
+						end
+					end
+				end
 			else
 				RestoreToolVisualBase(
 					Handle,
