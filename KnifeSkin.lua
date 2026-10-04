@@ -397,6 +397,13 @@ local KnifeSkins = {
 			BackCFrame = CFrame.new(),
 		},
 
+	["Chroma Ornament"] = {
+		Material = Enum.Material.Plastic,
+		Decals = {
+			{Texture = "rbxassetid://101916509598198", Face = Enum.NormalId.Left, ZIndex = 1},
+		},
+	},
+
 	["Chroma Saw"] = {
 			Icon = "rbxassetid://3187398132",
 			MeshId = "rbxassetid://168119698",
@@ -944,7 +951,7 @@ local ChromaKnifeData = {
 		},
 	},
 
-	["Chroma Elderwood"] = {
+	["Chroma Elderwood Blade"] = {
 		Material = Enum.Material.Plastic,
 		Decals = {
 			{Texture = "rbxassetid://11370095395", Face = Enum.NormalId.Right, ZIndex = 1},
@@ -953,6 +960,7 @@ local ChromaKnifeData = {
 
 	["Chroma Evergreen"] = {
 		Material = Enum.Material.Plastic,
+		AnimatePartColor = true,
 		Decals = {
 			{
 				Name = "Decal",
@@ -967,6 +975,7 @@ local ChromaKnifeData = {
 				Face = Enum.NormalId.Front,
 				ZIndex = 1,
 				Transparency = 0,
+				AnimateColor = false,
 			},
 		},
 	},
@@ -1252,12 +1261,14 @@ local ChromaConnection =
 					+ CHROMA_DECAL_PHASE
 				) % 1
 
-			Part.Color =
-				Color3.fromHSV(
-					PartHue,
-					1,
-					1
-				)
+			if Data.Config.AnimatePartColor then
+				Part.Color =
+					Color3.fromHSV(
+						PartHue,
+						1,
+						1
+					)
+			end
 
 			local DecalColor =
 				Color3.fromHSV(
@@ -1266,11 +1277,19 @@ local ChromaConnection =
 					1
 				)
 
-			for _,Decal in ipairs(
+			for Index,Decal in ipairs(
 				Data.Decals
 			) do
+				local Info =
+					Data.Config.Decals
+					and Data.Config.Decals[Index]
+
 				if Decal
 					and Decal.Parent
+					and (
+						not Info
+						or Info.AnimateColor ~= false
+					)
 				then
 					Decal.Color3 =
 						DecalColor
