@@ -2,7 +2,7 @@
 -- Blizzard MM2 V8.8.4 - GunSkin.lua
 --
 -- Gun-only module split from the working SkinChanger.lua base.
--- 62 gun skins mapped 1:1 to diagnostic captures #1-#62.
+-- 62 gun skins mapped 1:1 To diagnostic captures #1-#62.
 -- Knife code intentionally excluded from this module.
 --============================================================
 
