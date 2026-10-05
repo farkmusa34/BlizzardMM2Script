@@ -25,10 +25,6 @@ local FlyConnection = nil
 local FlyVelocity = nil
 local FlyOrientation = nil
 local FlyHumanoid = nil
-local MobileFlyUp = false
-local MobileFlyDown = false
-local MobileFlyUpButton = nil
-local MobileFlyDownButton = nil
 
 local PlayerNoclipConnection = nil
 
@@ -106,99 +102,6 @@ end
 MM2.Functions.ApplyWalkSpeed = ApplyWalkSpeed
 
 --============================================================
--- MOBILE FLY CONTROLS
---============================================================
-
-local function IsMobileFlyDevice()
-	return UIS.TouchEnabled
-		and not UIS.KeyboardEnabled
-end
-
-local function StyleMobileFlyButton(button)
-	button.Size = UDim2.fromOffset(58,58)
-	button.BackgroundColor3 = Color3.fromRGB(18,18,24)
-	button.BackgroundTransparency = 0.08
-	button.TextSize = 28
-	button.Font = Enum.Font.GothamBold
-	button.TextColor3 = Color3.fromRGB(255,255,255)
-	button.AutoButtonColor = true
-	button.ZIndex = 60
-	local corner = Instance.new("UICorner")
-	corner.CornerRadius = UDim.new(1,0)
-	corner.Parent = button
-	local stroke = Instance.new("UIStroke")
-	stroke.Thickness = 2
-	stroke.Color = Color3.fromRGB(80,220,255)
-	stroke.Parent = button
-end
-
-local function CreateMobileFlyButtons()
-	if not IsMobileFlyDevice() then
-		return
-	end
-	local overlay = UI.TracerGui or UI.ScreenGui
-	if not overlay then
-		return
-	end
-	if not MobileFlyUpButton then
-		MobileFlyUpButton = Instance.new("TextButton")
-		MobileFlyUpButton.Name = "MM2_MobileFlyUpButton"
-		MobileFlyUpButton.AnchorPoint = Vector2.new(1,1)
-		MobileFlyUpButton.Position = UDim2.new(1,-150,1,-150)
-		MobileFlyUpButton.Text = "▲"
-		StyleMobileFlyButton(MobileFlyUpButton)
-		MobileFlyUpButton.Parent = overlay
-		MobileFlyUpButton.InputBegan:Connect(function(input)
-			if input.UserInputType == Enum.UserInputType.Touch
-				or input.UserInputType == Enum.UserInputType.MouseButton1
-			then
-				MobileFlyUp = true
-			end
-		end)
-		MobileFlyUpButton.InputEnded:Connect(function(input)
-			if input.UserInputType == Enum.UserInputType.Touch
-				or input.UserInputType == Enum.UserInputType.MouseButton1
-			then
-				MobileFlyUp = false
-			end
-		end)
-	end
-	if not MobileFlyDownButton then
-		MobileFlyDownButton = Instance.new("TextButton")
-		MobileFlyDownButton.Name = "MM2_MobileFlyDownButton"
-		MobileFlyDownButton.AnchorPoint = Vector2.new(1,1)
-		MobileFlyDownButton.Position = UDim2.new(1,-150,1,-85)
-		MobileFlyDownButton.Text = "▼"
-		StyleMobileFlyButton(MobileFlyDownButton)
-		MobileFlyDownButton.Parent = overlay
-		MobileFlyDownButton.InputBegan:Connect(function(input)
-			if input.UserInputType == Enum.UserInputType.Touch
-				or input.UserInputType == Enum.UserInputType.MouseButton1
-			then
-				MobileFlyDown = true
-			end
-		end)
-		MobileFlyDownButton.InputEnded:Connect(function(input)
-			if input.UserInputType == Enum.UserInputType.Touch
-				or input.UserInputType == Enum.UserInputType.MouseButton1
-			then
-				MobileFlyDown = false
-			end
-		end)
-	end
-	MobileFlyUpButton.Visible = true
-	MobileFlyDownButton.Visible = true
-end
-
-local function SetMobileFlyButtonsVisible(on)
-	-- Fly uses joystick/camera movement directly; no extra Fly buttons.
-	MobileFlyUp = false
-	MobileFlyDown = false
-	if MobileFlyUpButton then MobileFlyUpButton.Visible = false end
-	if MobileFlyDownButton then MobileFlyDownButton.Visible = false end
-end
-
---============================================================
 -- FLY
 -- Reconstructed from the read-only Fly diagnostics.
 --============================================================
@@ -226,9 +129,6 @@ local function StopFly()
 	end
 
 	FlyHumanoid = nil
-	MobileFlyUp = false
-	MobileFlyDown = false
-	SetMobileFlyButtonsVisible(false)
 end
 
 MM2.Functions.StopFly = StopFly
@@ -262,9 +162,6 @@ local function StartFly()
 	FlyOrientation.CFrame = hrp.CFrame
 	FlyOrientation.Parent = hrp
 
-	if IsMobileFlyDevice() then
-		SetMobileFlyButtonsVisible(true)
-	end
 
 	FlyConnection = RunService.RenderStepped:Connect(function()
 		if not Flags.Fly then
@@ -298,7 +195,7 @@ local function StartFly()
 
 		local move = Vector3.zero
 
-		if IsMobileFlyDevice() then
+		if UIS.TouchEnabled and not UIS.KeyboardEnabled then
 			-- Roblox MoveDirection is world-space, so project it onto the
 			-- camera's horizontal forward/right axes, then rebuild movement
 			-- with full camera LookVector so forward/backward keeps pitch.
@@ -316,8 +213,6 @@ local function StartFly()
 				move += right * rightAmount
 			end
 
-			if MobileFlyUp then move += Vector3.yAxis end
-			if MobileFlyDown then move -= Vector3.yAxis end
 		else
 			if UIS:IsKeyDown(Enum.KeyCode.W) then move += look end
 			if UIS:IsKeyDown(Enum.KeyCode.S) then move -= look end
@@ -613,7 +508,7 @@ UI.AddSection(UI.PlayerPage,"Movement","Movement and mobility controls")
 UI.CreateToggle(
 	UI.PlayerPage,
 	"Fly",
-	"PC: WASD + Space/Ctrl. Mobile: joystick + Up/Down",
+	"PC: WASD + Space/Ctrl. Mobile: joystick",
 	"Fly",
 	function(on)
 		if on then StartFly() else StopFly() end
@@ -758,12 +653,6 @@ UI.CreateActionFeature(
 
 Track(UIS.JumpRequest:Connect(function()
 	if Flags.Fly then
-		if UIS.TouchEnabled then
-			MobileFlyUp = true
-			task.delay(0.12,function()
-				MobileFlyUp = false
-			end)
-		end
 		return
 	end
 	local _,humanoid = MM2.GetLocalCharacter()
@@ -785,8 +674,6 @@ Track(LocalPlayer.CharacterAdded:Connect(function(char)
 	LastSafeCFrame = nil
 	VoidFallStarted = nil
 	BombJumpBusy = false
-	MobileFlyUp = false
-	MobileFlyDown = false
 	DisconnectWalkSpeedWatcher()
 	task.wait(0.25)
 	local humanoid = char:FindFirstChildOfClass("Humanoid")
