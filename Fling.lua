@@ -284,21 +284,14 @@ local function KillLocalFlingVelocity(character,humanoid,hrp)
 			if not Flags.Fly then
 				local velocity = part.AssemblyLinearVelocity
 				local horizontalSpeed = Vector3.new(velocity.X,0,velocity.Z).Magnitude
-				local verticalSpeed = math.abs(velocity.Y)
 				local walkSpeed = humanoid and humanoid.WalkSpeed or 16
 				local horizontalLimit = math.max(walkSpeed * 1.75, ANTI_FLING_LINEAR_LIMIT)
-				local playerSettings = MM2.PlayerSettings or {}
-				local jumpPower = tonumber(playerSettings.JumpPower) or 50
-				local boostPower = tonumber(playerSettings.BoostPower) or 62
-				local verticalLimit = math.max(
-					ANTI_FLING_LINEAR_LIMIT,
-					jumpPower * 1.35,
-					boostPower * 1.35
-				)
 
-				-- Preserve intentional Walk Speed, Jump Power and Bomb Boost velocity
-				-- while still catching abnormal fling launches.
-				if verticalSpeed > verticalLimit or horizontalSpeed > horizontalLimit then
+				-- Normal freefall can legitimately exceed 80 studs/s vertically.
+				-- Do not treat vertical gravity/jump/boost velocity as a fling.
+				-- Other-player collisions are already disabled while Anti Fling is on;
+				-- keep blocking abnormal horizontal launches and excessive rotation.
+				if horizontalSpeed > horizontalLimit then
 					part.AssemblyLinearVelocity = Vector3.zero
 					part.AssemblyAngularVelocity = Vector3.zero
 					killedLinear = true
