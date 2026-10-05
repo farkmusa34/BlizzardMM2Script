@@ -37,130 +37,7 @@
 
 
 --============================================================
--- TEMPORARY PC AUTO-TRADER DIAGNOSTIC V2
--- Large GUI intentionally retained for easy PC testing.
---============================================================
-
-local DiagnosticLines = {}
-local DiagnosticGui
-
-local function DLog(message)
-	local line = string.format("[%.2f] %s", os.clock(), tostring(message))
-	table.insert(DiagnosticLines, line)
-	if #DiagnosticLines > 180 then
-		table.remove(DiagnosticLines, 1)
-	end
-	print("[AUTO TRADE DIAG V2] " .. tostring(message))
-
-	if DiagnosticGui and DiagnosticGui:FindFirstChild("Main") then
-		local box = DiagnosticGui.Main:FindFirstChild("Logs")
-		if box then
-			box.Text = table.concat(DiagnosticLines, "\n")
-			box.CursorPosition = #box.Text + 1
-		end
-	end
-end
-
-local function CreateDiagnosticGui()
-	local ok, err = pcall(function()
-		local PlayersService = game:GetService("Players")
-		local UIS = game:GetService("UserInputService")
-		local player = PlayersService.LocalPlayer
-		local playerGui = player:WaitForChild("PlayerGui")
-
-		local old = playerGui:FindFirstChild("BlizzardAutoTradePCDiagnostic")
-		if old then old:Destroy() end
-
-		local gui = Instance.new("ScreenGui")
-		gui.Name = "BlizzardAutoTradePCDiagnostic"
-		gui.ResetOnSpawn = false
-		gui.DisplayOrder = 999999
-		gui.Parent = playerGui
-		DiagnosticGui = gui
-
-		local main = Instance.new("Frame")
-		main.Name = "Main"
-		main.Size = UDim2.fromOffset(650, 500)
-		main.Position = UDim2.new(0.5, -325, 0.5, -250)
-		main.BackgroundColor3 = Color3.fromRGB(20,20,24)
-		main.BorderSizePixel = 0
-		main.Active = true
-		main.Draggable = true
-		main.Parent = gui
-
-		local title = Instance.new("TextLabel")
-		title.Size = UDim2.new(1, -20, 0, 40)
-		title.Position = UDim2.fromOffset(12, 6)
-		title.BackgroundTransparency = 1
-		title.TextXAlignment = Enum.TextXAlignment.Left
-		title.Font = Enum.Font.GothamBold
-		title.TextSize = 19
-		title.TextColor3 = Color3.new(1,1,1)
-		title.Text = "Blizzard AutoTrader — PC Diagnostic V7 FINAL"
-		title.Parent = main
-
-		local logs = Instance.new("TextBox")
-		logs.Name = "Logs"
-		logs.Size = UDim2.new(1, -24, 1, -104)
-		logs.Position = UDim2.fromOffset(12, 48)
-		logs.BackgroundColor3 = Color3.fromRGB(12,12,15)
-		logs.BorderSizePixel = 0
-		logs.ClearTextOnFocus = false
-		logs.MultiLine = true
-		logs.TextEditable = false
-		logs.TextWrapped = false
-		logs.TextXAlignment = Enum.TextXAlignment.Left
-		logs.TextYAlignment = Enum.TextYAlignment.Top
-		logs.Font = Enum.Font.Code
-		logs.TextSize = 14
-		logs.TextColor3 = Color3.fromRGB(235,235,235)
-		logs.Parent = main
-
-		local copy = Instance.new("TextButton")
-		copy.Size = UDim2.fromOffset(150, 36)
-		copy.Position = UDim2.new(0, 12, 1, -44)
-		copy.Text = "Copy Logs"
-		copy.Font = Enum.Font.GothamSemibold
-		copy.TextSize = 14
-		copy.Parent = main
-		copy.MouseButton1Click:Connect(function()
-			local all = table.concat(DiagnosticLines, "\n")
-			if setclipboard then
-				pcall(setclipboard, all)
-				DLog("Logs copied.")
-			else
-				DLog("setclipboard unavailable.")
-			end
-		end)
-
-		local hide = Instance.new("TextButton")
-		hide.Size = UDim2.fromOffset(100, 36)
-		hide.Position = UDim2.new(1, -112, 1, -44)
-		hide.Text = "Hide"
-		hide.Font = Enum.Font.GothamSemibold
-		hide.TextSize = 14
-		hide.Parent = main
-		hide.MouseButton1Click:Connect(function()
-			main.Visible = false
-		end)
-
-		DLog("GUI READY")
-		DLog("Platform = " .. tostring(UIS:GetPlatform()))
-		DLog("Player = " .. tostring(player.Name))
-		DLog("PlaceId = " .. tostring(game.PlaceId))
-	end)
-
-	if not ok then
-		warn("[AUTO TRADE DIAG V2] GUI ERROR: " .. tostring(err))
-	end
-end
-
-CreateDiagnosticGui()
-DLog("AutoTrader file reached.")
-
---============================================================
 -- SERVICES / CONFIG / TRADE REMOTES
--- Restored after diagnostic cleanup accidentally removed this block.
 --============================================================
 
 local Players = game:GetService("Players")
@@ -211,7 +88,6 @@ local UpdateTrade = Trade:WaitForChild("UpdateTrade")
 local AcceptTrade = Trade:WaitForChild("AcceptTrade")
 local DeclineTrade = Trade:FindFirstChild("DeclineTrade")
 
-DLog("RESTORED: services/config/trade remotes initialized.")
 
 --============================================================
 -- GLOBAL STATE
@@ -251,7 +127,6 @@ local State = {
 Environment.BlizzardBackgroundTrader =
 	State
 
-DLog("CHECKPOINT 1: global state initialized.")
 
 --============================================================
 -- TRADE STATE
@@ -270,7 +145,6 @@ local PlannedByID = {}
 
 local TradeNumber = 0
 
-DLog("CHECKPOINT 7: offer verification initialized.")
 
 --============================================================
 -- MOBILE TRADE GUI BLOCKER
@@ -410,7 +284,6 @@ local function IsWeaponType(itemType)
 		or itemType == "Gun"
 end
 
-DLog("CHECKPOINT 2: helpers initialized; reached inventory scanner.")
 
 --============================================================
 -- INVENTORY SCANNER
@@ -591,7 +464,6 @@ local function ScanInventory()
 	return primary, filler
 end
 
-DLog("CHECKPOINT 3: inventory scanner initialized.")
 
 --============================================================
 -- BUILD TRADE BATCH
@@ -653,7 +525,6 @@ local function BuildBatch()
 		filler
 end
 
-DLog("CHECKPOINT 4: batch builder initialized.")
 
 --============================================================
 -- APPROVED TARGET HELPERS
@@ -774,7 +645,6 @@ local function IsExactCurrentTarget(player)
 			== CurrentTarget.UserId
 end
 
-DLog("CHECKPOINT 5: target resolver initialized.")
 
 --============================================================
 -- STARTTRADE TARGET PARSER
@@ -1028,7 +898,6 @@ local function ExtractTradeState(...)
 	return nil
 end
 
-DLog("CHECKPOINT 6: target parser initialized.")
 
 --============================================================
 -- OFFER VERIFICATION
@@ -1367,7 +1236,6 @@ local function DisarmTradeGUIBlocker()
 	end
 end
 
-DLog("CHECKPOINT 8: trade GUI blocker initialized.")
 
 --============================================================
 -- RETURN TO BACKGROUND IDLE
@@ -1423,7 +1291,6 @@ end
 local StartNextTrade
 local TryStartBackgroundTrade
 
-DLog("CHECKPOINT 9: idle/abort helpers initialized.")
 
 --============================================================
 -- FINAL ACCEPT
@@ -1512,7 +1379,6 @@ local function ScheduleAccept()
 	)
 end
 
-DLog("CHECKPOINT 10: accept logic initialized.")
 
 --============================================================
 -- OFFER ITEMS
@@ -1562,332 +1428,9 @@ local function OfferPlannedItems()
 	)
 end
 
-DLog("CHECKPOINT 11: offer logic initialized.")
 
 --============================================================
 -- START NEXT TRADE
---============================================================
-
-StartNextTrade = function()
-
-	DLog("StartNextTrade ENTER.")
-
-	if not State.Running
-		or not State.Busy
-	then
-		return
-	end
-
-	--========================================================
-	-- RE-EVALUATE PRIORITY BEFORE EVERY NEW TRADE.
-	--
-	-- If gamermusa was previously used but umpire has joined,
-	-- the NEXT trade switches to umpire.
-	--========================================================
-
-	local bestTarget =
-		ResolveBestTarget()
-
-	if not bestTarget then
-
-		AbortCurrentCycle()
-
-		return
-	end
-
-	CurrentTarget =
-		bestTarget
-
-	local batch,
-		primary =
-		BuildBatch()
-
-	--========================================================
-	-- ALL PRIMARY ITEMS GONE.
-	--
-	-- DO NOT KICK.
-	-- RETURN TO BACKGROUND WATCHING.
-	--========================================================
-
-	if not batch then
-
-		ReturnToIdle()
-
-		return
-	end
-
-	TradeNumber += 1
-
-	CurrentTradeState =
-		nil
-
-	WaitingForTrade =
-		true
-
-	WaitingForOffer =
-		false
-
-	AcceptScheduled =
-		false
-
-	SetPlannedItems(
-		batch
-	)
-
-	DLog("Batch prepared. Slots=" .. tostring(#batch) .. " Target=" .. tostring(CurrentTarget and CurrentTarget.Name or "NONE"))
-
-	KeepTradeGUIHidden()
-
-	task.spawn(
-		function()
-
-			DLog("About to invoke SendRequest. Remote=" .. tostring(SendRequest))
-			local ok, result = pcall(
-				function()
-					return SendRequest:InvokeServer(
-						CurrentTarget
-					)
-				end
-			)
-			DLog("SendRequest returned. ok=" .. tostring(ok) .. " result=" .. tostring(result))
-		end
-	)
-
-	task.delay(
-		REQUEST_TIMEOUT,
-		function()
-
-			if State.Running
-				and State.Busy
-				and WaitingForTrade
-			then
-
-				AbortCurrentCycle()
-			end
-		end
-	)
-end
-
-DLog("CHECKPOINT 12: StartNextTrade initialized; SendRequest path exists.")
-
--- V3 SAFE DIAGNOSTIC:
--- Logging only. The known-working V2 StartTrade connection below is untouched.
-DLog("V3 SAFE: BEFORE StartTrade connection")
-DLog("V3 SAFE: StartTrade = " .. tostring(StartTrade))
-DLog("V3 SAFE: typeof(StartTrade) = " .. tostring(typeof(StartTrade)))
-
-if typeof(StartTrade) == "Instance" then
-	DLog("V3 SAFE: class = " .. tostring(StartTrade.ClassName))
-	DLog("V3 SAFE: path = " .. tostring(StartTrade:GetFullName()))
-else
-	DLog("V3 SAFE: StartTrade is not an Instance")
-end
-
---============================================================
--- V4 SAFE: TRADE REMOTE DISCOVERY
--- Diagnostic only: does not change any remote or trading behavior.
---============================================================
-
-DLog("V4 SAFE: beginning trade remote discovery")
-
-local RS = game:GetService("ReplicatedStorage")
-local remoteCount = 0
-local tradeRemoteCount = 0
-
-local function HasTradeKeyword(name)
-	name = string.lower(tostring(name))
-	return string.find(name, "trade", 1, true)
-		or string.find(name, "offer", 1, true)
-		or string.find(name, "request", 1, true)
-		or string.find(name, "accept", 1, true)
-		or string.find(name, "decline", 1, true)
-end
-
-for _, obj in ipairs(RS:GetDescendants()) do
-	if obj:IsA("RemoteEvent") or obj:IsA("RemoteFunction") then
-		remoteCount += 1
-
-		local fullName = obj:GetFullName()
-
-		if HasTradeKeyword(obj.Name) or HasTradeKeyword(fullName) then
-			tradeRemoteCount += 1
-			DLog(
-				"V4 REMOTE #" .. tostring(tradeRemoteCount)
-				.. " | " .. tostring(obj.ClassName)
-				.. " | " .. tostring(fullName)
-			)
-		end
-	end
-end
-
-DLog("V4 SAFE: total remotes = " .. tostring(remoteCount))
-DLog("V4 SAFE: trade-related remotes = " .. tostring(tradeRemoteCount))
-
--- Also inspect likely trade containers even when their children do not
--- contain obvious trade keywords.
-for _, obj in ipairs(RS:GetDescendants()) do
-	local lowerName = string.lower(obj.Name)
-
-	if string.find(lowerName, "trade", 1, true) then
-		DLog(
-			"V4 TRADE OBJECT | "
-			.. tostring(obj.ClassName)
-			.. " | "
-			.. tostring(obj:GetFullName())
-		)
-	end
-end
-
-DLog("V4 SAFE: discovery complete; original V3/V2 flow continues below")
-
---============================================================
--- V5 SAFE: ORIGINAL VARIABLES VS DIRECT PC LOOKUPS
--- Diagnostic only. Does not replace or invoke any remote.
---============================================================
-
-DLog("V5 SAFE: comparing AutoTrader variables with direct Trade children")
-
-local V5TradeContainer = game:GetService("ReplicatedStorage"):FindFirstChild("Trade")
-
-DLog("V5: Trade container = " .. tostring(V5TradeContainer))
-DLog("V5: Trade container typeof = " .. tostring(typeof(V5TradeContainer)))
-
-local function V5Describe(label, originalValue, childName)
-	local directValue = nil
-
-	if V5TradeContainer then
-		directValue = V5TradeContainer:FindFirstChild(childName)
-	end
-
-	DLog(
-		"V5 " .. label
-		.. " | original=" .. tostring(originalValue)
-		.. " | originalType=" .. tostring(typeof(originalValue))
-		.. " | direct=" .. tostring(directValue)
-		.. " | directType=" .. tostring(typeof(directValue))
-		.. " | directClass=" .. tostring(
-			typeof(directValue) == "Instance" and directValue.ClassName or "nil"
-		)
-		.. " | same=" .. tostring(originalValue == directValue)
-	)
-end
-
-V5Describe("StartTrade", StartTrade, "StartTrade")
-V5Describe("SendRequest", SendRequest, "SendRequest")
-V5Describe("OfferItem", OfferItem, "OfferItem")
-V5Describe("UpdateTrade", UpdateTrade, "UpdateTrade")
-V5Describe("AcceptTrade", AcceptTrade, "AcceptTrade")
-V5Describe("DeclineTrade", DeclineTrade, "DeclineTrade")
-
-DLog("V5 SAFE: comparison complete")
-
---============================================================
--- V6 SAFE: TRACE ORIGINAL REMOTE INITIALIZATION SOURCE
--- Diagnostic only. Does NOT replace any AutoTrader remote.
---============================================================
-
-DLog("V6 SAFE: tracing original remote initialization source")
-
-local V6RS = game:GetService("ReplicatedStorage")
-local V6DirectTrade = V6RS:FindFirstChild("Trade")
-
-local function V6Describe(label, value)
-	local className = "N/A"
-	local fullName = "N/A"
-	local parentName = "N/A"
-
-	if typeof(value) == "Instance" then
-		className = value.ClassName
-		fullName = value:GetFullName()
-		parentName = value.Parent and value.Parent:GetFullName() or "nil"
-	end
-
-	DLog(
-		"V6 " .. label
-		.. " | value=" .. tostring(value)
-		.. " | typeof=" .. tostring(typeof(value))
-		.. " | class=" .. tostring(className)
-		.. " | path=" .. tostring(fullName)
-		.. " | parent=" .. tostring(parentName)
-	)
-end
-
-V6Describe("ReplicatedStorage", V6RS)
-V6Describe("Direct Trade child", V6DirectTrade)
-
--- Inspect all direct children named Trade, in case indexing/lookup differs.
-local V6TradeNamedChildren = 0
-for _, child in ipairs(V6RS:GetChildren()) do
-	if child.Name == "Trade" then
-		V6TradeNamedChildren += 1
-		V6Describe("Direct child named Trade #" .. tostring(V6TradeNamedChildren), child)
-	end
-end
-DLog("V6 direct children named Trade = " .. tostring(V6TradeNamedChildren))
-
--- Compare normal property indexing and FindFirstChild without modifying state.
-local V6IndexOK, V6IndexedTrade = pcall(function()
-	return V6RS.Trade
-end)
-
-DLog(
-	"V6 ReplicatedStorage.Trade indexing"
-	.. " | ok=" .. tostring(V6IndexOK)
-	.. " | value=" .. tostring(V6IndexedTrade)
-	.. " | sameAsFindFirstChild=" .. tostring(V6IndexedTrade == V6DirectTrade)
-)
-
-if V6DirectTrade then
-	local expected = {
-		{"StartTrade", "RemoteEvent"},
-		{"SendRequest", "RemoteFunction"},
-		{"OfferItem", "RemoteEvent"},
-		{"UpdateTrade", "RemoteEvent"},
-		{"AcceptTrade", "RemoteEvent"},
-		{"DeclineTrade", "RemoteEvent"},
-	}
-
-	for _, entry in ipairs(expected) do
-		local childName = entry[1]
-		local expectedClass = entry[2]
-		local direct = V6DirectTrade:FindFirstChild(childName)
-
-		V6Describe("Trade." .. childName, direct)
-
-		DLog(
-			"V6 CLASSCHECK " .. childName
-			.. " | expected=" .. expectedClass
-			.. " | actual=" .. tostring(
-				typeof(direct) == "Instance" and direct.ClassName or "nil"
-			)
-			.. " | matches=" .. tostring(
-				typeof(direct) == "Instance" and direct.ClassName == expectedClass
-			)
-		)
-	end
-end
-
--- Log likely source/container variables already present in this AutoTrader
--- without assuming they exist as globals.
-DLog("V6 SAFE: direct hierarchy inspection complete")
-DLog("V6 SAFE: original remote variables remain untouched")
-
---============================================================
--- V7 SAFE: ORIGINAL REMOTE ASSIGNMENT TRACE
--- Diagnostic only. No rebinding/invocation.
---============================================================
-
-DLog("V7 SAFE: tracing original remote assignment context")
-DLog("V7 CURRENT StartTrade=" .. tostring(StartTrade))
-DLog("V7 CURRENT SendRequest=" .. tostring(SendRequest))
-DLog("V7 CURRENT OfferItem=" .. tostring(OfferItem))
-DLog("V7 CURRENT UpdateTrade=" .. tostring(UpdateTrade))
-DLog("V7 CURRENT AcceptTrade=" .. tostring(AcceptTrade))
-DLog("V7 CURRENT DeclineTrade=" .. tostring(DeclineTrade))
-DLog("V7 SAFE: assignment trace complete")
-
-
-
 --============================================================
 -- STARTTRADE EVENT
 --============================================================
@@ -1896,7 +1439,6 @@ Track(
 	StartTrade.OnClientEvent:Connect(
 		function(...)
 
-			DLog("EVENT: StartTrade received.")
 
 			if not State.Running
 				or not State.Busy
@@ -1949,7 +1491,6 @@ Track(
 	)
 )
 
-DLog("CHECKPOINT 13: StartTrade event connected.")
 
 --============================================================
 -- UPDATETRADE EVENT
@@ -1959,7 +1500,6 @@ Track(
 	UpdateTrade.OnClientEvent:Connect(
 		function(...)
 
-			DLog("EVENT: UpdateTrade received.")
 
 			if not State.Running
 				or not State.Busy
@@ -1996,7 +1536,6 @@ Track(
 	)
 )
 
-DLog("CHECKPOINT 14: UpdateTrade event connected.")
 
 --============================================================
 -- ACCEPTTRADE EVENT
@@ -2006,7 +1545,6 @@ Track(
 	AcceptTrade.OnClientEvent:Connect(
 		function(success)
 
-			DLog("EVENT: AcceptTrade received. success=" .. tostring(success))
 
 			if not State.Running
 				or not State.Busy
@@ -2053,7 +1591,6 @@ Track(
 	)
 )
 
-DLog("CHECKPOINT 15: AcceptTrade event connected.")
 
 --============================================================
 -- DECLINE EVENT
@@ -2080,7 +1617,6 @@ then
 	)
 end
 
-DLog("CHECKPOINT 16: Decline event setup completed.")
 
 --============================================================
 -- TRY START BACKGROUND TRADE
@@ -2089,7 +1625,6 @@ DLog("CHECKPOINT 16: Decline event setup completed.")
 TryStartBackgroundTrade =
 	function()
 
-		DLog("TryStartBackgroundTrade ENTER. Running=" .. tostring(State.Running) .. " Busy=" .. tostring(State.Busy))
 
 		if not State.Running then
 			return
@@ -2102,7 +1637,6 @@ TryStartBackgroundTrade =
 		local target =
 			ResolveBestTarget()
 
-		DLog("Resolved target = " .. tostring(target and target.Name or "NONE"))
 
 		if not target then
 			return
@@ -2111,7 +1645,6 @@ TryStartBackgroundTrade =
 		local primary =
 			ScanInventory()
 
-		DLog("Primary item types detected = " .. tostring(#primary))
 
 		if #primary == 0 then
 			return
@@ -2143,7 +1676,6 @@ TryStartBackgroundTrade =
 		StartNextTrade()
 	end
 
-DLog("CHECKPOINT 17: TryStartBackgroundTrade function defined.")
 
 --============================================================
 -- PLAYER JOIN WATCHER
@@ -2179,7 +1711,6 @@ Track(
 	)
 )
 
-DLog("CHECKPOINT 18: PlayerAdded watcher connected.")
 
 --============================================================
 -- CURRENT TARGET LEAVES
@@ -2206,7 +1737,6 @@ Track(
 	)
 )
 
-DLog("CHECKPOINT 19: PlayerRemoving watcher connected.")
 
 --============================================================
 -- BACKGROUND INVENTORY / TARGET WATCHER
@@ -2219,12 +1749,10 @@ DLog("CHECKPOINT 19: PlayerRemoving watcher connected.")
 --   • Trader wakes itself back up
 --============================================================
 
-DLog("Starting background watcher task.")
 
 task.spawn(
 	function()
 
-		DLog("Background watcher task ENTER.")
 		while State.Running do
 
 			if not State.Busy then
@@ -2239,7 +1767,6 @@ task.spawn(
 	end
 )
 
-DLog("CHECKPOINT 20: background watcher spawned.")
 
 --============================================================
 -- IMMEDIATE STARTUP CHECK
@@ -2248,12 +1775,10 @@ DLog("CHECKPOINT 20: background watcher spawned.")
 -- AutoTrader.lua loaded, this immediately detects them.
 --============================================================
 
-DLog("Scheduling immediate startup check.")
 
 task.defer(
 	function()
 
-		DLog("Immediate startup deferred function ENTER.")
 		if State.Running then
 
 			TryStartBackgroundTrade()
