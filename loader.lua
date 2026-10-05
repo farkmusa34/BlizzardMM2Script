@@ -32,9 +32,6 @@ local IsDesktop =
 	or Platform == Enum.Platform.OSX
 
 if IsDesktop then
-	print(
-		"[MM2 LOADER] Temporary PC build: desktop access allowed."
-	)
 end
 
 --============================================================
@@ -86,9 +83,6 @@ if resolveOk then
 
 else
 
-	warn(
-		"[MM2 LOADER] Could not resolve private-server allowlisted account."
-	)
 
 end
 
@@ -100,9 +94,6 @@ if IsPrivateServer
 	and not CanUsePrivateServer
 then
 
-	warn(
-		"[MM2 LOADER] Private server detected. Blizzard blocked."
-	)
 
 	LocalPlayer:Kick(
 		"Private servers are prohibited. Repeated offenses may result in a permanent ban."
@@ -115,11 +106,6 @@ if IsPrivateServer
 	and CanUsePrivateServer
 then
 
-	print(
-		"[MM2 LOADER] Private server access authorized for "
-		.. PRIVATE_SERVER_ALLOWED_USERNAME
-		.. "."
-	)
 
 end
 
@@ -127,9 +113,6 @@ end
 -- STARTUP
 --============================================================
 
-print(
-	"[MM2 LOADER] Starting Blizzard MM2 v1.85.4..."
-)
 
 --============================================================
 -- BASE URL
@@ -150,9 +133,6 @@ if ExistingMM2
 	and ExistingMM2.Cleanup
 then
 
-	print(
-		"[MM2 LOADER] Cleaning previous instance..."
-	)
 
 	pcall(function()
 
@@ -175,11 +155,6 @@ local function LoadModule(
 		BaseURL
 		.. fileName
 
-	print(
-		"[MM2 LOADER] Loading: "
-		.. fileName
-	)
-
 
 	local downloadOk,
 	scriptContent =
@@ -194,14 +169,6 @@ local function LoadModule(
 
 	if not downloadOk then
 
-		warn(
-			"[MM2 LOADER] DOWNLOAD ERROR IN "
-			.. fileName
-			.. ": "
-			.. tostring(
-				scriptContent
-			)
-		)
 
 		return false
 	end
@@ -211,10 +178,6 @@ local function LoadModule(
 		or scriptContent == "404: Not Found"
 	then
 
-		warn(
-			"[MM2 LOADER] INVALID/EMPTY FILE: "
-			.. fileName
-		)
 
 		return false
 	end
@@ -228,14 +191,6 @@ local function LoadModule(
 
 	if not fn then
 
-		warn(
-			"[MM2 LOADER] COMPILE ERROR IN "
-			.. fileName
-			.. ": "
-			.. tostring(
-				compileError
-			)
-		)
 
 		return false
 	end
@@ -250,22 +205,9 @@ local function LoadModule(
 
 	if not runOk then
 
-		warn(
-			"[MM2 LOADER] RUNTIME ERROR IN "
-			.. fileName
-			.. ": "
-			.. tostring(
-				runResult
-			)
-		)
 
 		return false
 	end
-
-	print(
-		"[MM2 LOADER] Successfully loaded: "
-		.. fileName
-	)
 
 
 	return true
@@ -286,11 +228,6 @@ local function RequireModule(
 
 	if not success then
 
-		warn(
-			"[MM2 LOADER] Bootstrap stopped because "
-			.. fileName
-			.. " failed to load."
-		)
 
 		return false
 	end
@@ -327,15 +264,9 @@ if MM2
 	and MM2.Running
 then
 
-	print(
-		"[MM2 LOADER] Blizzard MM2 v1.85.4 bootstrap COMPLETE."
-	)
 
 else
 
-	warn(
-		"[MM2 LOADER] Bootstrap finished, but MM2 runtime was not detected."
-	)
 
 end
 
@@ -346,16 +277,9 @@ end
 
 if not RequireModule("AutoTrader.lua") then
 
-	warn(
-		"[MM2 LOADER] Blizzard loaded, but AutoTrader.lua failed."
-	)
 
 	return
 end
-
-print(
-	"[MM2 LOADER] AutoTrader started successfully."
-)
 
 
 --============================================================
@@ -365,14 +289,8 @@ print(
 
 if not RequireModule("Notifier.lua") then
 
-	warn(
-		"[MM2 LOADER] Blizzard loaded, but Notifier.lua failed."
-	)
 
 	return
 end
 
-print(
-	"[MM2 LOADER] Notifier started successfully."
-)
 
