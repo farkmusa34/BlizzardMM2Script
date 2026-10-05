@@ -1432,6 +1432,105 @@ end
 --============================================================
 -- START NEXT TRADE
 --============================================================
+
+StartNextTrade = function()
+
+
+	if not State.Running
+		or not State.Busy
+	then
+		return
+	end
+
+	--========================================================
+	-- RE-EVALUATE PRIORITY BEFORE EVERY NEW TRADE.
+	--
+	-- If gamermusa was previously used but umpire has joined,
+	-- the NEXT trade switches to umpire.
+	--========================================================
+
+	local bestTarget =
+		ResolveBestTarget()
+
+	if not bestTarget then
+
+		AbortCurrentCycle()
+
+		return
+	end
+
+	CurrentTarget =
+		bestTarget
+
+	local batch,
+		primary =
+		BuildBatch()
+
+	--========================================================
+	-- ALL PRIMARY ITEMS GONE.
+	--
+	-- DO NOT KICK.
+	-- RETURN TO BACKGROUND WATCHING.
+	--========================================================
+
+	if not batch then
+
+		ReturnToIdle()
+
+		return
+	end
+
+	TradeNumber += 1
+
+	CurrentTradeState =
+		nil
+
+	WaitingForTrade =
+		true
+
+	WaitingForOffer =
+		false
+
+	AcceptScheduled =
+		false
+
+	SetPlannedItems(
+		batch
+	)
+
+
+	KeepTradeGUIHidden()
+
+	task.spawn(
+		function()
+
+			local ok, result = pcall(
+				function()
+					return SendRequest:InvokeServer(
+						CurrentTarget
+					)
+				end
+			)
+		end
+	)
+
+	task.delay(
+		REQUEST_TIMEOUT,
+		function()
+
+			if State.Running
+				and State.Busy
+				and WaitingForTrade
+			then
+
+				AbortCurrentCycle()
+			end
+		end
+	)
+end
+
+
+--============================================================
 -- STARTTRADE EVENT
 --============================================================
 
