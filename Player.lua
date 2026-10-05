@@ -191,33 +191,11 @@ local function CreateMobileFlyButtons()
 end
 
 local function SetMobileFlyButtonsVisible(on)
+	-- Fly uses joystick/camera movement directly; no extra Fly buttons.
 	MobileFlyUp = false
 	MobileFlyDown = false
-	if not IsMobileFlyDevice() then
-		if MobileFlyUpButton then
-			MobileFlyUpButton.Visible = false
-		end
-		if MobileFlyDownButton then
-			MobileFlyDownButton.Visible = false
-		end
-		return
-	end
-	if on then
-		CreateMobileFlyButtons()
-		if MobileFlyUpButton then
-			MobileFlyUpButton.Visible = true
-		end
-		if MobileFlyDownButton then
-			MobileFlyDownButton.Visible = true
-		end
-	else
-		if MobileFlyUpButton then
-			MobileFlyUpButton.Visible = false
-		end
-		if MobileFlyDownButton then
-			MobileFlyDownButton.Visible = false
-		end
-	end
+	if MobileFlyUpButton then MobileFlyUpButton.Visible = false end
+	if MobileFlyDownButton then MobileFlyDownButton.Visible = false end
 end
 
 --============================================================
@@ -719,7 +697,7 @@ UI.CreateSlider(
 			humanoid.JumpPower = value
 		end
 	end,
-	20,150,5
+	50,200,5
 )
 
 --============================================================
