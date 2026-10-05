@@ -508,7 +508,7 @@ UI.AddSection(UI.PlayerPage,"Movement","Movement and mobility controls")
 UI.CreateToggle(
 	UI.PlayerPage,
 	"Fly",
-	"PC: WASD + Space/Ctrl. Mobile: joystick",
+	"Fly using your movement controls",
 	"Fly",
 	function(on)
 		if on then StartFly() else StopFly() end
@@ -518,7 +518,7 @@ UI.CreateToggle(
 UI.CreateSlider(
 	UI.PlayerPage,
 	"Fly Speed",
-	"Adjust how fast you fly",
+	"Sets how fast you fly",
 	function() return Settings.FlySpeed end,
 	function(value) Settings.FlySpeed = value end,
 	10,200,5
@@ -527,7 +527,7 @@ UI.CreateSlider(
 UI.CreateToggle(
 	UI.PlayerPage,
 	"Noclip",
-	"Walk through objects with void protection",
+	"Walk through walls with free fall protection",
 	"Noclip",
 	function(on)
 		if on then StartPlayerNoclip() else StopPlayerNoclip() end
@@ -537,7 +537,7 @@ UI.CreateToggle(
 local WalkSpeedSlider = UI.CreateSlider(
 	UI.PlayerPage,
 	"Walk Speed",
-	"Sets and keeps your selected walk speed",
+	"Sets your walk speed",
 	function()
 		return Settings.WalkSpeed
 	end,
