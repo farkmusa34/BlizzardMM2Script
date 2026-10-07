@@ -4,7 +4,6 @@
 --
 -- Sections:
 --   Appearance
---   Quick Buttons
 --   Server
 --   Config
 --   UI
@@ -332,7 +331,7 @@ MM2.Functions.ApplyTheme = ApplyTheme
 UI.AddSection(
 	UI.MiscPage,
 	"Appearance",
-	"Customize the Blizzard MM2 interface"
+	"Changes menu colors."
 )
 
 ThemeDropdown =
@@ -353,68 +352,6 @@ ThemeDropdown =
 			end
 		end
 	)
-
---============================================================
--- QUICK BUTTONS
---============================================================
-
-UI.AddSection(
-	UI.MiscPage,
-	"Quick Buttons",
-	"Customize the floating mobile action buttons"
-)
-
-UI.CreateToggle(
-	UI.MiscPage,
-	"Lock Buttons",
-	"Prevents floating buttons from being dragged while keeping them clickable",
-	"QuickButtonsLocked",
-	function(on)
-		if UI.SetQuickButtonsLocked then
-			UI.SetQuickButtonsLocked(on)
-		end
-	end
-)
-
-UI.CreateSlider(
-	UI.MiscPage,
-	"Button Size",
-	"Resize every quick button together. 100% is the new smaller default size",
-	function()
-		return tonumber(Flags.QuickButtonScale) or 100
-	end,
-	function(value)
-		value = math.clamp(tonumber(value) or 100,60,140)
-		Flags.QuickButtonScale = value
-		if UI.SetQuickButtonScale then
-			UI.SetQuickButtonScale(value)
-		end
-	end,
-	60,
-	140,
-	5
-)
-
-UI.CreateActionFeature(
-	UI.MiscPage,
-	"Reset Button Positions",
-	"Move every quick button back to its default screen position",
-	function()
-		if UI.ResetQuickButtonPositions then
-			UI.ResetQuickButtonPositions()
-		end
-	end,
-	"undo-2"
-)
-
--- Apply saved/current values immediately to buttons that already exist.
-if UI.SetQuickButtonsLocked then
-	UI.SetQuickButtonsLocked(Flags.QuickButtonsLocked)
-end
-
-if UI.SetQuickButtonScale then
-	UI.SetQuickButtonScale(Flags.QuickButtonScale)
-end
 
 --============================================================
 -- SERVER
