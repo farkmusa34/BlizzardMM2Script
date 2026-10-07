@@ -167,7 +167,7 @@ CreateNativeToggle(
 )
 
 CreateNativeToggle(
-	"Match ESP",
+	"Role ESP",
 	"Highlight players using detected roles",
 	"MatchESP",
 	function(on)
@@ -389,6 +389,59 @@ local function GetGraceRole(
 	return cached.Role
 end
 
+local function HasLiveAssignedRoles()
+	-- During the pre-round countdown, the server can already expose
+	-- valid roles before Shared.lua marks RoleRoundActive true.
+	-- Require a special role so stale lobby Innocent data alone
+	-- cannot open the ESP gate.
+	local hasSpecialRole = false
+	local hasValidRole = false
+
+	for _,player in ipairs(
+		Players:GetPlayers()
+	) do
+		if player ~= LocalPlayer
+			and not MM2.State.PlayerOutOfRound[
+				player.Name
+			]
+		then
+			local char = player.Character
+			local humanoid =
+				char
+				and char:FindFirstChildOfClass(
+					"Humanoid"
+				)
+
+			if humanoid
+				and humanoid.Health > 0
+			then
+				local role =
+					MM2.GetPlayerRole(
+						player
+					)
+
+				if role == "Murderer"
+					or role == "Sheriff"
+					or role == "Hero"
+					or role == "Innocent"
+				then
+					hasValidRole = true
+				end
+
+				if role == "Murderer"
+					or role == "Sheriff"
+					or role == "Hero"
+				then
+					hasSpecialRole = true
+				end
+			end
+		end
+	end
+
+	return hasValidRole
+		and hasSpecialRole
+end
+
 MM2.Functions.UpdatePlayerESP =
 	function()
 
@@ -398,6 +451,7 @@ MM2.Functions.UpdatePlayerESP =
 
 		if MM2.State.RoleRoundActive
 			~= true
+			and not HasLiveAssignedRoles()
 		then
 
 			MM2.Functions.ClearPlayerESP()
