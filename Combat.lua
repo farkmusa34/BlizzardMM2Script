@@ -102,10 +102,10 @@ UI.CreateSlider(
 	0,0.60,0.01
 )
 UI.CreateToggle(UI.CombatPage, "Aim Lock", "Tracks the Murderer while Shift Lock is enabled", "AimLock")
-Flags.SilentAim = Flags.SilentAim == true
-UI.CreateToggle(UI.CombatPage, "Silent Aim", "Redirects your manual gun shot to the Murderer without moving your camera", "SilentAim")
 
 AddCompactCombatSection("Sheriff")
+Flags.SilentAim = Flags.SilentAim == true
+UI.CreateToggle(UI.CombatPage, "Silent Aim", "Redirects your manual shots toward the enemy’s head.", "SilentAim")
 UI.CreateToggle(UI.CombatPage, "Shoot Murderer Button (LEGIT)", "Shows a shoot button that only fires when the Murderer is visible", "ShowLegitShootButton", function(on)
 	if MM2.UI.FloatingLegitShootHolder then
 		MM2.UI.FloatingLegitShootHolder.Visible = on
@@ -618,44 +618,51 @@ end
 -- SILENT AIM - MANUAL SHOT REDIRECTION
 --============================================================
 -- The normal gun script still performs the manual activation and FireServer.
--- We only replace the two CFrame arguments for that manual Gun.Shoot call.
--- This prevents a second/double shot and never moves the camera.
--- Existing Blizzard-generated shots are left alone via checkcaller().
+-- Silent Aim only replaces that one manual Gun.Shoot destination.
+-- Target/prediction is cached OUTSIDE __namecall so the hook itself does not
+-- call Roblox methods and recursively re-enter __namecall.
 
 local SilentAimHookInstalled = false
 local SilentAimOldNamecall = nil
+local SilentAimCachedTargetPosition = nil
 
-local function GetSilentAimTargetPosition()
-	local murderer = FindLiveMurderer()
-	if not murderer or not IsLivePlayer(murderer) then
-		return nil,nil
-	end
-
-	local torso = GetCombatTorso(murderer.Character)
-	if not torso then
-		return nil,nil
-	end
-
-	return GetProductionShootTargetPosition(torso),murderer
+local function GetSilentAimTargetPart(character)
+	if not character then return nil end
+	return character:FindFirstChild("Head")
+		or character:FindFirstChild("UpperTorso")
+		or character:FindFirstChild("Torso")
+		or character:FindFirstChild("HumanoidRootPart")
 end
 
-local function IsLocalGunShootRemote(instance)
-	if not instance or not instance:IsA("RemoteEvent") or instance.Name ~= "Shoot" then
-		return false
-	end
+local function UpdateSilentAimCache()
+	SilentAimCachedTargetPosition = nil
+	if not Flags.SilentAim then return end
+
+	local murderer = FindLiveMurderer()
+	if not murderer or not IsLivePlayer(murderer) then return end
+
+	local targetPart = GetSilentAimTargetPart(murderer.Character)
+	if not targetPart then return end
+
+	SilentAimCachedTargetPosition = GetProductionShootTargetPosition(targetPart)
+end
+
+Track(RunService.RenderStepped:Connect(UpdateSilentAimCache))
+
+local function IsLocalGunShootRemoteNoNamecalls(instance)
+	if typeof(instance) ~= "Instance" then return false end
+	if instance.Name ~= "Shoot" then return false end
+
+	local tool = instance.Parent
+	if not tool then return false end
+	if tool.Name ~= "Gun" and tool.Name ~= "Revolver" then return false end
 
 	local character = LocalPlayer.Character
-	if not character then return false end
-
-	local gun = character:FindFirstChild("Gun") or character:FindFirstChild("Revolver")
-	return gun ~= nil and instance:IsDescendantOf(gun)
+	return character ~= nil and tool.Parent == character
 end
 
 local function InstallSilentAimHook()
-	if SilentAimHookInstalled then
-		return true
-	end
-
+	if SilentAimHookInstalled then return true end
 	if not hookmetamethod or not getnamecallmethod then
 		warn("[MM2 SILENT AIM] hookmetamethod/getnamecallmethod unavailable")
 		return false
@@ -665,29 +672,17 @@ local function InstallSilentAimHook()
 	local wrapClosure = newcclosure or function(fn) return fn end
 	oldNamecall = hookmetamethod(game,"__namecall",wrapClosure(function(self,...)
 		local method = getnamecallmethod()
-		local args = {...}
 
-		-- Only intercept the game's own manual Gun.Shoot FireServer call.
-		-- Calls made by this Combat.lua (TriggerBot / buttons) remain unchanged.
 		if Flags.SilentAim
 			and method == "FireServer"
-			and IsLocalGunShootRemote(self)
+			and IsLocalGunShootRemoteNoNamecalls(self)
 			and (not checkcaller or not checkcaller())
 		then
-			local targetPosition = GetSilentAimTargetPosition()
+			local targetPosition = SilentAimCachedTargetPosition
 			if targetPosition then
+				local args = {...}
 				local originalOrigin = args[1]
-				local originPosition = nil
-
-				if typeof(originalOrigin) == "CFrame" then
-					originPosition = originalOrigin.Position
-				end
-
-				if not originPosition then
-					local character = LocalPlayer.Character
-					local hrp = character and character:FindFirstChild("HumanoidRootPart")
-					originPosition = hrp and hrp.Position or nil
-				end
+				local originPosition = typeof(originalOrigin) == "CFrame" and originalOrigin.Position or nil
 
 				if originPosition and (targetPosition-originPosition).Magnitude > 0.1 then
 					args[1] = CFrame.new(originPosition,targetPosition)
