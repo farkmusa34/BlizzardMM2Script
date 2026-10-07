@@ -102,6 +102,8 @@ UI.CreateSlider(
 	0,0.60,0.01
 )
 UI.CreateToggle(UI.CombatPage, "Aim Lock", "Tracks the Murderer while Shift Lock is enabled", "AimLock")
+Flags.SilentAim = Flags.SilentAim == true
+UI.CreateToggle(UI.CombatPage, "Silent Aim", "Redirects your manual gun shot to the Murderer without moving your camera", "SilentAim")
 
 AddCompactCombatSection("Sheriff")
 UI.CreateToggle(UI.CombatPage, "Shoot Murderer Button (LEGIT)", "Shows a shoot button that only fires when the Murderer is visible", "ShowLegitShootButton", function(on)
@@ -611,6 +613,99 @@ local function FireRageCombatGun(gun,targetPosition)
 	shoot:FireServer(originCFrame,destinationCFrame)
 	return true
 end
+
+--============================================================
+-- SILENT AIM - MANUAL SHOT REDIRECTION
+--============================================================
+-- The normal gun script still performs the manual activation and FireServer.
+-- We only replace the two CFrame arguments for that manual Gun.Shoot call.
+-- This prevents a second/double shot and never moves the camera.
+-- Existing Blizzard-generated shots are left alone via checkcaller().
+
+local SilentAimHookInstalled = false
+local SilentAimOldNamecall = nil
+
+local function GetSilentAimTargetPosition()
+	local murderer = FindLiveMurderer()
+	if not murderer or not IsLivePlayer(murderer) then
+		return nil,nil
+	end
+
+	local torso = GetCombatTorso(murderer.Character)
+	if not torso then
+		return nil,nil
+	end
+
+	return GetProductionShootTargetPosition(torso),murderer
+end
+
+local function IsLocalGunShootRemote(instance)
+	if not instance or not instance:IsA("RemoteEvent") or instance.Name ~= "Shoot" then
+		return false
+	end
+
+	local character = LocalPlayer.Character
+	if not character then return false end
+
+	local gun = character:FindFirstChild("Gun") or character:FindFirstChild("Revolver")
+	return gun ~= nil and instance:IsDescendantOf(gun)
+end
+
+local function InstallSilentAimHook()
+	if SilentAimHookInstalled then
+		return true
+	end
+
+	if not hookmetamethod or not getnamecallmethod then
+		warn("[MM2 SILENT AIM] hookmetamethod/getnamecallmethod unavailable")
+		return false
+	end
+
+	local oldNamecall
+	local wrapClosure = newcclosure or function(fn) return fn end
+	oldNamecall = hookmetamethod(game,"__namecall",wrapClosure(function(self,...)
+		local method = getnamecallmethod()
+		local args = {...}
+
+		-- Only intercept the game's own manual Gun.Shoot FireServer call.
+		-- Calls made by this Combat.lua (TriggerBot / buttons) remain unchanged.
+		if Flags.SilentAim
+			and method == "FireServer"
+			and IsLocalGunShootRemote(self)
+			and (not checkcaller or not checkcaller())
+		then
+			local targetPosition = GetSilentAimTargetPosition()
+			if targetPosition then
+				local originalOrigin = args[1]
+				local originPosition = nil
+
+				if typeof(originalOrigin) == "CFrame" then
+					originPosition = originalOrigin.Position
+				end
+
+				if not originPosition then
+					local character = LocalPlayer.Character
+					local hrp = character and character:FindFirstChild("HumanoidRootPart")
+					originPosition = hrp and hrp.Position or nil
+				end
+
+				if originPosition and (targetPosition-originPosition).Magnitude > 0.1 then
+					args[1] = CFrame.new(originPosition,targetPosition)
+					args[2] = CFrame.new(targetPosition)
+					return oldNamecall(self,table.unpack(args))
+				end
+			end
+		end
+
+		return oldNamecall(self,...)
+	end))
+
+	SilentAimOldNamecall = oldNamecall
+	SilentAimHookInstalled = true
+	return true
+end
+
+InstallSilentAimHook()
 
 MM2.Functions.ShootMurderer = function()
 	if ShootBusy then
