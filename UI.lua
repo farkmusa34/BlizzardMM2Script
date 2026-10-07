@@ -2337,7 +2337,62 @@ function UI.SetQuickButtonScale(value)
 	return Flags.QuickButtonScale
 end
 
+-- Saved quick-button positions can be loaded before Combat/Player/Fling create
+-- their floating buttons. Keep them pending and apply each one on creation.
+UI.PendingQuickButtonPositions = UI.PendingQuickButtonPositions or {}
+
+local function SerializeQuickButtonPosition(position)
+	if typeof(position) ~= "UDim2" then return nil end
+	return {
+		XScale = position.X.Scale,
+		XOffset = position.X.Offset,
+		YScale = position.Y.Scale,
+		YOffset = position.Y.Offset,
+	}
+end
+
+local function DeserializeQuickButtonPosition(data)
+	if type(data) ~= "table" then return nil end
+	local xs = tonumber(data.XScale or data.xScale or data[1])
+	local xo = tonumber(data.XOffset or data.xOffset or data[2])
+	local ys = tonumber(data.YScale or data.yScale or data[3])
+	local yo = tonumber(data.YOffset or data.yOffset or data[4])
+	if not xs or not xo or not ys or not yo then return nil end
+	return UDim2.new(xs,xo,ys,yo)
+end
+
+function UI.GetQuickButtonPositions()
+	local positions = {}
+	for name,data in pairs(UI.PendingQuickButtonPositions) do
+		if type(data) == "table" then
+			positions[name] = data
+		end
+	end
+	for name,entry in pairs(UI.FloatingCardRegistry) do
+		if entry and entry.Holder then
+			local encoded = SerializeQuickButtonPosition(entry.Holder.Position)
+			if encoded then positions[name] = encoded end
+		end
+	end
+	return positions
+end
+
+function UI.ApplyQuickButtonPositions(positions)
+	if type(positions) ~= "table" then return false end
+	UI.PendingQuickButtonPositions = {}
+	for name,data in pairs(positions) do
+		local position = DeserializeQuickButtonPosition(data)
+		if position then
+			UI.PendingQuickButtonPositions[tostring(name)] = SerializeQuickButtonPosition(position)
+			local entry = UI.FloatingCardRegistry[tostring(name)]
+			if entry and entry.Holder then entry.Holder.Position = position end
+		end
+	end
+	return true
+end
+
 function UI.ResetQuickButtonPositions()
+	UI.PendingQuickButtonPositions = {}
 	for _,entry in pairs(UI.FloatingCardRegistry) do
 		if entry and entry.Holder and entry.DefaultPosition then
 			entry.Holder.Position = entry.DefaultPosition
@@ -2532,6 +2587,11 @@ function UI.CreateMovableCardButton(
 	}
 
 	UI.FloatingCardRegistry[cleanName] = entry
+
+	local pendingPosition = DeserializeQuickButtonPosition(UI.PendingQuickButtonPositions[cleanName])
+	if pendingPosition then
+		holder.Position = pendingPosition
+	end
 
 	local dragging = false
 	local moved = false
