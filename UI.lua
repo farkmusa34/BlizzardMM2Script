@@ -1330,6 +1330,8 @@ function UI.CreateImageSkinSelector(
 			label.Text = name
 			label.TextWrapped = true
 			label.TextColor3 = Color3.fromRGB(240,240,244)
+			label.TextStrokeColor3 = Color3.fromRGB(0,0,0)
+			label.TextStrokeTransparency = 0.3
 			label.TextSize = 10
 			label.ZIndex = 23
 			label.Parent = tile
