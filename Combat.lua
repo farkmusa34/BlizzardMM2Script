@@ -1154,7 +1154,7 @@ local FloatingShootButton,FloatingShootHolder =
 	UI.CreateMovableCardButton(
 		"FloatingShootMurderer",
 		CombatFeatureIcon("RageShoot","zap"),
-		"RAGE SHOOT",
+		"RAGE\nSHOOT",
 		UDim2.new(0.78,0,0.76,0),
 		function()
 			task.spawn(function()
@@ -1210,7 +1210,7 @@ local FloatingKillAllButton,FloatingKillAllHolder =
 	UI.CreateMovableCardButton(
 		"FloatingKillAll",
 		CombatFeatureIcon("KillAll","skull"),
-		"KILL ALL",
+		"KILL\nALL",
 		UDim2.new(0.67,-52,0.78,-42),
 		function()
 			local ok,success,message = pcall(function()
