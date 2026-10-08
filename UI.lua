@@ -1164,8 +1164,8 @@ function UI.CreateImageSkinSelector(
 		root.Name = "BlizzardEmbeddedSkinGallery_" .. tostring(titleText)
 		root.BackgroundTransparency = 1
 		local rowCount = math.max(1, math.ceil(#items / 4))
-		local CARD_HEIGHT = 64
-		local CARD_GAP = 5
+		local CARD_HEIGHT = 86
+		local CARD_GAP = 4
 		local GRID_TOP_INSET = 3
 		local GRID_BOTTOM_INSET = 3
 		local gridHeight = GRID_TOP_INSET + rowCount * CARD_HEIGHT + math.max(0,rowCount - 1) * CARD_GAP + GRID_BOTTOM_INSET
@@ -1298,39 +1298,40 @@ function UI.CreateImageSkinSelector(
 			corner.Parent = tile
 
 			local stroke = Instance.new("UIStroke")
-			stroke.Thickness = 1
-			stroke.Transparency = 0.18
+			stroke.Thickness = 1.4
+			stroke.Transparency = 0.12
 			local specialPurple = (name == "Harvester" or name == "Gingerscope" or name == "Icepiercer")
 			local outlineColor = specialPurple and Color3.fromRGB(132,55,220) or rarityColor(rarity)
 			stroke.Color = outlineColor
 			stroke.Parent = tile
 
+			-- Reserve a dedicated upper image region and bottom text region.
+			-- Large artwork stays centered without ever covering the name.
 			local preview = Instance.new("ImageLabel")
+			preview.Name = "WeaponPreview"
 			preview.BackgroundTransparency = 1
-			-- Keep the existing 4x4 cards unchanged; enlarge only the weapon art.
-			-- Center anchoring makes the 1.25x growth expand evenly in every direction.
 			preview.AnchorPoint = Vector2.new(0.5,0.5)
-			preview.Position = UDim2.new(0.5,0,0,23)
-			preview.Size = UDim2.new(1,-8,0,41)
+			preview.Position = UDim2.new(0.5,0,0,30)
+			preview.Size = UDim2.new(1,-6,0,57)
 			preview.Image = image
 			preview.ScaleType = Enum.ScaleType.Fit
 			preview.ZIndex = 22
 			preview.Parent = tile
 
-			local previewScale = Instance.new("UIScale")
-			previewScale.Name = "WeaponPreviewScale"
-			previewScale.Scale = 1.25
-			previewScale.Parent = preview
-
 			local label = Instance.new("TextLabel")
+			label.Name = "SkinName"
 			label.BackgroundTransparency = 1
-			label.Position = UDim2.new(0,3,1,-22)
-			label.Size = UDim2.new(1,-6,0,20)
+			label.Position = UDim2.new(0,2,1,-27)
+			label.Size = UDim2.new(1,-4,0,25)
 			label.Font = Enum.Font.GothamMedium
-			label.Text = name
+			-- Chroma titles may use two lines; other names wrap only if needed.
+			label.Text = name:match("^Chroma%s+(.+)$")
+				and name:gsub("^Chroma%s+", "Chroma\n") or name
 			label.TextWrapped = true
 			label.TextColor3 = Color3.fromRGB(240,240,244)
-			label.TextSize = 9
+			label.TextSize = 11
+			label.TextYAlignment = Enum.TextYAlignment.Center
+			label.TextXAlignment = Enum.TextXAlignment.Center
 			label.ZIndex = 23
 			label.Parent = tile
 
