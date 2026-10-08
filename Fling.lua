@@ -208,7 +208,7 @@ end,"shield","blue")
 if UI.CreateMovableCardButton then
 	local FloatingFlingSheriffButton,FloatingFlingSheriffHolder =
 		UI.CreateMovableCardButton(
-			"FloatingFlingSheriff","shield","FLING SHERIFF/HERO",
+			"FloatingFlingSheriff","shield","FLING\nSHERIFF",
 			UDim2.new(0.78,-52,0.78,-42),
 			function() FlingSheriffOrHero() end,
 			"blue"
@@ -219,7 +219,7 @@ if UI.CreateMovableCardButton then
 
 	local FloatingFlingMurdererButton,FloatingFlingMurdererHolder =
 		UI.CreateMovableCardButton(
-			"FloatingFlingMurderer","wind","FLING MURDERER",
+			"FloatingFlingMurderer","skull","FLING\nMURDERER",
 			UDim2.new(0.89,-52,0.78,-42),
 			function() FlingRole("Murderer","Murderer") end,
 			"red"
