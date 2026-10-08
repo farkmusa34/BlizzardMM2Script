@@ -2705,12 +2705,12 @@ local function SelectGunSkin(
 
 	if Value == "Default" then
 		NotifySkinChanger(
-			"Default Gun • Skin Changed"
+			"Default Gun · Skin Changed"
 		)
 	else
 		NotifySkinChanger(
 			Value
-			.. " • Skin Changed"
+			.. " · Skin Changed"
 		)
 	end
 end
