@@ -1223,7 +1223,8 @@ local FloatingKillAllButton,FloatingKillAllHolder =
 			else
 				NotifyKillAllResult(success,message)
 			end
-		end
+		end,
+		"red"
 	)
 
 FloatingKillAllHolder.Visible = Flags.ShowKillAllButton == true
