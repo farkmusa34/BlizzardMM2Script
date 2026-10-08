@@ -13,6 +13,7 @@ local UI = MM2.UI
 local VirtualUser = game:GetService("VirtualUser")
 
 Flags.AntiDisconnect = Flags.AntiDisconnect == true
+Flags.FarmUnderground = Flags.FarmUnderground ~= false
 Flags.FarmSpeed = math.clamp(tonumber(Flags.FarmSpeed) or 25,5,25)
 Flags.KillAllAfterBagFull = Flags.KillAllAfterBagFull == true
 Flags.ShootMurdererAfterBagFull = Flags.ShootMurdererAfterBagFull == true
@@ -24,14 +25,14 @@ UI.AddSection(UI.AutoFarmPage,"Coin Farm","Coin farming controls")
 UI.CreateToggle(
 	UI.AutoFarmPage,
 	"Auto Farm Coins",
-	"Automatically farms coins for you",
+	"Collects coins for you.",
 	"AutoFarm"
 )
 
 UI.CreateSlider(
 	UI.AutoFarmPage,
 	"Farm Speed",
-	"Adjusts auto-farm movement speed",
+	"Sets how fast you farm.",
 	function()
 		return Flags.FarmSpeed
 	end,
@@ -65,17 +66,17 @@ local function SetAntiDisconnect(on)
 	end
 end
 
-UI.CreateToggle(
-	UI.AutoFarmPage,
-	"Anti Disconnect",
-	"Prevents the normal inactivity timeout during long farming sessions",
-	"AntiDisconnect",
-	SetAntiDisconnect
-)
-
+-- Anti-disconnect remains available internally, but has no Coin Farm toggle.
 if Flags.AntiDisconnect then
 	SetAntiDisconnect(true)
 end
+
+UI.CreateToggle(
+	UI.AutoFarmPage,
+	"Farm Underground",
+	"Farms coins underground.",
+	"FarmUnderground"
+)
 
 --============================================================
 -- Movement Constants
@@ -94,6 +95,13 @@ local FARM_UPRIGHT_MAX_ANGULAR = 10
 --============================================================
 
 local FARM_COIN_Y_OFFSET = -5.05
+local FARM_ABOVE_COIN_Y_OFFSET = 3.35
+local function FarmIsUnderground()
+	return Flags.FarmUnderground ~= false
+end
+local function FarmActiveCoinYOffset()
+	return FarmIsUnderground() and FARM_COIN_Y_OFFSET or FARM_ABOVE_COIN_Y_OFFSET
+end
 local FARM_HRP_SIZE = Vector3.new(2,12,1)
 
 local FARM_MAX_VALID_COLLECTION_DISTANCE = 6.5
@@ -556,7 +564,7 @@ end
 local function FarmGetCoinTarget(coinPos)
 	return FarmGetCoinTargetWithOffset(
 		coinPos,
-		FARM_COIN_Y_OFFSET
+		FarmActiveCoinYOffset()
 	)
 end
 
@@ -575,7 +583,7 @@ local function FarmSelectTarget(coin)
 	FarmResetRearm()
 	FarmResetPredictiveStage()
 
-	local targetY = coinPos.Y + FARM_COIN_Y_OFFSET
+	local targetY = coinPos.Y + FarmActiveCoinYOffset()
 	local dx = FarmHRP.Position.X - coinPos.X
 	local dz = FarmHRP.Position.Z - coinPos.Z
 	local horizontal = math.sqrt(dx*dx + dz*dz)
@@ -680,7 +688,7 @@ local function FarmUpdatePredictiveStage(coinPos)
 		return false
 	end
 
-	local targetY = coinPos.Y + FARM_COIN_Y_OFFSET
+	local targetY = coinPos.Y + FarmActiveCoinYOffset()
 	local yError = math.abs(FarmHRP.Position.Y-targetY)
 	local timedOut =
 		os.clock()-FarmPredictiveStageStartedAt
@@ -733,7 +741,7 @@ local function FarmGetContactRetryTarget(coinPos,side)
 	local direction = FarmContactRetryDirection or Vector2.new(1,0)
 	return Vector3.new(
 		coinPos.X + direction.X*FARM_CONTACT_RETRY_DISTANCE*side,
-		coinPos.Y + FARM_COIN_Y_OFFSET,
+		coinPos.Y + FarmActiveCoinYOffset(),
 		coinPos.Z + direction.Y*FARM_CONTACT_RETRY_DISTANCE*side
 	)
 end
@@ -761,6 +769,45 @@ local function FarmUpdateRearm(coinPos)
 	local now = os.clock()
 	local horizontalDistance = FarmHorizontalDistanceToCoin(coinPos)
 	local verticalBelow = FarmVerticalBelowCoin(coinPos)
+
+	if not FarmIsUnderground() then
+		-- Above-ground: use the observed +3.35 coin offset and normal HRP.
+		-- If a coin remains after settling, cross it horizontally to retry contact.
+		local target = FarmGetCoinTarget(coinPos)
+		if FarmRearmState == "idle" then
+			FarmPositionAlign.Position = target
+			if horizontalDistance <= 0.45 and math.abs(FarmHRP.Position.Y-target.Y) <= 0.65 then
+				FarmRearmCloseStartedAt = FarmRearmCloseStartedAt or now
+				if now-FarmRearmCloseStartedAt >= FARM_REARM_STUCK_DELAY then
+					FarmBeginContactRetry(coinPos)
+				end
+			else
+				FarmRearmCloseStartedAt = nil
+			end
+		elseif FarmRearmState == "contactExit" then
+			FarmPositionAlign.Position = FarmGetContactRetryTarget(coinPos,1)
+			if horizontalDistance >= FARM_CONTACT_RETRY_REACHED or now-FarmRearmStateStartedAt >= FARM_CONTACT_RETRY_EXIT_TIMEOUT then
+				FarmRearmState = "contactCross"
+				FarmRearmStateStartedAt = now
+			end
+		elseif FarmRearmState == "contactCross" then
+			FarmPositionAlign.Position = FarmGetContactRetryTarget(coinPos,-1)
+			if now-FarmRearmStateStartedAt >= FARM_CONTACT_RETRY_CROSS_TIMEOUT then
+				FarmRearmState = "contactVerify"
+				FarmRearmStateStartedAt = now
+			end
+		elseif FarmRearmState == "contactVerify" then
+			FarmPositionAlign.Position = target
+			if now-FarmRearmStateStartedAt >= FARM_CONTACT_RETRY_VERIFY_DELAY then
+				FarmCoinSkipUntil[FarmCurrentCoin] = now + FARM_REARM_SKIP_TIME
+				FarmReleaseTarget()
+			end
+		else
+			FarmResetRearm()
+			FarmPositionAlign.Position = target
+		end
+		return
+	end
 
 	if FarmRearmState == "idle" then
 		FarmPositionAlign.Position = FarmGetCoinTarget(coinPos)
@@ -1648,6 +1695,7 @@ end
 
 local function FarmLoop(runGeneration)
 	FarmLoopGeneration = runGeneration
+	local lastUnderground = FarmIsUnderground()
 	while AutoFarmRunning and MM2.Running and runGeneration == FarmRunGeneration do
 		if not Flags.AutoFarm then
 			break
@@ -1682,6 +1730,12 @@ local function FarmLoop(runGeneration)
 			FarmPause("NOT ALIVE")
 			task.wait(0.10)
 			continue
+		end
+
+		if FarmIsUnderground() ~= lastUnderground then
+			lastUnderground = FarmIsUnderground()
+			FarmReleaseTarget()
+			FarmApplyHRPSize()
 		end
 
 		if not FarmCurrentCoin then
@@ -1842,7 +1896,7 @@ function MM2.Functions.StopAutoFarm()
 	-- Default is +6.3 studs at the current X/Z.
 	-- If that destination is obstructed, try a small nearby ring instead.
 	if FarmUpdateCharacter() and FarmHumanoid.Health > 0 then
-		local RETURN_LIFT = 6.40
+		local RETURN_LIFT = FarmIsUnderground() and 6.40 or 0
 		local RETURN_SEARCH_STEP = 2.0
 		local RETURN_SEARCH_RADIUS = 8.0
 		local RETURN_SAMPLES = 16
