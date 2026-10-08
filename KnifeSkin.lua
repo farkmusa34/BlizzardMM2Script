@@ -2212,12 +2212,12 @@ local function SelectKnifeSkin(
 
 	if Value == "Default" then
 		NotifySkinChanger(
-			"Default Knife • Skin Changed"
+			"Default Knife · Skin Changed"
 		)
 	else
 		NotifySkinChanger(
 			Value
-			.. " • Skin Changed"
+			.. " · Skin Changed"
 		)
 	end
 end
