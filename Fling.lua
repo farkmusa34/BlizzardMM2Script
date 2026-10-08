@@ -179,16 +179,22 @@ local function FlingRole(role,label)
 end
 
 local function FlingSheriffOrHero()
-	for _,player in ipairs(Players:GetPlayers()) do
-		if player ~= LocalPlayer and MM2.State.ServerRolesCache[player.Name] == "Sheriff" then
-			task.spawn(function() ExecuteYeet(player,"Sheriff") end)
-			return
-		end
+	-- Use Shared.lua's validated roles, not the raw cache: an eliminated
+	-- Sheriff may still be cached after respawning in the lobby.
+	if MM2.State.RoleRoundActive ~= true then
+		MM2.Notify("No sheriff/hero target found.",2,"circle-x","Fling Failed")
+		return
 	end
-	for _,player in ipairs(Players:GetPlayers()) do
-		if player ~= LocalPlayer and MM2.State.ServerRolesCache[player.Name] == "Hero" then
-			task.spawn(function() ExecuteYeet(player,"Hero") end)
-			return
+
+	for _,role in ipairs({"Sheriff", "Hero"}) do
+		for _,player in ipairs(Players:GetPlayers()) do
+			if player ~= LocalPlayer and MM2.GetPlayerRole(player) == role then
+				local character,humanoid,hrp = GetTargetFlingCharacter(player)
+				if character and humanoid.Health > 0 and hrp then
+					task.spawn(function() ExecuteYeet(player,role) end)
+					return
+				end
+			end
 		end
 	end
 	MM2.Notify("No sheriff/hero target found.",2,"circle-x","Fling Failed")
