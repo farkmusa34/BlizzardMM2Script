@@ -479,7 +479,7 @@ local function CreateBombJumpButton()
 		UI.CreateMovableCardButton(
 			"FloatingBombJump",
 			"bomb",
-			"BOMB JUMP",
+			"BOMB\nJUMP",
 			UDim2.new(1,-80,0.68,0),
 			function()
 				TriggerBombJump()
