@@ -1326,7 +1326,7 @@ local function NotifySkinChanger(Message)
 			Content = tostring(
 				Message or ""
 			),
-			Icon = "palette",
+			Icon = "circle-check",
 			Duration = 2.5,
 		})
 	end)
@@ -2212,12 +2212,12 @@ local function SelectKnifeSkin(
 
 	if Value == "Default" then
 		NotifySkinChanger(
-			"Default Knife Equipped"
+			"Default Knife • Skin Changed"
 		)
 	else
 		NotifySkinChanger(
 			Value
-			.. " Equipped"
+			.. " • Skin Changed"
 		)
 	end
 end
