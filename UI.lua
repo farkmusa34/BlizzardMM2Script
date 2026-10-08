@@ -1290,7 +1290,6 @@ function UI.CreateImageSkinSelector(
 			tile.BorderSizePixel = 0
 			tile.Image = ""
 			tile.AutoButtonColor = false
-			tile.ClipsDescendants = true -- Keep oversized weapon previews within their cards.
 			tile.ZIndex = 21
 			tile.Parent = scroll
 
@@ -1308,7 +1307,8 @@ function UI.CreateImageSkinSelector(
 
 			local preview = Instance.new("ImageLabel")
 			preview.BackgroundTransparency = 1
-			-- Keep the card dimensions unchanged; center the enlarged art lower within the card.
+			-- Keep the existing 4x4 cards unchanged; enlarge only the weapon art.
+			-- Center anchoring makes the 1.25x growth expand evenly in every direction.
 			preview.AnchorPoint = Vector2.new(0.5,0.5)
 			preview.Position = UDim2.new(0.5,0,0,27)
 			preview.Size = UDim2.new(1,-8,0,41)
@@ -1319,20 +1319,18 @@ function UI.CreateImageSkinSelector(
 
 			local previewScale = Instance.new("UIScale")
 			previewScale.Name = "WeaponPreviewScale"
-			previewScale.Scale = 1.32
+			previewScale.Scale = 1.48
 			previewScale.Parent = preview
 
 			local label = Instance.new("TextLabel")
 			label.BackgroundTransparency = 1
-			label.Position = UDim2.new(0,3,1,-26)
-			label.Size = UDim2.new(1,-6,0,24)
+			label.Position = UDim2.new(0,3,1,-22)
+			label.Size = UDim2.new(1,-6,0,20)
 			label.Font = Enum.Font.GothamMedium
 			label.Text = name
 			label.TextWrapped = true
-			label.TextYAlignment = Enum.TextYAlignment.Bottom
-			label.TextXAlignment = Enum.TextXAlignment.Center
 			label.TextColor3 = Color3.fromRGB(240,240,244)
-			label.TextSize = 11
+			label.TextSize = 10
 			label.ZIndex = 23
 			label.Parent = tile
 
