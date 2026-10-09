@@ -169,7 +169,6 @@ local FarmRunGeneration = 0
 local FarmLoopGeneration = nil
 local FarmPaused = false
 local FarmPauseReason = nil
-local FarmIntermissionCleanupBusy = false
 
 local FarmBagCount = 0
 local FarmBagMax = 40
@@ -1350,57 +1349,31 @@ end
 -- Pause / Wake
 --============================================================
 
--- Use the existing countdown reader as an additional phase signal.
--- Do not call any remote or change farming settings.
-local function FarmIntermissionObserved()
-    if type(MM2.IsPreRoundActive) == "function" then
-        local ok, active = pcall(MM2.IsPreRoundActive)
-        if ok and active == true then return true end
-    end
-    if type(MM2.IsCountdownActive) == "function" then
-        local ok, active = pcall(MM2.IsCountdownActive)
-        if ok and active == true then return true end
-    end
-    return false
-end
-
-local function FarmHasNearbyFloor()
-    if not FarmUpdateCharacter() then return false end
-    local params = RaycastParams.new()
-    params.FilterType = Enum.RaycastFilterType.Exclude
-    params.FilterDescendantsInstances = {FarmCharacter}
-    params.RespectCanCollide = true
-    local hit = workspace:Raycast(FarmHRP.Position, Vector3.new(0,-5,0), params)
-    return hit ~= nil and hit.Normal.Y >= 0.8
-end
-
 local function FarmPause(reason)
-    reason = reason or "PAUSED"
-    if reason == "BAG FULL" then return end
-    if FarmIntermissionCleanupBusy then return end
-    if FarmPaused and FarmPauseReason == reason then return end
+	reason = reason or "PAUSED"
 
-    FarmPaused = true
-    FarmPauseReason = reason
-    FarmReleaseTarget()
+	if reason == "BAG FULL" then
+		return
+	end
 
-    -- Stop the noclip writer and restore normal collisions before releasing
-    -- movement support. Otherwise gravity can act on a non-colliding rig.
-    FarmStopNoclip()
-    FarmDestroyMovement()
-    FarmRestoreHRPSize()
+	if FarmPaused and FarmPauseReason == reason then
+		return
+	end
 
-    if reason == "INTERMISSION" and FarmIsUnderground() then
-        FarmIntermissionCleanupBusy = true
-        -- Do not relocate a character already standing on a solid floor.
-        if not FarmHasNearbyFloor() then
-            local ok, result = pcall(FarmReturnToSafePosition)
-            if not ok or result ~= true then
-                warn("[AutoFarm] Intermission safe return could not be verified")
-            end
-        end
-        FarmIntermissionCleanupBusy = false
-    end
+	FarmPaused = true
+	FarmPauseReason = reason
+
+	FarmReleaseTarget()
+	FarmStopNoclip()
+	FarmDestroyMovement()
+	FarmRestoreHRPSize()
+
+	-- When an underground run becomes idle, do not leave the character
+	-- suspended beneath the floor after its movement support is removed.
+	if FarmIsUnderground() and FarmUpdateCharacter()
+		and FarmHumanoid and FarmHumanoid.Health > 0 then
+		FarmReturnToSafePosition()
+	end
 end
 
 local function FarmWake(expectedGeneration)
@@ -1694,8 +1667,7 @@ local function FarmBeginBagFullLift()
 		while AutoFarmRunning
 			and bagGeneration == FarmRunGeneration
 			and MM2.Running
-			and FarmBagFull
-			and not FarmIntermissionObserved() do
+			and FarmBagFull do
 
 			if not FarmUpdateCharacter() or not FarmPositionAlign then
 				break
@@ -1717,12 +1689,14 @@ local function FarmBeginBagFullLift()
 			FarmStopNoclip()
 			FarmDestroyMovement()
 			FarmRestoreHRPSize()
+			-- Bag-full lift also releases the underground controller.
+			if FarmIsUnderground() and FarmUpdateCharacter()
+				and FarmHumanoid and FarmHumanoid.Health > 0 then
+				FarmReturnToSafePosition()
+			end
 
 			FarmBagLiftInProgress = false
 			FarmBagLiftDone = true
-            if FarmIntermissionObserved() then
-                FarmPause("INTERMISSION")
-            end
 		end
 	end)
 end
@@ -1739,16 +1713,14 @@ local function FarmLoop(runGeneration)
 			break
 		end
 
-		if FarmIntermissionObserved() then
-			if not FarmBagLiftInProgress then
-				FarmPause("INTERMISSION")
-			end
-			task.wait(0.10)
+		if FarmBagLiftInProgress then
+			task.wait(0.05)
 			continue
 		end
 
-		if FarmBagLiftInProgress then
-			task.wait(0.05)
+		if MM2.IsPreRoundActive and MM2.IsPreRoundActive() then
+			FarmPause("INTERMISSION")
+			task.wait(0.10)
 			continue
 		end
 
@@ -1773,8 +1745,17 @@ local function FarmLoop(runGeneration)
 		end
 
 		if FarmIsUnderground() ~= lastUnderground then
+			local wasUnderground = lastUnderground
 			lastUnderground = FarmIsUnderground()
 			FarmReleaseTarget()
+			-- Rebuild mode-specific movement instead of retaining the old
+			-- controller/collision state through a mode change.
+			FarmStopNoclip()
+			FarmDestroyMovement()
+			FarmRestoreHRPSize()
+			if wasUnderground and not FarmIsUnderground() then
+				FarmReturnToSafePosition()
+			end
 			FarmApplyHRPSize()
 		end
 
@@ -1889,10 +1870,8 @@ function MM2.Functions.StartAutoFarm()
 	FarmRunGeneration += 1
 	local runGeneration = FarmRunGeneration
 	AutoFarmRunning = true
-    if not FarmIntermissionObserved() and not FarmIntermissionCleanupBusy then
-        FarmPaused = false
-        FarmPauseReason = nil
-    end
+	FarmPaused = false
+	FarmPauseReason = nil
 	FarmBagLiftInProgress = false
 	FarmBagLiftDone = false
 	FarmAfterBagFullHandled = false
