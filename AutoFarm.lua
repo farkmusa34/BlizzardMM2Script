@@ -263,7 +263,7 @@ local function FarmApplyHRPSize()
 		FarmOriginalHRPSize = FarmHRP.Size
 	end
 	pcall(function()
-		FarmHRP.Size = FARM_HRP_SIZE
+		FarmHRP.Size = FarmIsUnderground() and FARM_HRP_SIZE or FarmOriginalHRPSize
 	end)
 	return true
 end
@@ -1363,15 +1363,15 @@ local function FarmPause(reason)
 	FarmPaused = true
 	FarmPauseReason = reason
 
+	local wasUndergroundActive = FarmNoclipConnection ~= nil and FarmIsUnderground()
 	FarmReleaseTarget()
 	FarmStopNoclip()
 	FarmDestroyMovement()
 	FarmRestoreHRPSize()
-
-	-- When an underground run becomes idle, do not leave the character
-	-- suspended beneath the floor after its movement support is removed.
-	if FarmIsUnderground() and FarmUpdateCharacter()
-		and FarmHumanoid and FarmHumanoid.Health > 0 then
+	-- Only return after an actual underground movement session, never
+	-- apply underground physics while idle or waiting for coins.
+	if wasUndergroundActive and FarmUpdateCharacter()
+		and FarmHumanoid.Health > 0 then
 		FarmReturnToSafePosition()
 	end
 end
@@ -1648,6 +1648,10 @@ local function FarmBeginBagFullLift()
 			FarmStopNoclip()
 			FarmDestroyMovement()
 			FarmRestoreHRPSize()
+			if FarmIsUnderground() and FarmUpdateCharacter()
+				and FarmHumanoid.Health > 0 then
+				FarmReturnToSafePosition()
+			end
 
 			FarmBagLiftInProgress = false
 			FarmBagLiftDone = true
@@ -1689,11 +1693,6 @@ local function FarmBeginBagFullLift()
 			FarmStopNoclip()
 			FarmDestroyMovement()
 			FarmRestoreHRPSize()
-			-- Bag-full lift also releases the underground controller.
-			if FarmIsUnderground() and FarmUpdateCharacter()
-				and FarmHumanoid and FarmHumanoid.Health > 0 then
-				FarmReturnToSafePosition()
-			end
 
 			FarmBagLiftInProgress = false
 			FarmBagLiftDone = true
@@ -1748,15 +1747,16 @@ local function FarmLoop(runGeneration)
 			local wasUnderground = lastUnderground
 			lastUnderground = FarmIsUnderground()
 			FarmReleaseTarget()
-			-- Rebuild mode-specific movement instead of retaining the old
-			-- controller/collision state through a mode change.
 			FarmStopNoclip()
 			FarmDestroyMovement()
 			FarmRestoreHRPSize()
-			if wasUnderground and not FarmIsUnderground() then
+			if wasUnderground and FarmUpdateCharacter()
+				and FarmHumanoid.Health > 0 then
 				FarmReturnToSafePosition()
 			end
-			FarmApplyHRPSize()
+			-- FarmWake applies the selected mode only after a coin is found.
+			FarmPaused = true
+			FarmPauseReason = "MODE CHANGE"
 		end
 
 		if not FarmCurrentCoin then
@@ -1884,7 +1884,7 @@ function MM2.Functions.StartAutoFarm()
 	table.clear(FarmCoinSkipUntil)
 	FarmUpdateCharacter()
 	FarmRememberSafePosition()
-	FarmApplyHRPSize()
+	-- Do not enlarge the root part until a coin is found and movement starts.
 
 	task.spawn(function()
 		FarmLoop(runGeneration)
