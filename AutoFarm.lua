@@ -25,14 +25,21 @@ UI.AddSection(UI.AutoFarmPage,"Coin Farm","Coin farming controls")
 UI.CreateToggle(
 	UI.AutoFarmPage,
 	"Auto Farm Coins",
-	"Collects coins for you.",
+	"Automatically farms coins for you",
 	"AutoFarm"
+)
+
+UI.CreateToggle(
+	UI.AutoFarmPage,
+	"Farm Underground",
+	"ON: original underground farming. OFF: above-ground farming.",
+	"FarmUnderground"
 )
 
 UI.CreateSlider(
 	UI.AutoFarmPage,
 	"Farm Speed",
-	"Sets how fast you farm.",
+	"Adjusts auto-farm movement speed",
 	function()
 		return Flags.FarmSpeed
 	end,
@@ -66,17 +73,17 @@ local function SetAntiDisconnect(on)
 	end
 end
 
--- Anti-disconnect remains available internally, but has no Coin Farm toggle.
+UI.CreateToggle(
+	UI.AutoFarmPage,
+	"Anti Disconnect",
+	"Prevents the normal inactivity timeout during long farming sessions",
+	"AntiDisconnect",
+	SetAntiDisconnect
+)
+
 if Flags.AntiDisconnect then
 	SetAntiDisconnect(true)
 end
-
-UI.CreateToggle(
-	UI.AutoFarmPage,
-	"Farm Underground",
-	"Farms coins underground.",
-	"FarmUnderground"
-)
 
 --============================================================
 -- Movement Constants
@@ -164,6 +171,8 @@ local FARM_BAG_LIFT_TIMEOUT = 2.5
 --============================================================
 
 local AutoFarmRunning = false
+local FarmMovedUnderground = false
+local FarmEverMoved = false
 -- Shutdown generation prevents stale farm tasks from re-enabling movement/noclip.
 local FarmRunGeneration = 0
 local FarmLoopGeneration = nil
@@ -769,7 +778,6 @@ local function FarmUpdateRearm(coinPos)
 	local now = os.clock()
 	local horizontalDistance = FarmHorizontalDistanceToCoin(coinPos)
 	local verticalBelow = FarmVerticalBelowCoin(coinPos)
-
 	if not FarmIsUnderground() then
 		-- Above-ground: use the observed +3.35 coin offset and normal HRP.
 		-- If a coin remains after settling, cross it horizontally to retry contact.
@@ -808,6 +816,7 @@ local function FarmUpdateRearm(coinPos)
 		end
 		return
 	end
+
 
 	if FarmRearmState == "idle" then
 		FarmPositionAlign.Position = FarmGetCoinTarget(coinPos)
@@ -1363,17 +1372,10 @@ local function FarmPause(reason)
 	FarmPaused = true
 	FarmPauseReason = reason
 
-	local wasUndergroundActive = FarmNoclipConnection ~= nil and FarmIsUnderground()
 	FarmReleaseTarget()
 	FarmStopNoclip()
 	FarmDestroyMovement()
 	FarmRestoreHRPSize()
-	-- Only return after an actual underground movement session, never
-	-- apply underground physics while idle or waiting for coins.
-	if wasUndergroundActive and FarmUpdateCharacter()
-		and FarmHumanoid.Health > 0 then
-		FarmReturnToSafePosition()
-	end
 end
 
 local function FarmWake(expectedGeneration)
@@ -1396,12 +1398,14 @@ local function FarmWake(expectedGeneration)
 		return false
 	end
 
-	if not FarmNoclipConnection then
+	if FarmIsUnderground() and not FarmNoclipConnection then
 		if not FarmStartNoclip(expectedGeneration) then
 			return false
 		end
 	end
 
+	FarmEverMoved = true
+	if FarmIsUnderground() then FarmMovedUnderground = true end
 	return AutoFarmRunning and expectedGeneration == FarmRunGeneration
 end
 
@@ -1648,10 +1652,6 @@ local function FarmBeginBagFullLift()
 			FarmStopNoclip()
 			FarmDestroyMovement()
 			FarmRestoreHRPSize()
-			if FarmIsUnderground() and FarmUpdateCharacter()
-				and FarmHumanoid.Health > 0 then
-				FarmReturnToSafePosition()
-			end
 
 			FarmBagLiftInProgress = false
 			FarmBagLiftDone = true
@@ -1743,18 +1743,14 @@ local function FarmLoop(runGeneration)
 			continue
 		end
 
+		-- Mode toggle itself does not move the character. If farming is active,
+		-- release the old target and switch at the next safe farming opportunity.
 		if FarmIsUnderground() ~= lastUnderground then
-			local wasUnderground = lastUnderground
 			lastUnderground = FarmIsUnderground()
 			FarmReleaseTarget()
 			FarmStopNoclip()
 			FarmDestroyMovement()
 			FarmRestoreHRPSize()
-			if wasUnderground and FarmUpdateCharacter()
-				and FarmHumanoid.Health > 0 then
-				FarmReturnToSafePosition()
-			end
-			-- FarmWake applies the selected mode only after a coin is found.
 			FarmPaused = true
 			FarmPauseReason = "MODE CHANGE"
 		end
@@ -1878,13 +1874,15 @@ function MM2.Functions.StartAutoFarm()
 	FarmAfterBagActionBusy = false
 	FarmCurrentCoin = nil
 	FarmCurrentTouch = nil
+	FarmEverMoved = false
+	FarmMovedUnderground = false
 
 	FarmResetRearm()
 	FarmResetPredictiveStage()
 	table.clear(FarmCoinSkipUntil)
 	FarmUpdateCharacter()
 	FarmRememberSafePosition()
-	-- Do not enlarge the root part until a coin is found and movement starts.
+	-- No HRP or physics changes until an actual coin is selected.
 
 	task.spawn(function()
 		FarmLoop(runGeneration)
@@ -1916,8 +1914,8 @@ function MM2.Functions.StopAutoFarm()
 	-- V13.11: simple OFF return based on the Y diagnostic.
 	-- Default is +6.3 studs at the current X/Z.
 	-- If that destination is obstructed, try a small nearby ring instead.
-	if FarmUpdateCharacter() and FarmHumanoid.Health > 0 then
-		local RETURN_LIFT = FarmIsUnderground() and 6.40 or 0
+	if FarmEverMoved and FarmUpdateCharacter() and FarmHumanoid.Health > 0 then
+		local RETURN_LIFT = FarmMovedUnderground and 6.40 or 0
 		local RETURN_SEARCH_STEP = 2.0
 		local RETURN_SEARCH_RADIUS = 8.0
 		local RETURN_SAMPLES = 16
