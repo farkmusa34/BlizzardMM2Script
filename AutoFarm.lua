@@ -10,9 +10,7 @@ local RunService = MM2.Services.RunService
 local LocalPlayer = MM2.LocalPlayer
 local Flags = MM2.Flags
 local UI = MM2.UI
-local VirtualUser = game:GetService("VirtualUser")
 
-Flags.AntiDisconnect = Flags.AntiDisconnect == true
 Flags.FarmUnderground = Flags.FarmUnderground ~= false
 Flags.FarmSpeed = math.clamp(tonumber(Flags.FarmSpeed) or 25,5,25)
 Flags.KillAllAfterBagFull = Flags.KillAllAfterBagFull == true
@@ -25,21 +23,14 @@ UI.AddSection(UI.AutoFarmPage,"Coin Farm","Coin farming controls")
 UI.CreateToggle(
 	UI.AutoFarmPage,
 	"Auto Farm Coins",
-	"Automatically farms coins for you",
+	"Collects coins for you.",
 	"AutoFarm"
-)
-
-UI.CreateToggle(
-	UI.AutoFarmPage,
-	"Farm Underground",
-	"ON: original underground farming. OFF: above-ground farming.",
-	"FarmUnderground"
 )
 
 UI.CreateSlider(
 	UI.AutoFarmPage,
 	"Farm Speed",
-	"Adjusts auto-farm movement speed",
+	"Sets how fast you farm.",
 	function()
 		return Flags.FarmSpeed
 	end,
@@ -51,39 +42,12 @@ UI.CreateSlider(
 	1
 )
 
---============================================================
--- Anti Disconnect
---============================================================
-
-local AntiDisconnectConnection = nil
-
-local function SetAntiDisconnect(on)
-	if AntiDisconnectConnection then
-		AntiDisconnectConnection:Disconnect()
-		AntiDisconnectConnection = nil
-	end
-	if on then
-		AntiDisconnectConnection = LocalPlayer.Idled:Connect(function()
-			pcall(function()
-				VirtualUser:CaptureController()
-				VirtualUser:ClickButton2(Vector2.new(0,0))
-			end)
-		end)
-		MM2.Track(AntiDisconnectConnection)
-	end
-end
-
 UI.CreateToggle(
 	UI.AutoFarmPage,
-	"Anti Disconnect",
-	"Prevents the normal inactivity timeout during long farming sessions",
-	"AntiDisconnect",
-	SetAntiDisconnect
+	"Farm Underground",
+	"Farms coins underground.",
+	"FarmUnderground"
 )
-
-if Flags.AntiDisconnect then
-	SetAntiDisconnect(true)
-end
 
 --============================================================
 -- Movement Constants
