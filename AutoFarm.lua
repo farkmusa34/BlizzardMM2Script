@@ -1367,6 +1367,12 @@ local function FarmPause(reason)
 	FarmStopNoclip()
 	FarmDestroyMovement()
 	FarmRestoreHRPSize()
+
+	-- Underground farming leaves the character below the map surface.
+	-- On intermission, place them on a validated floor before gravity takes over.
+	if reason == "INTERMISSION" and FarmIsUnderground() then
+		FarmReturnToSafePosition()
+	end
 end
 
 local function FarmWake(expectedGeneration)
