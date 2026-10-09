@@ -1,5 +1,5 @@
 --============================================================
--- Blizzard MM2 v1.85.4 - Loader.lua
+-- Blizzard MM2 v1.85.4 - loader.lua
 --============================================================
 
 --============================================================
@@ -305,6 +305,7 @@ end
 if not RequireModule("Shared.lua") then return end
 if not RequireModule("UI.lua") then return end
 if not RequireModule("Visuals.lua") then return end
+if not RequireModule("RoleESP.lua") then return end
 if not RequireModule("Combat.lua") then return end
 if not RequireModule("AutoFarm.lua") then return end
 if not RequireModule("Player.lua") then return end
