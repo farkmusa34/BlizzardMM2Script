@@ -1362,7 +1362,7 @@ local function FarmWake(expectedGeneration)
 		return false
 	end
 
-	if FarmIsUnderground() and not FarmNoclipConnection then
+	if not FarmNoclipConnection then
 		if not FarmStartNoclip(expectedGeneration) then
 			return false
 		end
