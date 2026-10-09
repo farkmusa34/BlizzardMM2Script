@@ -1634,7 +1634,7 @@ UI.ToggleNotificationIcons = UI.ToggleNotificationIcons or {
 
 	-- Auto Farm
 	AutoFarm = "bot",
-	AntiDisconnect = "wifi",
+	FarmUnderground = "arrow-down",
 	KillAllAfterBagFull = "swords",
 	ShootMurdererAfterBagFull = "crosshair",
 	FlingMurdererAfterBagFull = "wind",
