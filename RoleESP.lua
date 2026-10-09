@@ -16,22 +16,9 @@ local RoleTab = UI.WindTabs.RoleESP
 if Flags.CharacterFill == nil then Flags.CharacterFill = true end
 if type(Flags.FillStrength) ~= "number" then Flags.FillStrength = 50 end
 
-UI.AddSection(UI.RoleESPPage, "Player")
-for _,role in ipairs({"Innocent", "Murderer", "Sheriff", "Hero"}) do
-    UI.CreateToggle(UI.RoleESPPage, role .. " ESP",
-        "Highlights " .. string.lower(role) .. " players with their role color.",
-        role .. "ESP", function()
-            if MM2.Functions.UpdatePlayerESP then MM2.Functions.UpdatePlayerESP() end
-        end, "scan-eye")
-end
-UI.CreateToggle(UI.RoleESPPage, "Nametags",
-    "Shows player names above their heads.", "NameTags", function()
-        if MM2.Functions.UpdatePlayerESP then MM2.Functions.UpdatePlayerESP() end
-    end, "badge")
-
 UI.AddSection(UI.RoleESPPage, "Appearance")
 UI.CreateToggle(UI.RoleESPPage, "Character Fill",
-    "Fills enabled player highlights with their role colors.", "CharacterFill", function()
+    "Colours the inside of the body. Off leaves only the coloured outline.", "CharacterFill", function()
         if MM2.Functions.UpdatePlayerESP then MM2.Functions.UpdatePlayerESP() end
     end, "palette")
 local sliderOK, sliderError = pcall(function()
@@ -48,6 +35,19 @@ local sliderOK, sliderError = pcall(function()
     })
 end)
 if not sliderOK then warn("[Blizzard Role ESP] Fill Strength slider:", sliderError) end
+
+UI.AddSection(UI.RoleESPPage, "Players")
+UI.CreateToggle(UI.RoleESPPage, "Nametags", "", "NameTags", function()
+    if MM2.Functions.UpdatePlayerESP then MM2.Functions.UpdatePlayerESP() end
+end, "badge")
+for _,role in ipairs({"Murderer", "Sheriff", "Innocent", "Hero"}) do
+    local description = role == "Hero"
+        and "Innocents who pick up the dropped sheriff gun are shown in gold."
+        or ""
+    UI.CreateToggle(UI.RoleESPPage, role .. " ESP", description, role .. "ESP", function()
+        if MM2.Functions.UpdatePlayerESP then MM2.Functions.UpdatePlayerESP() end
+    end, "scan-eye")
+end
 
 --============================================================
 -- PLAYER ESP: independent outlines, fill, and nametags
