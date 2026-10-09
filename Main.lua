@@ -1,23 +1,11 @@
 --============================================================
 -- Blizzard MM2 v1.85.4 - Main.lua
 --
--- Load order:
--- 1. Shared.lua
--- 2. UI.lua
--- 3. Visuals.lua
--- 4. Combat.lua
--- 5. AutoFarm.lua
--- 6. Player.lua
--- 7. Teleport.lua
--- 8. Fling.lua
--- 9. Misc.lua
--- 10. SkinChanger.lua
--- 11. Main.lua
---
--- Match ESP reliability update:
--- - Main.lua no longer owns a second RoleRoundActive gate.
--- - Visuals.lua is the single authority for deciding when
---   Match ESP should update or clear.
+-- Load order (managed by Loader.lua):
+-- Shared, UI, Visuals, RoleESP, Combat, AutoFarm, Player,
+-- Teleport, Fling, Misc, GunSkin, KnifeSkin, Main.
+-- Player role highlights and nametags are owned by RoleESP.lua.
+-- Main.lua invokes the shared update/cleanup entry points.
 --============================================================
 
 local MM2 = getgenv and getgenv().MM2_V85_SPLIT or _G.MM2_V85_SPLIT
@@ -55,12 +43,12 @@ task.spawn(function()
 
 		MM2.UpdateRoundReset()
 
-		-- Match ESP lifecycle is owned by Visuals.lua.
+		-- Role ESP lifecycle is owned by RoleESP.lua.
 		--
 		-- Do not duplicate the RoleRoundActive gate here.
-		-- Visuals.lua already checks:
+		-- RoleESP.lua already checks:
 		--
-		--   Flags.MatchESP
+		--   Independent role toggles and NameTags
 		--   RoleRoundActive
 		--   PlayerOutOfRound
 		--   character health
@@ -68,7 +56,7 @@ task.spawn(function()
 		--   ESP distance
 		--
 		-- Keeping a single authority prevents Main.lua from
-		-- destroying Match ESP during a short transient state.
+		-- destroying Role ESP during a short transient state.
 		if MM2.Functions.UpdatePlayerESP then
 
 			MM2.Functions.UpdatePlayerESP()

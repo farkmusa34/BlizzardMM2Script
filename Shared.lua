@@ -86,7 +86,15 @@ MM2.Flags = {
 	Theme = "Blizzard Mono",
 	AntiFling = true,
 
-	MatchESP = false,
+	MatchESP = false, -- legacy compatibility
+    InnocentESP = false,
+    MurdererESP = false,
+    SheriffESP = false,
+    HeroESP = false,
+    NameTags = false,
+    CharacterFill = true,
+    FillStrength = 50,
+    TracerThickness = 1,
 	GunESP = true,
 	TriggerBot = false,
 	AimLock = false,

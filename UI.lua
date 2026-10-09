@@ -494,7 +494,7 @@ UI.WindTabs = {}
 UI.WindTabs.Player =
 	Window:Tab({
 		Title = "Player",
-		Icon = "shield-check"
+		Icon = "user-round"
 	})
 
 UI.WindTabs.Visuals =
@@ -502,6 +502,12 @@ UI.WindTabs.Visuals =
 		Title = "Visuals",
 		Icon = "eye"
 	})
+
+UI.WindTabs.RoleESP =
+    Window:Tab({
+        Title = "Role ESP",
+        Icon = "scan-eye"
+    })
 
 UI.WindTabs.Combat =
 	Window:Tab({
@@ -607,6 +613,7 @@ local function NewLegacyPage(name)
 end
 
 UI.VisualsPage = NewLegacyPage("Visuals")
+UI.RoleESPPage = NewLegacyPage("RoleESP")
 UI.CombatPage = NewLegacyPage("Combat")
 UI.PlayerPage = NewLegacyPage("Player")
 UI.TeleportPage = NewLegacyPage("Teleport")
@@ -619,6 +626,7 @@ UI.MiscPage = NewLegacyPage("Misc")
 
 UI.Pages = {
 	Visuals = UI.VisualsPage,
+    RoleESP = UI.RoleESPPage,
 	Combat = UI.CombatPage,
 	Player = UI.PlayerPage,
 	Teleport = UI.TeleportPage,
@@ -632,6 +640,7 @@ UI.Pages = {
 
 UI.PageMap = {
 	[UI.VisualsPage] = UI.WindTabs.Visuals,
+    [UI.RoleESPPage] = UI.WindTabs.RoleESP,
 	[UI.CombatPage] = UI.WindTabs.Combat,
 	[UI.PlayerPage] = UI.WindTabs.Player,
 	[UI.TeleportPage] = UI.WindTabs.Teleport,
@@ -1596,6 +1605,11 @@ UI.ToggleNotificationIcons = UI.ToggleNotificationIcons or {
 	PlayerESP = "eye",
 	GunESP = "scan-eye",
 	RoleESP = "scan-eye",
+    InnocentESP = "scan-eye",
+    MurdererESP = "scan-eye",
+    SheriffESP = "scan-eye",
+    HeroESP = "scan-eye",
+    CharacterFill = "palette",
 	Tracers = "scan",
 	TracerESP = "scan",
 	Nametags = "badge",
