@@ -1,6 +1,6 @@
 --============================================================
 -- MM2 V8.8.4 - AutoFarm.lua
--- Coin Farm V13.11 + V11 observation-only diagnostic
+-- Coin Farm V13.12 + V11 observation-only diagnostic (targeted underground recovery)
 --============================================================
 
 local MM2 = getgenv and getgenv().MM2_V85_SPLIT or _G.MM2_V85_SPLIT
@@ -829,9 +829,9 @@ local function FarmUpdateRearm(coinPos)
 
 
 
-	-- V13.11 underground: keep the original direct -5.05 target and
-	-- never command a lower re-arm Y position. One short horizontal
-	-- crossing is allowed after the initial contact wait; then skip.
+	-- V13.12 underground: preserve the successful direct -5.05 approach.
+	-- If a coin remains at the settled center, retry with a small vertical
+	-- adjustment rather than sending the character sideways.
 	local target = FarmGetCoinTarget(coinPos)
 	local function skipUnresponsive()
 		V11Sample(coinPos,true)
@@ -858,13 +858,10 @@ local function FarmUpdateRearm(coinPos)
 			horizontalDistance <= FARM_UNDERGROUND_CLOSE_HORIZONTAL
 			and verticalBelow >= FARM_REARM_MIN_SETTLED_V
 			and verticalBelow <= FARM_REARM_MAX_SETTLED_V
-
 		if inContactArea then
 			FarmRearmCloseStartedAt = FarmRearmCloseStartedAt or now
 			if now-FarmRearmCloseStartedAt >= FARM_UNDERGROUND_CONTACT_WAIT then
-				FarmContactRetryUsed = true
-				FarmContactRetryDirection = FarmGetContactRetryDirection(coinPos)
-				FarmRearmState = "contactCross"
+				FarmRearmState = "verticalRaise"
 				FarmRearmStateStartedAt = now
 			end
 		else
@@ -873,18 +870,20 @@ local function FarmUpdateRearm(coinPos)
 		return
 	end
 
-	if FarmRearmState == "contactCross" then
-		local direction = FarmContactRetryDirection or Vector2.new(1,0)
-		FarmPositionAlign.Position = Vector3.new(
-			coinPos.X - direction.X*FARM_UNDERGROUND_RETRY_DISTANCE,
-			coinPos.Y + FARM_COIN_Y_OFFSET,
-			coinPos.Z - direction.Y*FARM_UNDERGROUND_RETRY_DISTANCE
-		)
-		local relX = FarmHRP.Position.X-coinPos.X
-		local relZ = FarmHRP.Position.Z-coinPos.Z
-		local signedAlong = relX*direction.X + relZ*direction.Y
-		if signedAlong <= -0.85
-			or now-FarmRearmStateStartedAt >= FARM_UNDERGROUND_RETRY_TIME then
+	if FarmRearmState == "verticalRaise" then
+		-- Raise the target by 0.20 studs while holding X/Z at the coin.
+		FarmPositionAlign.Position = FarmGetCoinTargetWithOffset(coinPos, -4.85)
+		if now-FarmRearmStateStartedAt >= 0.55 then
+			FarmRearmState = "verticalLower"
+			FarmRearmStateStartedAt = now
+		end
+		return
+	end
+
+	if FarmRearmState == "verticalLower" then
+		-- One gentle reverse pass, 0.17 studs below the original target.
+		FarmPositionAlign.Position = FarmGetCoinTargetWithOffset(coinPos, -5.22)
+		if now-FarmRearmStateStartedAt >= 0.55 then
 			FarmRearmState = "contactVerify"
 			FarmRearmStateStartedAt = now
 		end
@@ -899,7 +898,6 @@ local function FarmUpdateRearm(coinPos)
 		return
 	end
 
-	-- Any stale legacy re-arm state is reset instead of moving vertically.
 	FarmRearmState = "idle"
 	FarmRearmCloseStartedAt = nil
 	FarmPositionAlign.Position = target
