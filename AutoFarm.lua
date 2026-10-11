@@ -1,6 +1,6 @@
 --============================================================
 -- MM2 V8.8.4 - AutoFarm.lua
--- Coin Farm V13.10 lifecycle-safe shutdown + nearest safe return
+-- Coin Farm V13.11 bounded underground contact recovery + UI order
 --============================================================
 
 local MM2 = getgenv and getgenv().MM2_V85_SPLIT or _G.MM2_V85_SPLIT
@@ -27,6 +27,13 @@ UI.CreateToggle(
 	"AutoFarm"
 )
 
+UI.CreateToggle(
+	UI.AutoFarmPage,
+	"Farm Underground",
+	"Farms coins underground.",
+	"FarmUnderground"
+)
+
 UI.CreateSlider(
 	UI.AutoFarmPage,
 	"Farm Speed",
@@ -40,13 +47,6 @@ UI.CreateSlider(
 	5,
 	25,
 	1
-)
-
-UI.CreateToggle(
-	UI.AutoFarmPage,
-	"Farm Underground",
-	"Farms coins underground.",
-	"FarmUnderground"
 )
 
 --============================================================
@@ -93,9 +93,8 @@ local FARM_PREDICTIVE_MIN_STAGE_HORIZONTAL = 8
 local FARM_PREDICTIVE_STAGE_TIMEOUT = 1.50
 
 --============================================================
--- V13.5 Horizontal Contact Retry
--- Runs only after a normal pickup has settled under the coin
--- without registering. The existing vertical re-arm remains backup.
+-- V13.11 Underground recovery uses one bounded horizontal crossing.
+-- Above-ground recovery remains unchanged.
 --============================================================
 
 local FARM_CONTACT_RETRY_DISTANCE = 2.00
@@ -121,6 +120,12 @@ local FARM_REARM_REENTER_V = 5.25
 local FARM_REARM_VERIFY_DELAY = 0.35
 local FARM_REARM_MAX_ATTEMPTS = 2
 local FARM_REARM_SKIP_TIME = 1.50
+local FARM_UNDERGROUND_CONTACT_WAIT = 0.48
+local FARM_UNDERGROUND_CLOSE_HORIZONTAL = 0.85
+local FARM_UNDERGROUND_MAX_TARGET_TIME = 3.50
+local FARM_UNDERGROUND_RETRY_DISTANCE = 1.20
+local FARM_UNDERGROUND_RETRY_TIME = 0.65
+local FARM_UNDERGROUND_VERIFY_TIME = 0.28
 
 --============================================================
 -- After Bag Full Constants
@@ -178,6 +183,7 @@ local FarmSizedHRP = nil
 --============================================================
 
 local FarmRearmState = "idle"
+local FarmUndergroundNearbyAt = nil
 local FarmRearmCloseStartedAt = nil
 local FarmRearmStateStartedAt = 0
 local FarmRearmAttempts = 0
@@ -522,6 +528,7 @@ end
 local function FarmReleaseTarget()
 	FarmCurrentCoin = nil
 	FarmCurrentTouch = nil
+	FarmUndergroundNearbyAt = nil
 	FarmResetRearm()
 	FarmResetPredictiveStage()
 end
@@ -552,6 +559,7 @@ local function FarmSelectTarget(coin)
 	end
 
 	FarmCurrentCoin = coin
+	FarmUndergroundNearbyAt = nil
 	FarmCurrentTouch = FarmGetTouchObject(coin)
 	FarmResetRearm()
 	FarmResetPredictiveStage()
@@ -782,157 +790,79 @@ local function FarmUpdateRearm(coinPos)
 	end
 
 
-	if FarmRearmState == "idle" then
-		FarmPositionAlign.Position = FarmGetCoinTarget(coinPos)
 
-		local settled =
-			horizontalDistance <= FARM_REARM_CLOSE_HORIZONTAL
-			and verticalBelow >= FARM_REARM_MIN_SETTLED_V
-			and verticalBelow <= FARM_REARM_MAX_SETTLED_V
-
-		if settled then
-			if not FarmRearmCloseStartedAt then
-				FarmRearmCloseStartedAt = now
-			end
-
-			if now-FarmRearmCloseStartedAt >= FARM_REARM_STUCK_DELAY then
-				if not FarmContactRetryUsed then
-					FarmBeginContactRetry(coinPos)
-				else
-					FarmBeginRearm()
-				end
-			end
-		else
-			FarmRearmCloseStartedAt = nil
-		end
-
-		return
-	end
-
-	if FarmRearmState == "contactExit" then
-		FarmPositionAlign.Position = FarmGetContactRetryTarget(coinPos,1)
-
-		local reached =
-			FarmHorizontalDistanceToCoin(coinPos)
-			>= FARM_CONTACT_RETRY_REACHED
-		local timedOut =
-			now-FarmRearmStateStartedAt
-			>= FARM_CONTACT_RETRY_EXIT_TIMEOUT
-
-		if reached or timedOut then
-			FarmRearmState = "contactCross"
-			FarmRearmStateStartedAt = now
-		end
-
-		return
-	end
-
-	if FarmRearmState == "contactCross" then
-		FarmPositionAlign.Position = FarmGetContactRetryTarget(coinPos,-1)
-
-		local direction = FarmContactRetryDirection or Vector2.new(1,0)
-		local relX = FarmHRP.Position.X-coinPos.X
-		local relZ = FarmHRP.Position.Z-coinPos.Z
-		local signedAlong =
-			relX*direction.X + relZ*direction.Y
-		local reachedOtherSide =
-			signedAlong <= -FARM_CONTACT_RETRY_REACHED
-		local timedOut =
-			now-FarmRearmStateStartedAt
-			>= FARM_CONTACT_RETRY_CROSS_TIMEOUT
-
-		if reachedOtherSide or timedOut then
-			FarmRearmState = "contactVerify"
-			FarmRearmStateStartedAt = now
-			FarmPositionAlign.Position = FarmGetCoinTarget(coinPos)
-		end
-
-		return
-	end
-
-	if FarmRearmState == "contactVerify" then
-		FarmPositionAlign.Position = FarmGetCoinTarget(coinPos)
-
-		if now-FarmRearmStateStartedAt < FARM_CONTACT_RETRY_VERIFY_DELAY then
-			return
-		end
-
-		FarmBeginRearm()
-		return
-	end
-
-	if FarmRearmState == "exit" then
-		FarmPositionAlign.Position =
-			FarmGetCoinTargetWithOffset(
-				coinPos,
-				FARM_REARM_EXIT_Y_OFFSET
-			)
-
-		local outsideContact = verticalBelow >= FARM_REARM_EXIT_REACHED_V
-		local timedOut = now-FarmRearmStateStartedAt >= FARM_REARM_EXIT_TIMEOUT
-
-		if outsideContact then
-			FarmRearmState = "hold"
-			FarmRearmStateStartedAt = now
-		elseif timedOut then
-			-- Timeout alone is not treated as successful separation.
-			FarmRearmStateStartedAt = now
-		end
-
-		return
-	end
-
-	if FarmRearmState == "hold" then
-		FarmPositionAlign.Position =
-			FarmGetCoinTargetWithOffset(
-				coinPos,
-				FARM_REARM_EXIT_Y_OFFSET
-			)
-
-		if now-FarmRearmStateStartedAt >= FARM_REARM_SEPARATION_HOLD then
-			FarmRearmState = "reenter"
-			FarmRearmStateStartedAt = now
-		end
-
-		return
-	end
-
-	if FarmRearmState == "reenter" then
-		FarmPositionAlign.Position = FarmGetCoinTarget(coinPos)
-
-		local backInPickupZone = verticalBelow <= FARM_REARM_REENTER_V
-		local timedOut = now-FarmRearmStateStartedAt >= FARM_REARM_REENTER_TIMEOUT
-
-		if backInPickupZone or timedOut then
-			FarmRearmState = "verify"
-			FarmRearmStateStartedAt = now
-		end
-
-		return
-	end
-
-	if FarmRearmState == "verify" then
-		FarmPositionAlign.Position = FarmGetCoinTarget(coinPos)
-
-		if now-FarmRearmStateStartedAt < FARM_REARM_VERIFY_DELAY then
-			return
-		end
-
-		if FarmRearmAttempts < FARM_REARM_MAX_ATTEMPTS then
-			FarmRearmState = "idle"
-			FarmRearmCloseStartedAt =
-				now-(FARM_REARM_STUCK_DELAY-0.10)
-			return
-		end
-
+	-- V13.11 underground: keep the original direct -5.05 target and
+	-- never command a lower re-arm Y position. One short horizontal
+	-- crossing is allowed after the initial contact wait; then skip.
+	local target = FarmGetCoinTarget(coinPos)
+	local function skipUnresponsive()
 		local failedCoin = FarmCurrentCoin
 		if failedCoin then
 			FarmCoinSkipUntil[failedCoin] = now + FARM_REARM_SKIP_TIME
 		end
-
 		FarmReleaseTarget()
+	end
+
+	if horizontalDistance <= 2.0 and not FarmUndergroundNearbyAt then
+		FarmUndergroundNearbyAt = now
+	end
+	if FarmUndergroundNearbyAt
+		and now-FarmUndergroundNearbyAt >= FARM_UNDERGROUND_MAX_TARGET_TIME then
+		skipUnresponsive()
 		return
 	end
+
+	if FarmRearmState == "idle" then
+		FarmPositionAlign.Position = target
+		local inContactArea =
+			horizontalDistance <= FARM_UNDERGROUND_CLOSE_HORIZONTAL
+			and verticalBelow >= FARM_REARM_MIN_SETTLED_V
+			and verticalBelow <= FARM_REARM_MAX_SETTLED_V
+
+		if inContactArea then
+			FarmRearmCloseStartedAt = FarmRearmCloseStartedAt or now
+			if now-FarmRearmCloseStartedAt >= FARM_UNDERGROUND_CONTACT_WAIT then
+				FarmContactRetryUsed = true
+				FarmContactRetryDirection = FarmGetContactRetryDirection(coinPos)
+				FarmRearmState = "contactCross"
+				FarmRearmStateStartedAt = now
+			end
+		else
+			FarmRearmCloseStartedAt = nil
+		end
+		return
+	end
+
+	if FarmRearmState == "contactCross" then
+		local direction = FarmContactRetryDirection or Vector2.new(1,0)
+		FarmPositionAlign.Position = Vector3.new(
+			coinPos.X - direction.X*FARM_UNDERGROUND_RETRY_DISTANCE,
+			coinPos.Y + FARM_COIN_Y_OFFSET,
+			coinPos.Z - direction.Y*FARM_UNDERGROUND_RETRY_DISTANCE
+		)
+		local relX = FarmHRP.Position.X-coinPos.X
+		local relZ = FarmHRP.Position.Z-coinPos.Z
+		local signedAlong = relX*direction.X + relZ*direction.Y
+		if signedAlong <= -0.85
+			or now-FarmRearmStateStartedAt >= FARM_UNDERGROUND_RETRY_TIME then
+			FarmRearmState = "contactVerify"
+			FarmRearmStateStartedAt = now
+		end
+		return
+	end
+
+	if FarmRearmState == "contactVerify" then
+		FarmPositionAlign.Position = target
+		if now-FarmRearmStateStartedAt >= FARM_UNDERGROUND_VERIFY_TIME then
+			skipUnresponsive()
+		end
+		return
+	end
+
+	-- Any stale legacy re-arm state is reset instead of moving vertically.
+	FarmRearmState = "idle"
+	FarmRearmCloseStartedAt = nil
+	FarmPositionAlign.Position = target
 end
 
 --============================================================
