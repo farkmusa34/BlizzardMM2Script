@@ -1,6 +1,6 @@
 --============================================================
 -- MM2 V8.8.4 - AutoFarm.lua
--- Coin Farm V13.11 bounded underground contact recovery + UI order
+-- Coin Farm V13.11 + V11 observation-only diagnostic
 --============================================================
 
 local MM2 = getgenv and getgenv().MM2_V85_SPLIT or _G.MM2_V85_SPLIT
@@ -525,7 +525,44 @@ local function FarmResetPredictiveStage()
 	FarmPredictiveStageStartedAt = 0
 end
 
+-- V11 observation-only diagnostics. Does not change movement or collection.
+local V11 = {index=0, active=nil, maxTargets=30, sampleInterval=0.08}
+local function V11Number(x) return string.format("%.3f", x or 0) end
+local function V11Emit(reason)
+    local a=V11.active
+    if not a then return end
+    local elapsed=os.clock()-a.started
+    print(string.format("[AF-V11] END id=%d reason=%s elapsed=%.2f samples=%d minXZ=%.3f minBelow=%.3f state=%s",a.id,tostring(reason),elapsed,#a.samples,a.minXZ,a.minBelow,tostring(FarmRearmState)))
+    for _,v in ipairs(a.samples) do print("[AF-V11] S "..v) end
+    V11.active=nil
+end
+local function V11Begin(coin,coinPos)
+    V11Emit("TARGET_SWITCH")
+    V11.index+=1
+    if V11.index>V11.maxTargets or not FarmIsUnderground() then return end
+    V11.active={id=V11.index,started=os.clock(),lastSample=-math.huge,samples={},minXZ=math.huge,minBelow=math.huge}
+    print(string.format("[AF-V11] BEGIN id=%d coin=%s pos=%.3f,%.3f,%.3f offset=%.2f",V11.index,tostring(coin.Name),coinPos.X,coinPos.Y,coinPos.Z,FARM_COIN_Y_OFFSET))
+end
+local function V11Sample(coinPos,force)
+    local a=V11.active
+    if not a or not FarmHRP then return end
+    local now=os.clock()
+    local xz=Vector2.new(FarmHRP.Position.X-coinPos.X,FarmHRP.Position.Z-coinPos.Z).Magnitude
+    local below=coinPos.Y-FarmHRP.Position.Y
+    a.minXZ=math.min(a.minXZ,xz)
+    a.minBelow=math.min(a.minBelow,math.abs(below))
+    if not force and (xz>6 or now-a.lastSample<V11.sampleInterval) then return end
+    a.lastSample=now
+    local goal=FarmPositionAlign and FarmPositionAlign.Position or FarmHRP.Position
+    local vel=FarmHRP.AssemblyLinearVelocity
+    local touch=FarmCurrentTouch and FarmCurrentTouch.Parent~=nil and 1 or 0
+    local line=string.format("id=%d t=%.3f xz=%.3f below=%.3f goalBelow=%.3f goalXZ=%.3f vy=%.2f vxz=%.2f touch=%d state=%s",a.id,now-a.started,xz,below,coinPos.Y-goal.Y,Vector2.new(goal.X-coinPos.X,goal.Z-coinPos.Z).Magnitude,vel.Y,Vector2.new(vel.X,vel.Z).Magnitude,touch,tostring(FarmRearmState))
+    if #a.samples<95 then table.insert(a.samples,line) end
+end
+print("[AF-V11] READY: observing first 30 underground coin targets; copy [AF-V11] console lines")
+
 local function FarmReleaseTarget()
+	V11Emit("RELEASE")
 	FarmCurrentCoin = nil
 	FarmCurrentTouch = nil
 	FarmUndergroundNearbyAt = nil
@@ -558,6 +595,7 @@ local function FarmSelectTarget(coin)
 		return false
 	end
 
+	V11Begin(coin,coinPos)
 	FarmCurrentCoin = coin
 	FarmUndergroundNearbyAt = nil
 	FarmCurrentTouch = FarmGetTouchObject(coin)
@@ -796,6 +834,8 @@ local function FarmUpdateRearm(coinPos)
 	-- crossing is allowed after the initial contact wait; then skip.
 	local target = FarmGetCoinTarget(coinPos)
 	local function skipUnresponsive()
+		V11Sample(coinPos,true)
+		V11Emit("STUBBORN_SKIP")
 		local failedCoin = FarmCurrentCoin
 		if failedCoin then
 			FarmCoinSkipUntil[failedCoin] = now + FARM_REARM_SKIP_TIME
@@ -1682,6 +1722,7 @@ local function FarmLoop(runGeneration)
 		end
 
 		if not FarmCurrentCoin:IsDescendantOf(workspace) then
+			V11Emit("COIN_REMOVED")
 			FarmReleaseTarget()
 			continue
 		end
@@ -1700,6 +1741,7 @@ local function FarmLoop(runGeneration)
 			continue
 		end
 
+		V11Sample(coinPos,false)
 		local collection =
 			FarmCheckCollection(
 				FarmCurrentCoin,
@@ -1707,6 +1749,8 @@ local function FarmLoop(runGeneration)
 			)
 
 		if collection == true or collection == "invalid" then
+			V11Sample(coinPos,true)
+			V11Emit(collection == true and "TOUCH_GONE_NEAR" or "TOUCH_GONE_FAR")
 			FarmReleaseTarget()
 			continue
 		end
