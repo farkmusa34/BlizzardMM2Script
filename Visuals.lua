@@ -153,67 +153,716 @@ end
 -- VISUALS UI - DIRECT WINDUI
 --============================================================
 
-local function CreateVisualSlider(title, desc, flag, minValue, maxValue, step, default)
-    if type(Flags[flag]) ~= "number" then Flags[flag] = default end
-    local ok, err = pcall(function()
-        VisualsTab:Slider({Title=title, Desc=desc, Value={Min=minValue, Max=maxValue, Default=Flags[flag], Step=step},
-            Callback=function(value)
-                if type(value)=="number" then Flags[flag]=math.clamp(value,minValue,maxValue) end
-            end})
-    end)
-    if not ok then warn("[Blizzard Visuals] Slider failed:",title,err) end
+AddHeading("Visuals", "ESP controls")
+
+CreateNativeToggle(
+	"Coin ESP",
+	"Highlight uncollected coins",
+	"CoinESP",
+	function(on)
+		if not on and MM2.Functions.ClearCoinESP then
+			MM2.Functions.ClearCoinESP()
+		end
+	end
+)
+
+CreateNativeToggle(
+	"Role ESP",
+	"Highlight players using detected roles",
+	"MatchESP",
+	function(on)
+		if not on and MM2.Functions.ClearPlayerESP then
+			MM2.Functions.ClearPlayerESP()
+		end
+	end
+)
+
+CreateNativeToggle(
+	"Gun ESP",
+	"Highlight the dropped gun",
+	"GunESP",
+	function(on)
+		if not on and MM2.Functions.ClearGunESP then
+			MM2.Functions.ClearGunESP()
+		end
+	end
+)
+
+--============================================================
+-- ROUND TIMER UI
+--============================================================
+
+Flags.RoundTimer = Flags.RoundTimer == true
+
+AddHeading("Round", "Round information")
+
+CreateNativeToggle(
+	"Round Timer",
+	"Shows the remaining time in the current round",
+	"RoundTimer",
+	function(on)
+		if not on and MM2.Functions.HideRoundTimer then
+			MM2.Functions.HideRoundTimer()
+		elseif on and MM2.Functions.RefreshRoundTimer then
+			MM2.Functions.RefreshRoundTimer()
+		end
+	end
+)
+
+--============================================================
+-- TRACERS UI
+--============================================================
+
+AddHeading("Tracers", "Role-based screen tracers")
+
+for _, item in ipairs({
+	{"Murderer Tracer", "Track the murderer", "MurdererTracer"},
+	{"Sheriff Tracer", "Track the sheriff", "SheriffTracer"},
+	{"Hero Tracer", "Track the hero", "HeroTracer"},
+	{"Innocent Tracer", "Track innocents", "InnocentTracer"},
+}) do
+	CreateNativeToggle(
+		item[1],
+		item[2],
+		item[3],
+		function(on)
+			if not on and MM2.Functions.ClearTracers then
+				MM2.Functions.ClearTracers()
+			end
+		end
+	)
 end
 
-local function CreateVisualDropdown(title, desc, flag, values, default)
-    if not table.find(values, Flags[flag]) then Flags[flag]=default end
-    local ok, err = pcall(function()
-        VisualsTab:Dropdown({Title=title, Desc=desc, Values=values, Value=Flags[flag], Multi=false,
-            Callback=function(value)
-                if type(value)=="table" then value=value[1] end
-                if table.find(values,value) then Flags[flag]=value end
-            end})
-    end)
-    if not ok then warn("[Blizzard Visuals] Dropdown failed:",title,err) end
+--============================================================
+-- BULLET BEAM TRACERS (existing MM2 gunshot effect)
+--============================================================
+-- Uses existing replicated Beams; no new gunshots or projectiles.
+local BeamOriginals = setmetatable({}, {__mode = "k"})
+local BeamConnection
+local BeamGeneration = 0
+
+Flags.BulletBeamTracers = Flags.BulletBeamTracers == true
+Flags.BeamOnlyMyShots = Flags.BeamOnlyMyShots == true
+Flags.BeamThickness = tonumber(Flags.BeamThickness) or 0.25
+Flags.BeamDuration = tonumber(Flags.BeamDuration) or 0.8
+Flags.BeamMyColor = typeof(Flags.BeamMyColor) == "Color3" and Flags.BeamMyColor or Color3.fromRGB(180, 40, 255)
+Flags.BeamOtherColor = typeof(Flags.BeamOtherColor) == "Color3" and Flags.BeamOtherColor or Color3.fromRGB(0, 210, 255)
+
+local function FindShooter(position)
+    local best, distance = nil, math.huge
+    for _, player in ipairs(Players:GetPlayers()) do
+        local character = player.Character
+        if character then
+            for _, tool in ipairs(character:GetChildren()) do
+                if tool:IsA("Tool") and tool.Name:lower():find("gun", 1, true) then
+                    local handle = tool:FindFirstChild("Handle") or tool:FindFirstChildWhichIsA("BasePart")
+                    if handle then
+                        local d = (handle.Position - position).Magnitude
+                        if d < distance then best, distance = player, d end
+                    end
+                end
+            end
+        end
+    end
+    return best, distance
 end
 
--- Color picker values are stored for future shot diagnostics; no firing hooks are installed.
-local function CreateShotColorPicker(title, flag, default)
-    Flags[flag] = typeof(Flags[flag])=="Color3" and Flags[flag] or default
-    local ok, err = pcall(function()
-        VisualsTab:Colorpicker({Title=title, Desc="Color for future bullet effects (not active yet).",
-            Default=Flags[flag], Callback=function(value)
-                if typeof(value)=="Color3" then Flags[flag]=value end
-            end})
-    end)
-    if not ok then warn("[Blizzard Visuals] Color picker failed:",title,err) end
+local function RestoreBeam(beam)
+    local old = BeamOriginals[beam]
+    if old and beam.Parent then
+        pcall(function()
+            beam.Color = old.Color
+            beam.Width0 = old.Width0
+            beam.Width1 = old.Width1
+            beam.Transparency = old.Transparency
+        end)
+    end
+    BeamOriginals[beam] = nil
 end
 
-AddHeading("World Visuals")
-CreateNativeToggle("Gun ESP", "Highlights the dropped gun.", "GunESP", function(on)
-    if not on and MM2.Functions.ClearGunESP then MM2.Functions.ClearGunESP() end
-end)
-CreateNativeToggle("Coin ESP", "Highlights uncollected coins.", "CoinESP", function(on)
-    if not on and MM2.Functions.ClearCoinESP then MM2.Functions.ClearCoinESP() end
-end)
-CreateNativeToggle("Off-Screen Arrows", "Points toward off-screen players and shows their distance.", "OffScreenArrows", function(on)
-    if not on and MM2.Functions.ClearOffScreenArrows then MM2.Functions.ClearOffScreenArrows() end
-end)
--- UI-only placeholders: no gunshot observers or bullet effects until diagnostic is complete.
-CreateNativeToggle("Bullet Tracers", "Future bullet effects (not active yet).", "BulletTracers")
-CreateShotColorPicker("Your Shot Color", "YourShotColor", Color3.fromRGB(45,155,255))
-CreateShotColorPicker("Other Players' Shot Color", "OtherShotColor", Color3.fromRGB(255,64,64))
-CreateVisualSlider("Bullet Tracer Duration", "Future bullet effect duration (not active yet).", "BulletTracerDuration", 0.1, 2, 0.1, 0.3)
-CreateNativeToggle("Round Timer", "Shows the remaining time in the current round.", "RoundTimer", function(on)
-    if not on and MM2.Functions.HideRoundTimer then MM2.Functions.HideRoundTimer()
-    elseif on and MM2.Functions.RefreshRoundTimer then MM2.Functions.RefreshRoundTimer() end
+local function RefreshBeamStyles()
+    for beam, data in pairs(BeamOriginals) do
+        if not beam.Parent then
+            BeamOriginals[beam] = nil
+        elseif Flags.BeamOnlyMyShots and data.Shooter ~= LocalPlayer then
+            RestoreBeam(beam)
+        else
+            pcall(function()
+                beam.Color = ColorSequence.new(data.Shooter == LocalPlayer and Flags.BeamMyColor or Flags.BeamOtherColor)
+                beam.Width0 = Flags.BeamThickness
+                beam.Width1 = Flags.BeamThickness
+            end)
+        end
+    end
+end
+
+local function ObserveBeam(beam, generation)
+    if generation ~= BeamGeneration or not Flags.BulletBeamTracers then return end
+    if not beam:IsA("Beam") or beam.Name ~= "Beam" then return end
+    if not beam.Parent or beam.Parent.Name ~= "Part" then return end
+    for _ = 1, 5 do
+        if generation ~= BeamGeneration or not beam.Parent then return end
+        if beam.Attachment0 and beam.Attachment1 then break end
+        task.wait()
+    end
+    if generation ~= BeamGeneration or not beam.Parent then return end
+    local a0, a1 = beam.Attachment0, beam.Attachment1
+    if not a0 or not a1 then return end
+    local p0, p1 = a0.WorldPosition, a1.WorldPosition
+    local length = (p1 - p0).Magnitude
+    if length < 0.5 or length > 2000 or beam.Width0 > 0.4 or beam.Width1 > 0.4 then return end
+    local shooter, distance = FindShooter(p0)
+    if not shooter or distance > 4 then return end
+    if Flags.BeamOnlyMyShots and shooter ~= LocalPlayer then return end
+    if BeamOriginals[beam] then return end
+    local old = {
+        Color = beam.Color, Width0 = beam.Width0, Width1 = beam.Width1,
+        Transparency = beam.Transparency, Shooter = shooter,
+    }
+    BeamOriginals[beam] = old
+    beam.Color = ColorSequence.new(shooter == LocalPlayer and Flags.BeamMyColor or Flags.BeamOtherColor)
+    beam.Width0 = Flags.BeamThickness
+    beam.Width1 = Flags.BeamThickness
+    local duration = Flags.BeamDuration
+    task.delay(duration, function()
+        if BeamOriginals[beam] ~= old then return end
+        -- Locally hide this shot after the selected duration; the game still owns deletion.
+        if beam.Parent then
+            pcall(function() beam.Transparency = NumberSequence.new(1) end)
+        end
+        BeamOriginals[beam] = nil
+    end)
+end
+
+local function SetBulletBeamTracers(enabled)
+    BeamGeneration += 1
+    local generation = BeamGeneration
+    if BeamConnection then BeamConnection:Disconnect(); BeamConnection = nil end
+    for beam in pairs(BeamOriginals) do RestoreBeam(beam) end
+    if not enabled then return end
+    BeamConnection = workspace.DescendantAdded:Connect(function(obj)
+        if obj:IsA("Beam") then task.spawn(ObserveBeam, obj, generation) end
+    end)
+end
+MM2.Functions.SetBulletBeamTracers = SetBulletBeamTracers
+
+AddHeading("Bullet Tracers", "Gunshot Beam appearance")
+CreateNativeToggle("Bullet Tracer", "Draws the path of gun shots. Only you ever see it.", "BulletBeamTracers", SetBulletBeamTracers)
+CreateNativeToggle("Only My Shots", "Off also draws tracers for other players shots.", "BeamOnlyMyShots", function() RefreshBeamStyles() end)
+
+local function AddBeamSlider(title, description, key, min, max, step)
+    local ok, err = pcall(function()
+        VisualsTab:Slider({
+            Title = title, Desc = description, Step = step,
+            Value = {Min = min, Max = max, Default = Flags[key]},
+            Callback = function(value)
+                Flags[key] = tonumber(value) or Flags[key]
+                if key == "BeamThickness" then RefreshBeamStyles() end
+            end,
+        })
+    end)
+    if not ok then warn("[Blizzard Visuals] Slider failed:", title, err) end
+end
+AddBeamSlider("Tracer Thickness", "How thick the tracer line is.", "BeamThickness", 0.05, 1, 0.05)
+AddBeamSlider("Tracer Duration", "How long a tracer stays visible (seconds).", "BeamDuration", 0.1, 3, 0.1)
+
+local function AddBeamColor(title, key)
+    local ok, err = pcall(function()
+        VisualsTab:Colorpicker({
+            Title = title,
+            Default = Flags[key],
+            Callback = function(color)
+                if typeof(color) == "Color3" then
+                    Flags[key] = color
+                    RefreshBeamStyles()
+                end
+            end,
+        })
+    end)
+    if not ok then warn("[Blizzard Visuals] Colorpicker failed:", title, err) end
+end
+AddBeamColor("Tracer Color (your shots)", "BeamMyColor")
+AddBeamColor("Tracer Color (other players)", "BeamOtherColor")
+
+if Flags.BulletBeamTracers then SetBulletBeamTracers(true) end
+task.spawn(function()
+    while MM2.Running do task.wait(0.5) end
+    SetBulletBeamTracers(false)
 end)
 
-AddHeading("Tracers")
-CreateNativeToggle("Enable Tracers", "Shows role-colored lines pointing toward players.", "EnableTracers", function(on)
-    if not on and MM2.Functions.ClearTracers then MM2.Functions.ClearTracers() end
-end)
-CreateVisualDropdown("Tracer Origin", "Sets where tracers start on your screen.", "TracerOrigin", {"Bottom Center","Center","Top Center"}, "Bottom Center")
-Flags.TracerThickness = 1 -- Fixed 1-pixel tracer width; no UI slider.
+--============================================================
+-- PLAYER ESP
+--============================================================
+
+local MATCH_ESP_ROLE_GRACE =
+	0.85
+
+MM2.State.MatchESPLastValid =
+	MM2.State.MatchESPLastValid
+	or {}
+
+local function RemovePlayerESP(player)
+
+	if not player then
+		return
+	end
+
+	local char =
+		player.Character
+
+	if char then
+
+		local highlight =
+			char:FindFirstChild(
+				"MM2_MatchESP"
+			)
+
+		if highlight then
+			highlight:Destroy()
+		end
+
+		local head =
+			char:FindFirstChild(
+				"Head"
+			)
+
+		if head then
+
+			local tag =
+				head:FindFirstChild(
+					"MM2_NameTag"
+				)
+
+			if tag then
+				tag:Destroy()
+			end
+		end
+	end
+
+	MM2.State.MatchESPLastValid[
+		player
+	] =
+		nil
+end
+
+MM2.Functions.RemovePlayerESP =
+	RemovePlayerESP
+
+MM2.Functions.ClearPlayerESP =
+	function()
+
+		for _,player in ipairs(
+			Players:GetPlayers()
+		) do
+
+			RemovePlayerESP(
+				player
+			)
+		end
+
+		table.clear(
+			MM2.State.MatchESPLastValid
+		)
+	end
+
+local function GetExistingPlayerESP(
+	char,
+	head
+)
+
+	if not char then
+		return nil,nil
+	end
+
+	local highlight =
+		char:FindFirstChild(
+			"MM2_MatchESP"
+		)
+
+	local tag =
+		head
+		and head:FindFirstChild(
+			"MM2_NameTag"
+		)
+		or nil
+
+	return highlight,tag
+end
+
+local function SaveValidMatchRole(
+	player,
+	char,
+	role
+)
+
+	MM2.State.MatchESPLastValid[
+		player
+	] =
+		{
+			Character = char,
+			Role = role,
+			Time = os.clock(),
+		}
+end
+
+local function GetGraceRole(
+	player,
+	char,
+	highlight,
+	tag
+)
+
+	local cached =
+		MM2.State.MatchESPLastValid[
+			player
+		]
+
+	if not cached
+		or cached.Character ~= char
+		or not cached.Role
+		or not cached.Time
+	then
+
+		return nil
+	end
+
+	-- Grace is only for already-rendered ESP. It must never
+	-- create fresh ESP from stale cached information.
+	if not highlight
+		and not tag
+	then
+
+		return nil
+	end
+
+	if os.clock()
+		- cached.Time
+		> MATCH_ESP_ROLE_GRACE
+	then
+
+		return nil
+	end
+
+	return cached.Role
+end
+
+local function HasLiveAssignedRoles()
+	-- During the pre-round countdown, the server can already expose
+	-- valid roles before Shared.lua marks RoleRoundActive true.
+	-- Require a special role so stale lobby Innocent data alone
+	-- cannot open the ESP gate.
+	local hasSpecialRole = false
+	local hasValidRole = false
+
+	for _,player in ipairs(
+		Players:GetPlayers()
+	) do
+		if player ~= LocalPlayer
+			and not MM2.State.PlayerOutOfRound[
+				player.Name
+			]
+		then
+			local char = player.Character
+			local humanoid =
+				char
+				and char:FindFirstChildOfClass(
+					"Humanoid"
+				)
+
+			if humanoid
+				and humanoid.Health > 0
+			then
+				local role =
+					MM2.GetPlayerRole(
+						player
+					)
+
+				if role == "Murderer"
+					or role == "Sheriff"
+					or role == "Hero"
+					or role == "Innocent"
+				then
+					hasValidRole = true
+				end
+
+				if role == "Murderer"
+					or role == "Sheriff"
+					or role == "Hero"
+				then
+					hasSpecialRole = true
+				end
+			end
+		end
+	end
+
+	return hasValidRole
+		and hasSpecialRole
+end
+
+MM2.Functions.UpdatePlayerESP =
+	function()
+
+		if not Flags.MatchESP then
+			return
+		end
+
+		if MM2.State.RoleRoundActive
+			~= true
+			and not HasLiveAssignedRoles()
+		then
+
+			MM2.Functions.ClearPlayerESP()
+			return
+		end
+
+		for _,player in ipairs(
+			Players:GetPlayers()
+		) do
+
+			if player == LocalPlayer then
+
+				RemovePlayerESP(
+					player
+				)
+
+				continue
+			end
+
+			-- Shared.lua is authoritative for elimination state.
+			-- Dead/killed players should disappear immediately,
+			-- with no role grace.
+			if MM2.State.PlayerOutOfRound[
+				player.Name
+			] then
+
+				RemovePlayerESP(
+					player
+				)
+
+				continue
+			end
+
+			local char =
+				player.Character
+
+			local head =
+				char
+				and char:FindFirstChild(
+					"Head"
+				)
+
+			local hrp =
+				char
+				and char:FindFirstChild(
+					"HumanoidRootPart"
+				)
+
+			local humanoid =
+				char
+				and char:FindFirstChildOfClass(
+					"Humanoid"
+				)
+
+			if not char
+				or not head
+				or not hrp
+				or not humanoid
+				or humanoid.Health <= 0
+				or not MM2.IsPositionWithinESPDistance(
+					hrp.Position
+				)
+			then
+
+				RemovePlayerESP(
+					player
+				)
+
+				continue
+			end
+
+			local highlight,tag =
+				GetExistingPlayerESP(
+					char,
+					head
+				)
+
+			local role =
+				MM2.GetPlayerRole(
+					player
+				)
+
+			if role == "None" then
+
+				-- GetPlayerData can occasionally give one bad /
+				-- incomplete snapshot. Keep already-visible ESP
+				-- for a fraction of a second so it does not blink
+				-- out or permanently disappear from that poll.
+				role =
+					GetGraceRole(
+						player,
+						char,
+						highlight,
+						tag
+					)
+
+				if not role then
+
+					RemovePlayerESP(
+						player
+					)
+
+					continue
+				end
+
+			else
+
+				SaveValidMatchRole(
+					player,
+					char,
+					role
+				)
+			end
+
+			local color =
+				MM2.GetRoleColor(
+					role
+				)
+
+			highlight =
+				char:FindFirstChild(
+					"MM2_MatchESP"
+				)
+
+			if not highlight then
+
+				highlight =
+					Instance.new(
+						"Highlight"
+					)
+
+				highlight.Name =
+					"MM2_MatchESP"
+
+				highlight.Adornee =
+					char
+
+				highlight.FillTransparency =
+					0.5
+
+				highlight.OutlineTransparency =
+					0
+
+				highlight.DepthMode =
+					Enum.HighlightDepthMode.AlwaysOnTop
+
+				highlight.Parent =
+					char
+			end
+
+			highlight.Enabled =
+				true
+
+			highlight.Adornee =
+				char
+
+			highlight.FillColor =
+				color
+
+			highlight.OutlineColor =
+				color
+
+			tag =
+				head:FindFirstChild(
+					"MM2_NameTag"
+				)
+
+			if not tag then
+
+				tag =
+					Instance.new(
+						"BillboardGui"
+					)
+
+				tag.Name =
+					"MM2_NameTag"
+
+				tag.Adornee =
+					head
+
+				tag.Size =
+					UDim2.new(
+						0,
+						160,
+						0,
+						40
+					)
+
+				tag.StudsOffset =
+					Vector3.new(
+						0,
+						2.5,
+						0
+					)
+
+				tag.AlwaysOnTop =
+					true
+
+				tag.Parent =
+					head
+
+				local text =
+					Instance.new(
+						"TextLabel"
+					)
+
+				text.Name =
+					"TagText"
+
+				text.Size =
+					UDim2.new(
+						1,
+						0,
+						1,
+						0
+					)
+
+				text.BackgroundTransparency =
+					1
+
+				text.Font =
+					Enum.Font.GothamBold
+
+				text.TextSize =
+					12
+
+				text.TextStrokeTransparency =
+					0.5
+
+				text.Parent =
+					tag
+			end
+
+			tag.Enabled =
+				true
+
+			tag.Adornee =
+				head
+
+			local text =
+				tag:FindFirstChild(
+					"TagText"
+				)
+
+			if text then
+
+				text.Text =
+					player.Name
+
+				text.TextColor3 =
+					color
+			end
+		end
+	end
 
 --============================================================
 -- COIN ESP
@@ -501,10 +1150,6 @@ MM2.Functions.UpdateGunESP = function()
 		RefreshGunPart()
 	end
 
-    if MM2.State.CachedGunDrop and (not MM2.State.CachedGunPart or not MM2.State.CachedGunPart:IsDescendantOf(MM2.State.CachedGunDrop)) then
-        RefreshGunPart()
-    end
-
 	local gun =
 		MM2.State.CachedGunDrop
 
@@ -652,7 +1297,7 @@ MM2.Functions.UpdateGunESP = function()
 			0.5
 
 		text.Text =
-			"Dropped Gun"
+			"[DROPPED GUN]"
 
 		text.Parent =
 			tag
@@ -691,7 +1336,25 @@ MM2.State.TracerLines =
 	{}
 
 local function ShouldShowTracer(role)
-    return Flags.EnableTracers==true and (role=="Murderer" or role=="Sheriff" or role=="Hero" or role=="Innocent")
+
+	if role == "Murderer" then
+
+		return Flags.MurdererTracer
+
+	elseif role == "Sheriff" then
+
+		return Flags.SheriffTracer
+
+	elseif role == "Hero" then
+
+		return Flags.HeroTracer
+
+	elseif role == "Innocent" then
+
+		return Flags.InnocentTracer
+	end
+
+	return false
 end
 
 local function GetTracerTargetPart(char)
@@ -730,9 +1393,9 @@ local function CreateTracer(player)
 
 	line.Size =
 		UDim2.fromOffset(
-            0,
-            1
-        )
+			0,
+			2
+		)
 
 	line.Visible =
 		false
@@ -809,9 +1472,9 @@ local function DrawTracer(
 
 	line.Size =
 		UDim2.fromOffset(
-            length,
-            1
-        )
+			length,
+			2
+		)
 
 	line.Rotation =
 		math.deg(
@@ -846,10 +1509,6 @@ local function GetTracerOriginPart()
 end
 
 MM2.Functions.UpdateTracers = function()
-    if not Flags.EnableTracers then
-        for _,line in pairs(MM2.State.TracerLines) do line.Visible=false end
-        return
-    end
 
 	if MM2.State.RoleRoundActive ~= true then
 
@@ -874,14 +1533,54 @@ MM2.Functions.UpdateTracers = function()
 	local viewport =
 		Camera.ViewportSize
 
-    local startPoint
-    if Flags.TracerOrigin=="Top Center" then
-        startPoint=Vector2.new(viewport.X/2, 8)
-    elseif Flags.TracerOrigin=="Center" then
-        startPoint=Vector2.new(viewport.X/2, viewport.Y/2)
-    else
-        startPoint=Vector2.new(viewport.X/2, viewport.Y-8)
-    end
+	local originTorso =
+		GetTracerOriginPart()
+
+	if not originTorso then
+
+		for _,line in pairs(
+			MM2.State.TracerLines
+		) do
+
+			line.Visible =
+				false
+		end
+
+		return
+	end
+
+	local originScreenPos =
+		Camera:WorldToViewportPoint(
+			originTorso.Position
+		)
+
+	local startPoint
+
+	if originScreenPos.Z > 0 then
+
+		startPoint =
+			Vector2.new(
+				math.clamp(
+					originScreenPos.X,
+					2,
+					viewport.X - 2
+				),
+
+				math.clamp(
+					originScreenPos.Y,
+					2,
+					viewport.Y - 2
+				)
+			)
+
+	else
+
+		startPoint =
+			Vector2.new(
+				viewport.X / 2,
+				viewport.Y * 0.75
+			)
+	end
 
 	for _,player in ipairs(
 		Players:GetPlayers()
@@ -1018,83 +1717,6 @@ MM2.Functions.UpdateTracers = function()
 				false
 		end
 	end
-end
-
---============================================================
--- OFF-SCREEN ROLE ARROWS
---============================================================
-local ArrowGui=Instance.new("ScreenGui")
-ArrowGui.Name="MM2_OffScreenArrows"
-ArrowGui.IgnoreGuiInset=true
-ArrowGui.ResetOnSpawn=false
-ArrowGui.DisplayOrder=6
-ArrowGui.Parent=MM2.PlayerGui
-local ArrowLabels={}
-MM2.Functions.ClearOffScreenArrows=function()
-    for player,label in pairs(ArrowLabels) do
-        if label then label:Destroy() end
-        ArrowLabels[player]=nil
-    end
-end
-local function UpdateOffScreenArrows()
-    if not Flags.OffScreenArrows or not MM2.State.RoleRoundActive then
-        for _,label in pairs(ArrowLabels) do label.Visible=false end
-        return
-    end
-    local camera=workspace.CurrentCamera
-    if not camera then return end
-    local size=camera.ViewportSize
-    local origin=LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
-    local spectated=MM2.GetSpectatedPlayer and MM2.GetSpectatedPlayer()
-    if spectated and spectated.Character then origin=spectated.Character:FindFirstChild("HumanoidRootPart") or origin end
-    if not origin then return end
-    local alive={}
-    for _,player in ipairs(Players:GetPlayers()) do
-        if player~=LocalPlayer and not MM2.State.PlayerOutOfRound[player.Name] then
-            local char=player.Character
-            local hrp=char and char:FindFirstChild("HumanoidRootPart")
-            local hum=char and char:FindFirstChildOfClass("Humanoid")
-            local role=MM2.GetPlayerRole(player)
-            if hrp and hum and hum.Health>0 and MM2.IsPositionWithinESPDistance(hrp.Position)
-                and (role=="Murderer" or role=="Sheriff" or role=="Hero" or role=="Innocent") then
-                local screen,onScreen=camera:WorldToViewportPoint(hrp.Position)
-                if not (onScreen and screen.Z>0) then
-                    alive[player]=true
-                    local label=ArrowLabels[player]
-                    if not label then
-                        label=Instance.new("TextLabel")
-                        label.Name="Arrow_"..player.Name
-                        label.AnchorPoint=Vector2.new(0.5,0.5)
-                        label.Size=UDim2.fromOffset(104,35)
-                        label.BackgroundTransparency=1
-                        label.TextSize=13
-                        label.Font=Enum.Font.GothamBold
-                        label.TextStrokeTransparency=0.25
-                        label.TextWrapped=true
-                        label.ZIndex=25
-                        label.Parent=ArrowGui
-                        ArrowLabels[player]=label
-                    end
-                    local localPos=camera.CFrame:PointToObjectSpace(hrp.Position)
-                    local dx=localPos.X
-                    local dy=-localPos.Y
-                    if localPos.Z>0 then dx=-dx dy=-dy end
-                    local angle=math.atan2(dy,dx)
-                    local rx=size.X*0.41
-                    local ry=size.Y*0.37
-                    label.Position=UDim2.fromOffset(size.X/2+math.cos(angle)*rx,size.Y/2-math.sin(angle)*ry)
-                    local arrow=(math.abs(dx)>math.abs(dy)) and (dx>0 and "▶" or "◀") or (dy>0 and "▲" or "▼")
-                    label.Text=arrow.." "..role.."\n"..math.floor((hrp.Position-origin.Position).Magnitude+0.5).." studs"
-                    label.TextColor3=MM2.GetRoleColor(role)
-                    label.Visible=true
-                end
-            end
-        end
-    end
-    for player,label in pairs(ArrowLabels) do
-        if not alive[player] then label.Visible=false end
-        if not player.Parent then label:Destroy() ArrowLabels[player]=nil end
-    end
 end
 
 --============================================================
@@ -1670,15 +2292,6 @@ end)
 --============================================================
 -- RENDER CONNECTIONS
 --============================================================
-local arrowAccumulator=0
-Track(RunService.RenderStepped:Connect(function(dt)
-    arrowAccumulator=arrowAccumulator+dt
-    if arrowAccumulator>=0.05 then
-        arrowAccumulator=0
-        UpdateOffScreenArrows()
-    end
-end))
-
 
 Track(
 	RunService.RenderStepped:
@@ -1688,7 +2301,7 @@ Track(
 )
 
 print(
-	"[Blizzard MM2 Visuals] v1.85.5 updated loaded"
+	"[Blizzard MM2 Visuals] v1.85.4 loaded"
 )
 
 return MM2
