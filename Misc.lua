@@ -42,9 +42,6 @@ local HttpService =
 local TeleportService =
 	game:GetService("TeleportService")
 
-local GuiService =
-	game:GetService("GuiService")
-
 local VirtualUser =
 	game:GetService("VirtualUser")
 
@@ -53,20 +50,19 @@ local VirtualUser =
 --============================================================
 
 -- Migrate the old factory theme.
-if Flags.Theme == "Summer Event" or Flags.Theme == "Blizzard Blue" then
-	Flags.Theme = "Blizzard Mono"
+if Flags.Theme == "Summer Event" or Flags.Theme == "Blizzard Mono" then
+    Flags.Theme = "Classic Mono"
+elseif Flags.Theme == "Blizzard Blue" then
+    Flags.Theme = "Electric Blue"
 end
 
 Flags.Theme =
 	typeof(Flags.Theme) == "string"
 	and Flags.Theme
-	or "Blizzard Mono"
+	or "Classic Mono"
 
 Flags.AntiAFK =
 	Flags.AntiAFK == true
-
-Flags.AntiDisconnect =
-	Flags.AntiDisconnect == true
 
 if Flags.AutoSaveConfig == nil then
 	Flags.AutoSaveConfig = true
@@ -141,8 +137,8 @@ local DefaultPlayerSettings =
 --============================================================
 
 local ThemeOrder = {
-	"Blizzard Mono",
-	"Blizzard Blue",
+	"Classic Mono",
+	"Electric Blue",
 	"Crimson",
 	"Dark",
 	"Ocean Blue",
@@ -156,10 +152,10 @@ local ThemeOrder = {
 
 local WindThemeMap = {
 
-	["Blizzard Mono"] =
-		"Blizzard Mono",
+	["Classic Mono"] =
+		"Classic Mono",
 
-	["Blizzard Blue"] =
+	["Electric Blue"] =
 		"Sky",
 
 	["Crimson"] =
@@ -196,10 +192,10 @@ local WindThemeMap = {
 
 local ThemeAccentColors = {
 
-	["Blizzard Mono"] =
+	["Classic Mono"] =
 		Color3.fromRGB(245,245,245),
 
-	["Blizzard Blue"] =
+	["Electric Blue"] =
 		Color3.fromRGB(55,145,255),
 
 	["Crimson"] =
@@ -269,7 +265,7 @@ local function UpdateLatestUpdateAccent(themeName)
 
 	local color =
 		ThemeAccentColors[themeName]
-		or ThemeAccentColors["Blizzard Mono"]
+		or ThemeAccentColors["Classic Mono"]
 
 	if UI.SetLatestUpdateTheme then
 		pcall(function()
@@ -280,23 +276,30 @@ local function UpdateLatestUpdateAccent(themeName)
 	UI.CurrentThemeAccent = color
 end
 
+local function MigrateThemeName(themeName)
+    if themeName == "Summer Event" or themeName == "Blizzard Mono" then
+        return "Classic Mono"
+    elseif themeName == "Blizzard Blue" then
+        return "Electric Blue"
+    end
+    return themeName
+end
+
 local function ApplyTheme(themeName)
 
-	if themeName == "Summer Event" then
-		themeName = "Blizzard Mono"
-	end
+	themeName = MigrateThemeName(themeName)
 
 	if typeof(themeName) ~= "string"
 		or not WindThemeMap[themeName]
 	then
-		themeName = "Blizzard Mono"
+		themeName = "Classic Mono"
 	end
 
 	Flags.Theme = themeName
 
 	local windTheme =
 		WindThemeMap[themeName]
-		or "Blizzard Mono"
+		or "Classic Mono"
 
 	if UI.WindUI
 		and UI.WindUI.SetTheme
@@ -338,7 +341,7 @@ ThemeDropdown =
 	UI.CreateDropdown(
 		UI.MiscPage,
 		"Theme",
-		"Choose your menu color theme",
+		"Changes the menu color.",
 		ThemeOrder,
 		Flags.Theme,
 		function(value)
@@ -399,7 +402,7 @@ end
 UI.CreateToggle(
 	UI.MiscPage,
 	"Anti-AFK",
-	"Prevents the normal inactivity timeout",
+	"Stops Roblox from kicking you for being idle during long farms.",
 	"AntiAFK",
 	SetAntiAFK
 )
@@ -441,44 +444,10 @@ end
 
 MM2.Functions.RejoinServer = RejoinCurrentPlace
 
-local LastDisconnectMessage = ""
-
-Track(
-	GuiService.ErrorMessageChanged:Connect(function(message)
-
-		if not Flags.AntiDisconnect then
-			return
-		end
-
-		if typeof(message) ~= "string" or message == "" then
-			return
-		end
-
-		if message == LastDisconnectMessage then
-			return
-		end
-
-		LastDisconnectMessage = message
-
-		task.delay(1,function()
-			if Flags.AntiDisconnect then
-				RejoinCurrentPlace()
-			end
-		end)
-	end)
-)
-
-UI.CreateToggle(
-	UI.MiscPage,
-	"Anti Disconnect",
-	"Attempts to rejoin if the client detects a disconnect",
-	"AntiDisconnect"
-)
-
 UI.CreateActionFeature(
 	UI.MiscPage,
 	"Rejoin Server",
-	"Reconnect to the current server",
+	"Reconnects to the current server.",
 	function()
 		RejoinCurrentPlace()
 	end,
@@ -599,7 +568,7 @@ MM2.Functions.ServerHop = ServerHop
 UI.CreateActionFeature(
 	UI.MiscPage,
 	"Server Hop",
-	"Join another public server",
+	"Joins another public server.",
 	function()
 		ServerHop()
 	end,
@@ -714,10 +683,10 @@ local function LoadConfig()
 
 			if type(data.Flags) == "table" then
 				for key,value in pairs(data.Flags) do
-					if ConfigValueSupported(value) then
-						if key == "Theme" and value == "Summer Event" then
-							value = "Blizzard Mono"
-						end
+					if key ~= "AntiDisconnect" and ConfigValueSupported(value) then
+						if key == "Theme" then
+                            value = MigrateThemeName(value)
+                        end
 						Flags[key] = value
 					end
 				end
@@ -740,9 +709,7 @@ local function LoadConfig()
 
 	if success then
 
-		if Flags.Theme == "Summer Event" then
-			Flags.Theme = "Blizzard Mono"
-		end
+		Flags.Theme = MigrateThemeName(Flags.Theme)
 
 		Flags.QuickButtonsLocked = Flags.QuickButtonsLocked == true
 		Flags.QuickButtonScale = math.clamp(
@@ -751,7 +718,7 @@ local function LoadConfig()
 			140
 		)
 
-		ApplyTheme(Flags.Theme or "Blizzard Mono")
+		ApplyTheme(Flags.Theme or "Classic Mono")
 
 		if UI.SetToggleState then
 			for key,value in pairs(Flags) do
@@ -780,9 +747,9 @@ local function LoadConfig()
 
 			pcall(function()
 				if ThemeDropdown.Select then
-					ThemeDropdown:Select(Flags.Theme or "Blizzard Mono")
+					ThemeDropdown:Select(Flags.Theme or "Classic Mono")
 				elseif ThemeDropdown.Set then
-					ThemeDropdown:Set(Flags.Theme or "Blizzard Mono")
+					ThemeDropdown:Set(Flags.Theme or "Classic Mono")
 				end
 			end)
 
@@ -860,17 +827,17 @@ local function ResetConfig()
 
 	SetAntiAFK(false)
 
-	Flags.Theme = "Blizzard Mono"
-	ApplyTheme("Blizzard Mono")
+	Flags.Theme = "Classic Mono"
+	ApplyTheme("Classic Mono")
 
 	if ThemeDropdown then
 		ApplyingTheme = true
 
 		pcall(function()
 			if ThemeDropdown.Select then
-				ThemeDropdown:Select("Blizzard Mono")
+				ThemeDropdown:Select("Classic Mono")
 			elseif ThemeDropdown.Set then
-				ThemeDropdown:Set("Blizzard Mono")
+				ThemeDropdown:Set("Classic Mono")
 			end
 		end)
 
@@ -891,14 +858,14 @@ MM2.Functions.ResetConfig = ResetConfig
 UI.CreateToggle(
 	UI.MiscPage,
 	"Auto Save Config",
-	"Automatically saves when settings change",
+	"Saves settings after every change.",
 	"AutoSaveConfig"
 )
 
 UI.CreateActionFeature(
 	UI.MiscPage,
 	"Save Current Config",
-	"Save your current menu settings",
+	"Saves your current settings.",
 	function()
 		SaveConfig()
 	end,
@@ -908,7 +875,7 @@ UI.CreateActionFeature(
 UI.CreateActionFeature(
 	UI.MiscPage,
 	"Reset Config",
-	"Restore the default configuration",
+	"Restores the default settings.",
 	function()
 		ResetConfig()
 	end,
@@ -978,7 +945,7 @@ MM2.Functions.HideMenu = HideMenu
 UI.CreateActionFeature(
 	UI.MiscPage,
 	"Hide Menu",
-	"Hide the main menu",
+	"Hides the main menu.",
 	function()
 		HideMenu()
 	end,
@@ -1040,8 +1007,8 @@ MM2.Functions.UnloadMenu = UnloadMenu
 
 UI.CreateActionFeature(
 	UI.MiscPage,
-	"Unload",
-	"Disable features and remove the menu",
+	"Close (Unload)",
+	"",
 	function()
 		UnloadMenu()
 	end,
@@ -1056,7 +1023,7 @@ UI.CreateActionFeature(
 local loadedConfig = LoadConfig()
 
 if not loadedConfig then
-	ApplyTheme(Flags.Theme or "Blizzard Mono")
+	ApplyTheme(Flags.Theme or "Classic Mono")
 end
 
 if UI.SetQuickButtonsLocked then
@@ -1072,9 +1039,9 @@ if ThemeDropdown then
 
 	pcall(function()
 		if ThemeDropdown.Select then
-			ThemeDropdown:Select(Flags.Theme or "Blizzard Mono")
+			ThemeDropdown:Select(Flags.Theme or "Classic Mono")
 		elseif ThemeDropdown.Set then
-			ThemeDropdown:Set(Flags.Theme or "Blizzard Mono")
+			ThemeDropdown:Set(Flags.Theme or "Classic Mono")
 		end
 	end)
 
