@@ -315,14 +315,11 @@ local Window =
 
 		Size =
 			UDim2.fromOffset(
-				610,
-				450
+				580,
+				430
 			),
 
 		Transparent = true,
-		-- Blizzard planet thumbnail wallpaper (confirmed loading in diagnostic)
-		Background = "rbxthumb://type=Asset&id=71522230935715&w=420&h=420",
-		BackgroundImageTransparency = 0.32,
 		HideSearchBar = true,
 		ScrollBarEnabled = false,
 
@@ -341,24 +338,6 @@ local Window =
 	})
 
 UI.Window = Window
-
--- Attempt WindUI runtime wallpaper setters where supported.
-task.defer(function()
-    if type(Window.SetBackgroundImage) == "function" then
-        local ok, err = pcall(function()
-            Window:SetBackgroundImage("rbxthumb://type=Asset&id=71522230935715&w=420&h=420")
-        end)
-        if not ok then warn("[Blizzard Wallpaper] Image setter failed:", err) end
-    else
-        warn("[Blizzard Wallpaper] This WindUI build does not expose SetBackgroundImage")
-    end
-    if type(Window.SetBackgroundImageTransparency) == "function" then
-        local ok, err = pcall(function()
-            Window:SetBackgroundImageTransparency(0.32)
-        end)
-        if not ok then warn("[Blizzard Wallpaper] Transparency setter failed:", err) end
-    end
-end)
 
 -- Reinforce WindUI's own opener after window creation. This is the
 -- same native floating "Blizzard MM2" controller, not a custom fallback.
