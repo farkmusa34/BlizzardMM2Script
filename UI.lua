@@ -2330,9 +2330,9 @@ UI.QuickButtons = UI.FloatingCardRegistry
 
 local QUICK_BUTTON_BASE_SIZE = 74
 -- Reference-inspired floating card visuals; sizing and persistence unchanged.
-local QUICK_BUTTON_BG_TRANSPARENCY = 0.33
-local QUICK_BUTTON_STROKE_THICKNESS = 2.8
-local QUICK_BUTTON_STROKE_TRANSPARENCY = 0.02
+local QUICK_BUTTON_BG_TRANSPARENCY = 0.25
+local QUICK_BUTTON_STROKE_THICKNESS = 2
+local QUICK_BUTTON_STROKE_TRANSPARENCY = 0
 local QUICK_BUTTON_MIN_SCALE = 60
 local QUICK_BUTTON_MAX_SCALE = 140
 
@@ -2578,13 +2578,13 @@ function UI.CreateMovableCardButton(
 	button.Parent = holder
 
 	local corner = Instance.new("UICorner")
-	corner.CornerRadius = UDim.new(0,12)
+	corner.CornerRadius = UDim.new(0,11)
 	corner.Parent = button
 
 	local QUICK_BUTTON_OUTLINE_COLORS = {
-		red = Color3.fromRGB(245,65,75),
-		danger = Color3.fromRGB(245,65,75),
-		blue = Color3.fromRGB(65,145,235),
+		red = Color3.fromRGB(244,63,82),
+		danger = Color3.fromRGB(244,63,82),
+		blue = Color3.fromRGB(57,137,232),
 		orange = Color3.fromRGB(245,157,54),
 	}
 	local fixedStrokeColor = QUICK_BUTTON_OUTLINE_COLORS[string.lower(tostring(style or ""))]
@@ -2659,7 +2659,7 @@ function UI.CreateMovableCardButton(
 	label.BackgroundTransparency = 1
 	label.Text = string.upper(tostring(labelText or ""))
 	label.TextColor3 = Color3.fromRGB(255,255,255)
-	label.TextSize = 10
+	label.TextSize = 11
 	label.Font = Enum.Font.GothamBold
 	label.TextWrapped = true
 	label.TextStrokeTransparency = 1
