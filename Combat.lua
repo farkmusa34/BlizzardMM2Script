@@ -53,15 +53,22 @@ local function CombatNotify(title,content,icon,duration)
 end
 
 local function NormalizeShootMessage(message)
-	if message == "No Gun" or message == "No Gun or Murderer" then
+	-- Shared.lua is authoritative about the round lifecycle.
+	if not (MM2.State and MM2.State.RoleRoundActive == true) then
+		return "No Murderer / Sheriff Gun"
+	end
+	if message == "No Gun" or message == "No Gun or Murderer" or message == "Sheriff Gun Required" then
 		return "Sheriff Gun Required"
+	end
+	if message == "No Murderer" or message == "No Target" then
+		return "Role Target Unavailable"
 	end
 	return message
 end
 
 local function NotifyShootResult(success,message,mode)
-	message = NormalizeShootMessage(message)
-	local title = mode == "LEGIT" and "Shoot Murderer (LEGIT)" or "Shoot Murderer (Rage)"
+	if not success then message = NormalizeShootMessage(message) end
+	local title = mode == "LEGIT" and "Shoot Murderer (LEGIT)" or "Shoot Murderer (RAGE)"
 	if success then
 		CombatNotify(title,message or "Shot Fired","check",1.8)
 	elseif message and message ~= "Cooldown" and message ~= "Busy" then
@@ -244,6 +251,8 @@ local function IsLivePlayer(player)
 end
 
 local function IsMurderer(player)
+	if not (MM2.State and MM2.State.RoleRoundActive == true) then return false end
+	if MM2.State.SuppressStaleRoles then return false end
 	if not IsLivePlayer(player) then return false end
 	local ok, role = pcall(function()
 		return MM2.GetPlayerRole(player)
@@ -527,6 +536,12 @@ MM2.Functions.ShootMurderer = function()
 	end
 	ShootBusy = true
 	local ok, success, message = pcall(function()
+		if not (MM2.State and MM2.State.RoleRoundActive == true) then
+			return false,"No Murderer / Sheriff Gun"
+		end
+		if not (GetCombatGun() or GetBackpackGun()) then
+			return false,"Sheriff Gun Required"
+		end
 		local murderer = FindLiveMurderer()
 		if not murderer then
 			return false,"No Murderer"
@@ -571,6 +586,12 @@ MM2.Functions.ShootMurdererLegit = function()
 	if now-LastManualShot < SHOT_COOLDOWN then return false,"Cooldown" end
 	ShootBusy = true
 	local ok,success,message = pcall(function()
+		if not (MM2.State and MM2.State.RoleRoundActive == true) then
+			return false,"No Murderer / Sheriff Gun"
+		end
+		if not (GetCombatGun() or GetBackpackGun()) then
+			return false,"Sheriff Gun Required"
+		end
 		local murderer = FindLiveMurderer()
 		if not murderer then return false,"No Murderer" end
 		local torso = GetCombatTorso(murderer.Character)
@@ -1037,7 +1058,7 @@ local function UpdateCombatFeatures()
 	if not active then
 		return
 	end
-	if Flags.AimLock and IsAimLockAllowed() then
+	if Flags.AimLock and MM2.State and MM2.State.RoleRoundActive == true then
 		local _,targetPart = GetBestCombatTarget()
 		if targetPart then
 			camera.CFrame = CFrame.new(camera.CFrame.Position,targetPart.Position)
@@ -1149,11 +1170,11 @@ local FloatingShootButton,FloatingShootHolder =
 
 				if not ok then
 					warn("[MM2 V8.6.2 SHOOT] BUTTON CALL ERROR:",success)
-					CombatNotify("Shoot Murderer (Rage)","Error","circle-x",2)
+					CombatNotify("Shoot Murderer (RAGE)","Error","circle-x",2)
 					return
 				end
 
-				NotifyShootResult(success,message,"Rage")
+				NotifyShootResult(success,message,"RAGE")
 			end)
 		end
 	)
