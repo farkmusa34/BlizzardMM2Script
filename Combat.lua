@@ -127,15 +127,19 @@ UI.CreateToggle(UI.CombatPage, "Shift Lock Aimbot", "While shift lock is on, it 
 Flags.SilentAim = Flags.SilentAim == true
 UI.CreateToggle(UI.CombatPage, "Silent Aim", "Manual shots target the murderer head whenever you fire.", "SilentAim")
 
+-- Four small HUD bars indicate when a visible, valid gun shot is ready.
+Flags.ShotIndicator = Flags.ShotIndicator == true
+UI.CreateToggle(UI.CombatPage, "Shot Indicator", "Lights up your crosshair when a shot is available.", "ShotIndicator")
+
 AddCompactCombatSection("Sheriff")
-UI.CreateToggle(UI.CombatPage, "Shoot Murderer Button (LEGIT)", "Shows a shoot button that only fires when the Murderer is visible", "ShowLegitShootButton", function(on)
+UI.CreateToggle(UI.CombatPage, "Shoot Murderer Button (LEGIT)", "Shoots the Murderer when you can see them.", "ShowLegitShootButton", function(on)
 	if MM2.UI.FloatingLegitShootHolder then
 		MM2.UI.FloatingLegitShootHolder.Visible = on
 	elseif MM2.UI.FloatingLegitShootButton then
 		MM2.UI.FloatingLegitShootButton.Visible = on
 	end
 end)
-UI.CreateToggle(UI.CombatPage, "Shoot Murderer Button (RAGE)", "Shows a shoot button that can target the Murderer through walls", "ShowShootButton", function(on)
+UI.CreateToggle(UI.CombatPage, "Shoot Murderer Button (RAGE)", "Shoots the Murderer through walls.", "ShowShootButton", function(on)
 	if MM2.UI.FloatingShootHolder then
 		MM2.UI.FloatingShootHolder.Visible = on
 	elseif MM2.UI.FloatingShootButton then
@@ -144,7 +148,7 @@ UI.CreateToggle(UI.CombatPage, "Shoot Murderer Button (RAGE)", "Shows a shoot bu
 end)
 
 AddCompactCombatSection("Dropped Sheriff Gun")
-UI.CreateToggle(UI.CombatPage, "Auto Grab Gun", "Auto picks up the dropped gun without moving you.", "AutoGrab")
+UI.CreateToggle(UI.CombatPage, "Auto Grab Dropped Gun", "Automatically picks up the dropped gun without moving you.", "AutoGrab")
 
 local KNIFE_RANGE_MIN = 5
 local KNIFE_RANGE_MAX = 200
@@ -163,7 +167,7 @@ UI.CreateToggle(UI.CombatPage, "Knife Aura", "Stabs nearby players when you use 
 UI.CreateSlider(
 	UI.CombatPage,
 	"Knife Aura Radius",
-	"Sets the Knife Aura range",
+	"Sets how far your aura can reach targets.",
 	function() return Flags.KnifeRange end,
 	function(value)
 		Flags.KnifeRange = math.clamp(tonumber(value) or 10,KNIFE_RANGE_MIN,KNIFE_RANGE_MAX)
@@ -188,7 +192,7 @@ UI.CreateToggle(UI.CombatPage, "Throw Aimbot Button", "Shows the Throw Knife but
 end)
 
 Flags.ShowKillAllButton = Flags.ShowKillAllButton == true
-UI.CreateToggle(UI.CombatPage, "Kill All Button", "Shows the floating Kill All button", "ShowKillAllButton", function(on)
+UI.CreateToggle(UI.CombatPage, "Kill All Button", "Shows the Kill All button.", "ShowKillAllButton", function(on)
 	if MM2.UI.FloatingKillAllHolder then MM2.UI.FloatingKillAllHolder.Visible = on end
 end)
 
@@ -1129,10 +1133,68 @@ task.spawn(function()
     end
 end)
 
+-- Independent overlay: no Shared.lua or UI.lua edits required.
+local ShotIndicatorGui = Instance.new("ScreenGui")
+ShotIndicatorGui.Name = "BlizzardCombatShotIndicator"
+ShotIndicatorGui.ResetOnSpawn = false
+ShotIndicatorGui.IgnoreGuiInset = true
+ShotIndicatorGui.DisplayOrder = 50
+ShotIndicatorGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
+local ShotBars = {}
+local shotBarLayout = {
+    {0, -2, 0, -30, 4, 15}, -- top
+    {0, -2, 0, 15, 4, 15},  -- bottom
+    {0, -30, 0, -2, 15, 4}, -- left
+    {0, 15, 0, -2, 15, 4},  -- right
+}
+for _, pos in ipairs(shotBarLayout) do
+    local bar = Instance.new("Frame")
+    bar.Name = "ShotBar"
+    bar.BorderSizePixel = 0
+    bar.AnchorPoint = Vector2.new(0, 0)
+    bar.Position = UDim2.new(0.5, pos[2], 0.5, pos[4])
+    bar.Size = UDim2.fromOffset(pos[5], pos[6])
+    bar.BackgroundColor3 = Color3.fromRGB(110, 116, 126)
+    bar.Parent = ShotIndicatorGui
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(1, 0)
+    corner.Parent = bar
+    table.insert(ShotBars, bar)
+end
+ShotIndicatorGui.Enabled = false
+local LastShotIndicatorCheck = 0
+local function UpdateShotIndicator()
+    ShotIndicatorGui.Enabled = Flags.ShotIndicator == true
+    if not ShotIndicatorGui.Enabled then return end
+    local now = os.clock()
+    if now - LastShotIndicatorCheck < 0.10 then return end
+    LastShotIndicatorCheck = now
+    local ready = false
+    local blocked = false
+    if IsCombatLocalParticipant() and MM2.HasGunAnywhere() and not ShootBusy
+        and now - LastManualShot >= SHOT_COOLDOWN
+        and now - LastTriggerShot >= SHOT_COOLDOWN then
+        local murderer = FindLiveMurderer()
+        local targetPart = murderer and GetCombatTorso(murderer.Character)
+        if targetPart and IsLivePlayer(murderer) then
+            ready = HasClearLineOfSight(targetPart)
+            blocked = not ready
+        end
+    end
+    local color = ready and Color3.fromRGB(74, 222, 128)
+        or blocked and Color3.fromRGB(239, 68, 68)
+        or Color3.fromRGB(110, 116, 126)
+    for _, bar in ipairs(ShotBars) do bar.BackgroundColor3 = color end
+end
+Track(function()
+    if ShotIndicatorGui then ShotIndicatorGui:Destroy() end
+end)
+
 local LastAimTurnTime = nil
 local TriggerBotBusy = false
 
 local function UpdateCombatFeatures()
+    UpdateShotIndicator()
 	local camera = workspace.CurrentCamera
 	if not camera then return end
 	local active = Flags.TriggerBot or Flags.AimLock
@@ -1152,7 +1214,7 @@ local function UpdateCombatFeatures()
                 local now = os.clock()
                 local dt = math.clamp(now - (LastAimTurnTime or now - 1/60),0,1/20)
                 LastAimTurnTime = now
-                local maxTurn = math.rad(360)*dt
+                local maxTurn = math.rad(900)*dt
                 camera.CFrame = current:Lerp(desired,math.min(1,maxTurn/angle))
             end
         end
