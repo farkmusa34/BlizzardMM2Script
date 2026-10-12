@@ -123,9 +123,9 @@ UI.CreateSlider(
 	end,
 	0,0.60,0.01
 )
-UI.CreateToggle(UI.CombatPage, "Aim Lock", "Instantly snaps to the Murderer in Shift Lock or first person", "AimLock")
+UI.CreateToggle(UI.CombatPage, "Shift Lock Aimbot", "While shift lock is on, it tracks the enemy. Murderer targets the Sheriff, every other role targets the Murderer", "AimLock")
 Flags.SilentAim = Flags.SilentAim == true
-UI.CreateToggle(UI.CombatPage, "Silent Aim", "Redirects your manual shots toward the enemy’s head.", "SilentAim")
+UI.CreateToggle(UI.CombatPage, "Silent Aim", "Manual shots target the murderer head whenever you fire.", "SilentAim")
 
 AddCompactCombatSection("Sheriff")
 UI.CreateToggle(UI.CombatPage, "Shoot Murderer Button (LEGIT)", "Shows a shoot button that only fires when the Murderer is visible", "ShowLegitShootButton", function(on)
@@ -148,7 +148,7 @@ UI.CreateToggle(UI.CombatPage, "Auto Grab Gun", "Auto picks up the dropped gun w
 
 local KNIFE_RANGE_MIN = 5
 local KNIFE_RANGE_MAX = 200
-local KILL_ALL_RANGE = 10000
+-- Kill All has no distance restriction; Knife Aura retains its own radius.
 Flags.KnifeRange = math.clamp(tonumber(Flags.KnifeRange) or 10,KNIFE_RANGE_MIN,KNIFE_RANGE_MAX)
 
 --============================================================
@@ -177,7 +177,7 @@ Flags.RageThrow = false
 Flags.WallThrow = false
 Flags.ShowThrowAimbotButton = Flags.ShowThrowAimbotButton == true
 
-UI.CreateToggle(UI.CombatPage, "Auto Throw Knife (RAGE)", "Automatically throws your knife at the closest visible player", "LegitThrow")
+UI.CreateToggle(UI.CombatPage, "Auto Throw Knife (RAGE)", "Throws your knife at the closest player.", "LegitThrow")
 -- Visual placeholder only. No throw behavior is attached.
 Flags.SilentThrow = false
 UI.CreateToggle(UI.CombatPage, "Silent Throw", "Coming soon (does not do anything yet).", "SilentThrow", function()
@@ -299,12 +299,24 @@ local function IsAimLockAllowed()
 end
 
 local function GetBestCombatTarget()
-	-- No crosshair/FOV gate: acquire the identified live Murderer directly.
-	local murderer = FindLiveMurderer()
-	if not murderer then return nil,nil end
-	local torso = GetCombatTorso(murderer.Character)
-	if not torso then return nil,nil end
-	return murderer,torso
+    -- Aim target is based on the local server-confirmed role, not equipped weapons.
+    local state = MM2.State
+    local localRole = state and state.ServerRolesCache and state.ServerRolesCache[LocalPlayer.Name]
+    if localRole ~= "Murderer" and localRole ~= "Innocent"
+        and localRole ~= "Sheriff" and localRole ~= "Hero" then
+        localRole = MM2.GetPlayerRole and MM2.GetPlayerRole(LocalPlayer)
+    end
+    local targetRole = localRole == "Murderer" and "Sheriff" or "Murderer"
+    for _,player in ipairs(Players:GetPlayers()) do
+        if IsLivePlayer(player) then
+            local ok,role = pcall(MM2.GetPlayerRole,player)
+            if ok and role == targetRole then
+                local torso = GetCombatTorso(player.Character)
+                if torso then return player,torso end
+            end
+        end
+    end
+    return nil,nil
 end
 
 local function GetCombatCrosshairHit()
@@ -658,16 +670,7 @@ local function RageThrowOnce()
 	local hrp = character and character:FindFirstChild("HumanoidRootPart")
 	if not character or not humanoid or humanoid.Health <= 0 or not hrp then return false end
 	local knife = character:FindFirstChild("Knife")
-	if not knife then
-		local backpack = LocalPlayer:FindFirstChildOfClass("Backpack")
-		local stowed = backpack and backpack:FindFirstChild("Knife")
-		if stowed then
-			pcall(function() humanoid:EquipTool(stowed) end)
-			task.wait(0.03)
-			knife = character:FindFirstChild("Knife")
-		end
-	end
-	if not knife or knife:GetAttribute("Disabled") == true then return false end
+if not knife or knife:GetAttribute("Disabled") == true then return false end
 	local events = knife:FindFirstChild("Events")
 	local thrown = events and events:FindFirstChild("KnifeThrown")
 	if not thrown or not thrown:IsA("RemoteEvent") then return false end
@@ -691,7 +694,7 @@ end
 MM2.Functions.RageThrowOnce = RageThrowOnce
 
 local LastLegitThrow = 0
-local LastLegitBlockedNotice = 0
+
 
 local function FindClosestLegitTarget()
 	local character = LocalPlayer.Character
@@ -725,31 +728,18 @@ local function LegitThrowOnce()
 	local hrp = character and character:FindFirstChild("HumanoidRootPart")
 	if not character or not humanoid or humanoid.Health <= 0 or not hrp then return false end
 	local knife = character:FindFirstChild("Knife")
-	if not knife then
-		local backpack = LocalPlayer:FindFirstChildOfClass("Backpack")
-		local stowed = backpack and backpack:FindFirstChild("Knife")
-		if stowed then
-			pcall(function() humanoid:EquipTool(stowed) end)
-			task.wait(0.03)
-			knife = character:FindFirstChild("Knife")
-		end
-	end
-	if not knife or knife:GetAttribute("Disabled") == true then return false end
+if not knife or knife:GetAttribute("Disabled") == true then return false end
 	local events = knife:FindFirstChild("Events")
 	local thrown = events and events:FindFirstChild("KnifeThrown")
 	if not thrown or not thrown:IsA("RemoteEvent") then return false end
 	local cooldown = 1.05 * (tonumber(knife:GetAttribute("ThrowSpeed")) or 1)
 	if os.clock()-LastLegitThrow < cooldown then return false end
-	local _,targetPart,blockedTargetExists = FindClosestLegitTarget()
+	local _,targetPart = FindClosestLegitTarget()
 	if not targetPart then
-		if blockedTargetExists and os.clock()-LastLegitBlockedNotice >= 1.5 then
-			LastLegitBlockedNotice = os.clock()
-			MM2.Notify("Murderer Behind Wall",1)
-		end
-		return false,"Murderer Behind Wall"
-	end
+        return false,"Target Behind Wall"
+    end
 	if not HasClearLineOfSight(targetPart) then
-		return false,"Murderer Behind Wall"
+		return false,"Target Behind Wall"
 	end
 	local target = targetPart.Position
 	local direction = target-hrp.Position
@@ -867,11 +857,9 @@ local function GetKnifeHandle(knife)
 end
 
 local function GetKnifeTargetsInRange(range)
-	range = math.clamp(
-		tonumber(range) or Flags.KnifeRange,
-		KNIFE_RANGE_MIN,
-		KNIFE_RANGE_MAX
-	)
+    if range ~= nil then
+        range = math.clamp(tonumber(range) or Flags.KnifeRange,KNIFE_RANGE_MIN,KNIFE_RANGE_MAX)
+    end
 	local character = LocalPlayer.Character
 	local hrp = character and character:FindFirstChild("HumanoidRootPart")
 	if not hrp then return {} end
@@ -883,7 +871,7 @@ local function GetKnifeTargetsInRange(range)
 			local targetPart = GetKnifeRangeTargetPart(targetCharacter)
 			if humanoid and humanoid.Health > 0 and targetPart then
 				local distance = (targetPart.Position-hrp.Position).Magnitude
-				if distance <= range then
+				if range == nil or distance <= range then
 					table.insert(targets,{
 						Player = player,
 						Part = targetPart,
@@ -997,7 +985,7 @@ MM2.Functions.KillAllOnce = function()
 			message = "No Handle"
 			return
 		end
-		local targets = GetKnifeTargetsInRange(KILL_ALL_RANGE)
+		local targets = GetKnifeTargetsInRange(nil)
 		if #targets <= 0 then
 			message = "No Targets"
 			return
@@ -1114,10 +1102,10 @@ local function IsCombatLocalParticipant()
     -- Prefer Shared's instant role cache; the independent remote snapshot
     -- is retained for elimination status (respawning restores health to 100).
     local role = state.ServerRolesCache and state.ServerRolesCache[LocalPlayer.Name]
-    if role ~= "Innocent" and role ~= "Sheriff" and role ~= "Hero" then
+    if role ~= "Innocent" and role ~= "Sheriff" and role ~= "Hero" and role ~= "Murderer" then
         role = CombatRound.LocalRole
     end
-    if role ~= "Innocent" and role ~= "Sheriff" and role ~= "Hero" then
+    if role ~= "Innocent" and role ~= "Sheriff" and role ~= "Hero" and role ~= "Murderer" then
         return false
     end
     if CombatRound.LocalDead then return false end
@@ -1141,6 +1129,7 @@ task.spawn(function()
     end
 end)
 
+local LastAimTurnTime = nil
 local TriggerBotBusy = false
 
 local function UpdateCombatFeatures()
@@ -1148,15 +1137,25 @@ local function UpdateCombatFeatures()
 	if not camera then return end
 	local active = Flags.TriggerBot or Flags.AimLock
 	if not active then
+        LastAimTurnTime = nil
 		return
 	end
 	if Flags.AimLock
 		and IsAimLockAllowed()
 		and IsCombatLocalParticipant() then
 		local _,targetPart = GetBestCombatTarget()
-		if targetPart then
-			camera.CFrame = CFrame.new(camera.CFrame.Position,targetPart.Position)
-		end
+        if targetPart then
+            local current = camera.CFrame
+            local desired = CFrame.new(current.Position,targetPart.Position)
+            local angle = math.acos(math.clamp(current.LookVector:Dot(desired.LookVector),-1,1))
+            if angle > 0.00001 then
+                local now = os.clock()
+                local dt = math.clamp(now - (LastAimTurnTime or now - 1/60),0,1/20)
+                LastAimTurnTime = now
+                local maxTurn = math.rad(360)*dt
+                camera.CFrame = current:Lerp(desired,math.min(1,maxTurn/angle))
+            end
+        end
 	end
 
 	-- TriggerBot is visibility based, not crosshair based:
