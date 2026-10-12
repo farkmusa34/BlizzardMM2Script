@@ -293,10 +293,10 @@ local function IsAimLockAllowed()
 	local camera = workspace.CurrentCamera
 	local character = LocalPlayer.Character
 	if not camera or not character then return false end
-	local head = character:FindFirstChild("Head")
-	if head and (camera.CFrame.Position-head.Position).Magnitude < 1 then
-		return true
-	end
+	-- First person: camera is close to its focus point (works without a head-distance guess).
+	local firstPerson = (camera.CFrame.Position - camera.Focus.Position).Magnitude <= 1.1
+	if firstPerson then return true end
+	-- Shift Lock: Roblox locks the cursor to the center while in third person.
 	return UIS.MouseBehavior == Enum.MouseBehavior.LockCenter
 end
 
@@ -1058,7 +1058,7 @@ local function UpdateCombatFeatures()
 	if not active then
 		return
 	end
-	if Flags.AimLock and MM2.State and MM2.State.RoleRoundActive == true then
+	if Flags.AimLock and IsAimLockAllowed() and MM2.State and MM2.State.RoleRoundActive == true then
 		local _,targetPart = GetBestCombatTarget()
 		if targetPart then
 			camera.CFrame = CFrame.new(camera.CFrame.Position,targetPart.Position)
