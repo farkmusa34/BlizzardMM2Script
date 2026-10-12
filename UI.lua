@@ -27,6 +27,7 @@ local UIS = S.UserInputService
 
 MM2.UI = MM2.UI or {}
 local UI = MM2.UI
+UI.StartupLoading = true -- suppress OFF notifications until config initialization completes
 
 --============================================================
 -- CLEANUP OLD GUI
@@ -1827,7 +1828,7 @@ function UI.CreateToggle(
 							end
 						end
 
-						pcall(function()
+						if value or not UI.StartupLoading then pcall(function()
 
 							WindUI:Notify({
 								Title =
@@ -1850,7 +1851,7 @@ function UI.CreateToggle(
 
 								Duration = 2.5,
 							})
-						end)
+						end) end
 					end,
 			})
 		end)
