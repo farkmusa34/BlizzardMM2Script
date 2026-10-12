@@ -320,11 +320,9 @@ local Window =
 			),
 
 		Transparent = true,
-
-		-- Blizzard planet wallpaper (Roblox image asset).
-		Background = "rbxassetid://85288507691900",
+		-- Blizzard planet JPEG wallpaper
+		Background = "rbxassetid://71522230935715",
 		BackgroundImageTransparency = 0.05,
-
 		HideSearchBar = true,
 		ScrollBarEnabled = false,
 
@@ -344,17 +342,23 @@ local Window =
 
 UI.Window = Window
 
--- Apply the wallpaper again through WindUI's runtime API.
--- This helps on versions where creation-time settings are not applied.
-pcall(function()
-    if Window.SetBackgroundImage then
-        Window:SetBackgroundImage("rbxassetid://85288507691900")
+-- Attempt WindUI runtime wallpaper setters where supported.
+task.defer(function()
+    if type(Window.SetBackgroundImage) == "function" then
+        local ok, err = pcall(function()
+            Window:SetBackgroundImage("rbxassetid://71522230935715")
+        end)
+        if not ok then warn("[Blizzard Wallpaper] Image setter failed:", err) end
+    else
+        warn("[Blizzard Wallpaper] This WindUI build does not expose SetBackgroundImage")
     end
-    if Window.SetBackgroundImageTransparency then
-        Window:SetBackgroundImageTransparency(0.05)
+    if type(Window.SetBackgroundImageTransparency) == "function" then
+        local ok, err = pcall(function()
+            Window:SetBackgroundImageTransparency(0.05)
+        end)
+        if not ok then warn("[Blizzard Wallpaper] Transparency setter failed:", err) end
     end
 end)
-
 
 -- Reinforce WindUI's own opener after window creation. This is the
 -- same native floating "Blizzard MM2" controller, not a custom fallback.
