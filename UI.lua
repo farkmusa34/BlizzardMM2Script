@@ -2330,7 +2330,7 @@ UI.QuickButtons = UI.FloatingCardRegistry
 
 local QUICK_BUTTON_BASE_SIZE = 74
 -- Reference-inspired floating card visuals; sizing and persistence unchanged.
-local QUICK_BUTTON_BG_TRANSPARENCY = 0.25
+local QUICK_BUTTON_BG_TRANSPARENCY = 0.18
 local QUICK_BUTTON_STROKE_THICKNESS = 2
 local QUICK_BUTTON_STROKE_TRANSPARENCY = 0
 local QUICK_BUTTON_MIN_SCALE = 60
