@@ -1048,6 +1048,67 @@ task.spawn(function()
 	DisconnectKnifeRangeActivation()
 end)
 
+-- Cached pregame gate: do not scan the entire GUI every render frame.
+local LastPregameCheck = -math.huge
+local CachedPregame = true
+local PregamePhrases = {
+    "intermission", "waiting for your turn", "waiting for players",
+    "waiting for the round", "voting", "loading map", "round over",
+    "game over", "round ended", "round starting", "starting in",
+}
+
+function MM2.IsPreRoundActive()
+    local now = os.clock()
+    if now - LastPregameCheck < 0.15 then return CachedPregame end
+    LastPregameCheck = now
+
+    -- Role data can persist between phases, so never use it as the sole signal.
+    if not (MM2.State and MM2.State.RoleRoundActive == true)
+        or MM2.State.SuppressStaleRoles then
+        CachedPregame = true
+        return true
+    end
+
+    local gui = MM2.PlayerGui
+    if gui then
+        for _,obj in ipairs(gui:GetDescendants()) do
+            if (obj:IsA("TextLabel") or obj:IsA("TextButton"))
+                and MM2.IsActuallyVisible(obj) then
+                local value = string.lower(tostring(obj.Text or ""))
+                for _,phrase in ipairs(PregamePhrases) do
+                    if string.find(value, phrase, 1, true) then
+                        CachedPregame = true
+                        return true
+                    end
+                end
+            end
+        end
+    end
+
+    -- Match Shared.lua's live-round evidence, rather than relying on cached roles.
+    local evidence = workspace:FindFirstChild("CoinContainer", true)
+        or workspace:FindFirstChild("GunDrop", true)
+    if not evidence then
+        for _,player in ipairs(Players:GetPlayers()) do
+            local char = player.Character
+            if char then
+                for _,tool in ipairs(char:GetChildren()) do
+                    if tool:IsA("Tool") and (
+                        MM2.Config.KnifeNames[tool.Name]
+                        or MM2.Config.GunNames[tool.Name]
+                    ) then
+                        evidence = tool
+                        break
+                    end
+                end
+            end
+            if evidence then break end
+        end
+    end
+    CachedPregame = not not (not evidence)
+    return CachedPregame
+end
+
 local TriggerBotBusy = false
 
 local function UpdateCombatFeatures()
@@ -1277,19 +1338,6 @@ local function GetPickupPart(gun)
 	return gun:FindFirstChildWhichIsA("BasePart",true)
 end
 
-function MM2.IsPreRoundActive()
-	for _,obj in ipairs(MM2.PlayerGui:GetDescendants()) do
-		if obj:IsA("TextLabel") or obj:IsA("TextButton") then
-			local text = string.lower(tostring(obj.Text or ""))
-			if string.find(text,"intermission",1,true)
-				and MM2.IsActuallyVisible(obj)
-			then
-				return true
-			end
-		end
-	end
-	return false
-end
 
 local function IsLocalMurderer()
 	local char = LocalPlayer.Character
