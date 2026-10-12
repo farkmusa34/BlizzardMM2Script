@@ -161,6 +161,16 @@ local FarmStatsCoins = 0
 local FarmStatsStartedAt = nil
 local FarmLastReportedBagCount = 0
 
+-- Read-only statistics for the Main dashboard.
+MM2.Functions.GetMainFarmStats = function()
+    local elapsed = FarmStatsStartedAt and math.max(os.clock() - FarmStatsStartedAt, 1) or 0
+    return {
+        Collected = FarmStatsCoins,
+        PerHour = elapsed > 0 and math.floor(FarmStatsCoins * 3600 / elapsed) or 0,
+        Uptime = elapsed,
+    }
+end
+
 local FarmCharacter = nil
 local FarmHumanoid = nil
 local FarmHRP = nil

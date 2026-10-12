@@ -309,12 +309,12 @@ if not RequireModule("RoleESP.lua") then return end
 if not RequireModule("Combat.lua") then return end
 if not RequireModule("AutoFarm.lua") then return end
 if not RequireModule("Player.lua") then return end
-if not RequireModule("Teleport.lua") then return end
 if not RequireModule("Fling.lua") then return end
 if not RequireModule("Misc.lua") then return end
 if not RequireModule("GunSkin.lua") then return end
 if not RequireModule("KnifeSkin.lua") then return end
 if not RequireModule("Main.lua") then return end
+if not RequireModule("MainTab.lua") then return end
 
 --============================================================
 -- FINAL STATUS

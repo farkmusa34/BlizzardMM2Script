@@ -491,6 +491,12 @@ task.delay(0.75,function() UI.SetLatestUpdateTheme(DEFAULT_BLIZZARD_BLUE) end)
 
 UI.WindTabs = {}
 
+UI.WindTabs.Main =
+	Window:Tab({
+		Title = "Main",
+		Icon = "house"
+	})
+
 UI.WindTabs.Player =
 	Window:Tab({
 		Title = "Player",
@@ -513,12 +519,6 @@ UI.WindTabs.Combat =
 	Window:Tab({
 		Title = "Combat",
 		Icon = "crosshair"
-	})
-
-UI.WindTabs.Teleport =
-	Window:Tab({
-		Title = "Teleport",
-		Icon = "navigation"
 	})
 
 UI.WindTabs.Fling =
@@ -612,11 +612,11 @@ local function NewLegacyPage(name)
 	return page
 end
 
+UI.MainPage = NewLegacyPage("Main")
 UI.VisualsPage = NewLegacyPage("Visuals")
 UI.RoleESPPage = NewLegacyPage("RoleESP")
 UI.CombatPage = NewLegacyPage("Combat")
 UI.PlayerPage = NewLegacyPage("Player")
-UI.TeleportPage = NewLegacyPage("Teleport")
 UI.FlingPage = NewLegacyPage("Fling")
 UI.AutoFarmPage = NewLegacyPage("AutoFarm")
 UI.SkinChangerPage = NewLegacyPage("SkinChanger")
@@ -625,11 +625,11 @@ UI.SkinChangerKnifePage = NewLegacyPage("SkinChangerKnife")
 UI.MiscPage = NewLegacyPage("Misc")
 
 UI.Pages = {
+	Main = UI.MainPage,
 	Visuals = UI.VisualsPage,
     RoleESP = UI.RoleESPPage,
 	Combat = UI.CombatPage,
 	Player = UI.PlayerPage,
-	Teleport = UI.TeleportPage,
 	Fling = UI.FlingPage,
 	AutoFarm = UI.AutoFarmPage,
 	SkinChanger = UI.SkinChangerPage,
@@ -639,11 +639,11 @@ UI.Pages = {
 }
 
 UI.PageMap = {
+	[UI.MainPage] = UI.WindTabs.Main,
 	[UI.VisualsPage] = UI.WindTabs.Visuals,
     [UI.RoleESPPage] = UI.WindTabs.RoleESP,
 	[UI.CombatPage] = UI.WindTabs.Combat,
 	[UI.PlayerPage] = UI.WindTabs.Player,
-	[UI.TeleportPage] = UI.WindTabs.Teleport,
 	[UI.FlingPage] = UI.WindTabs.Fling,
 	[UI.AutoFarmPage] = UI.WindTabs.AutoFarm,
 	[UI.SkinChangerPage] = UI.WindTabs.SkinChanger,
