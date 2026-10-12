@@ -145,8 +145,6 @@ MM2.State = {
 	ServerHero = nil,
 
 	RoleRoundActive = false,
-	GameplayRoundActive = false,
-	GameplayPhase = "Unknown",
 	RoleRoundSignature = nil,
 	RoleRolesMissingSince = nil,
 
@@ -321,7 +319,6 @@ local function EndRoleRound()
 	local State = MM2.State
 
 	State.RoleRoundActive = false
-	State.GameplayRoundActive = false
 	State.RoleRoundSignature = nil
 	State.RoleRolesMissingSince = nil
 
@@ -705,48 +702,6 @@ function MM2.IsCountdownActive()
 
 	return false
 end
-
--- Gameplay phase is deliberately independent of role assignment.
--- Do not infer gameplay from cached roles, coins, or distant players.
-local GameplayConnections = {}
-local function SetGameplayPhase(active, phase)
-    MM2.State.GameplayRoundActive = active == true
-    MM2.State.GameplayPhase = phase
-end
-
-local function BindGameplayRemote(name, callback)
-    if GameplayConnections[name] then return end
-    local remotes = S.ReplicatedStorage:FindFirstChild("Remotes")
-    local gameplay = remotes and remotes:FindFirstChild("Gameplay")
-    local remote = gameplay and gameplay:FindFirstChild(name)
-    if not remote or not remote:IsA("RemoteEvent") then return end
-    GameplayConnections[name] = true
-    MM2.Track(remote.OnClientEvent:Connect(callback))
-end
-
-task.spawn(function()
-    while MM2.Running do
-    -- Binding is retried in case the remote folder arrives after Shared.lua.
-    BindGameplayRemote("RoundStart", function()
-        -- An actual gameplay event, not just a role assignment.
-        if not MM2.IsCountdownActive() then
-            SetGameplayPhase(true, "RoundStart")
-        end
-    end)
-    BindGameplayRemote("CoinsStarted", function()
-        if not MM2.IsCountdownActive() then
-            SetGameplayPhase(true, "CoinsStarted")
-        end
-    end)
-    BindGameplayRemote("VictoryScreen", function()
-        SetGameplayPhase(false, "VictoryScreen")
-    end)
-    if MM2.IsCountdownActive() then
-        SetGameplayPhase(false, "Countdown")
-    end
-    task.wait(0.10)
-    end
-end)
 
 function MM2.UpdateRoundReset()
 	local active = MM2.IsCountdownActive()
