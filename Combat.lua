@@ -1051,6 +1051,7 @@ end)
 -- This deliberately fails closed if the script is loaded mid-round.
 local CombatRound = {
     CountdownSeen = false,
+    CountdownStarted = false,
     Confirmed = false,
     LocalRole = nil,
     LocalDead = true,
@@ -1062,6 +1063,7 @@ local function UpdateCombatRoundState()
     local state = MM2.State
     if not state or state.RoleRoundActive ~= true or state.SuppressStaleRoles then
         CombatRound.CountdownSeen = false
+        CombatRound.CountdownStarted = false
         CombatRound.Confirmed = false
         CombatRound.LocalRole = nil
         CombatRound.LocalDead = true
@@ -1071,6 +1073,7 @@ local function UpdateCombatRoundState()
     local countdown = MM2.IsCountdownActive and MM2.IsCountdownActive() or false
     if countdown then
         CombatRound.CountdownSeen = true
+        CombatRound.CountdownStarted = true
         CombatRound.Confirmed = false
     elseif CombatRound.CountdownSeen then
         CombatRound.CountdownSeen = false
@@ -1101,7 +1104,9 @@ local function UpdateCombatRoundState()
 end
 
 local function IsCombatLocalParticipant()
-    if not CombatRound.Confirmed or CombatRound.LocalDead then return false end
+    -- Permit Aim Lock during role-reveal countdown, while retaining elimination checks.
+    if not (CombatRound.CountdownStarted or CombatRound.Confirmed)
+        or CombatRound.LocalDead then return false end
     local role = CombatRound.LocalRole
     if role ~= "Innocent" and role ~= "Sheriff" and role ~= "Hero" then return false end
     if MM2.GetSpectatedPlayer and MM2.GetSpectatedPlayer() then return false end
