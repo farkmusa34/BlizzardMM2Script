@@ -732,6 +732,12 @@ local function LoadConfig()
 			end
 		end
 
+		-- Restore the visual slider thumb after loading saved Flags.FillStrength.
+		Flags.FillStrength = math.clamp(tonumber(Flags.FillStrength) or 100, 0, 100)
+		if UI.FillStrengthSlider and UI.FillStrengthSlider.Set then
+			pcall(function() UI.FillStrengthSlider:Set(Flags.FillStrength) end)
+		end
+
 		if UI.SetQuickButtonsLocked then
 			UI.SetQuickButtonsLocked(Flags.QuickButtonsLocked)
 		end
@@ -802,6 +808,10 @@ local function ResetConfig()
 				pcall(UI.SetToggleState,key,value,true)
 			end
 		end
+	end
+
+	if UI.FillStrengthSlider and UI.FillStrengthSlider.Set then
+		pcall(function() UI.FillStrengthSlider:Set(Flags.FillStrength) end)
 	end
 
 	if UI.SetQuickButtonsLocked then
@@ -1055,5 +1065,8 @@ end
 if Flags.AntiAFK then
 	SetAntiAFK(true)
 end
+
+-- Startup is complete: manual OFF toggles should notify normally.
+UI.StartupLoading = false
 
 return MM2
