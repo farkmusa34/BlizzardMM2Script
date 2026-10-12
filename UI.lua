@@ -320,8 +320,8 @@ local Window =
 			),
 
 		Transparent = true,
-		-- Blizzard planet JPEG wallpaper
-		Background = "rbxassetid://71522230935715",
+		-- Blizzard planet thumbnail wallpaper (confirmed loading in diagnostic)
+		Background = "rbxthumb://type=Asset&id=71522230935715&w=420&h=420",
 		BackgroundImageTransparency = 0.05,
 		HideSearchBar = true,
 		ScrollBarEnabled = false,
@@ -346,7 +346,7 @@ UI.Window = Window
 task.defer(function()
     if type(Window.SetBackgroundImage) == "function" then
         local ok, err = pcall(function()
-            Window:SetBackgroundImage("rbxassetid://71522230935715")
+            Window:SetBackgroundImage("rbxthumb://type=Asset&id=71522230935715&w=420&h=420")
         end)
         if not ok then warn("[Blizzard Wallpaper] Image setter failed:", err) end
     else
@@ -362,11 +362,11 @@ end)
 
 --============================================================
 -- TEMPORARY WALLPAPER DIAGNOSTIC (does not change game features)
--- Shows the uploaded asset independently of WindUI.
+-- Shows the working thumbnail independently of WindUI.
 -- Close using the X in the diagnostic panel.
 --============================================================
 task.defer(function()
-    local asset = "rbxassetid://71522230935715"
+    local asset = "rbxthumb://type=Asset&id=71522230935715&w=420&h=420"
     local old = PlayerGui:FindFirstChild("Blizzard_Wallpaper_Diagnostic")
     if old then old:Destroy() end
 
