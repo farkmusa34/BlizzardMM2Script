@@ -1104,11 +1104,23 @@ local function UpdateCombatRoundState()
 end
 
 local function IsCombatLocalParticipant()
-    -- Permit Aim Lock during role-reveal countdown, while retaining elimination checks.
-    if not (CombatRound.CountdownStarted or CombatRound.Confirmed)
-        or CombatRound.LocalDead then return false end
-    local role = CombatRound.LocalRole
-    if role ~= "Innocent" and role ~= "Sheriff" and role ~= "Hero" then return false end
+    -- Shared.lua already establishes the role round at role reveal.
+    -- Do not require the countdown or weapon/coin spawn for Aim Lock.
+    local state = MM2.State
+    if not state or state.RoleRoundActive ~= true or state.SuppressStaleRoles then
+        return false
+    end
+
+    -- Prefer Shared's instant role cache; the independent remote snapshot
+    -- is retained for elimination status (respawning restores health to 100).
+    local role = state.ServerRolesCache and state.ServerRolesCache[LocalPlayer.Name]
+    if role ~= "Innocent" and role ~= "Sheriff" and role ~= "Hero" then
+        role = CombatRound.LocalRole
+    end
+    if role ~= "Innocent" and role ~= "Sheriff" and role ~= "Hero" then
+        return false
+    end
+    if CombatRound.LocalDead then return false end
     if MM2.GetSpectatedPlayer and MM2.GetSpectatedPlayer() then return false end
     local character = LocalPlayer.Character
     local humanoid = character and character:FindFirstChildOfClass("Humanoid")
