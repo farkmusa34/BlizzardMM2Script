@@ -2330,7 +2330,7 @@ UI.QuickButtons = UI.FloatingCardRegistry
 
 local QUICK_BUTTON_BASE_SIZE = 74
 -- Reference-inspired floating card visuals; sizing and persistence unchanged.
-local QUICK_BUTTON_BG_TRANSPARENCY = 0.18
+local QUICK_BUTTON_BG_TRANSPARENCY = 0.15
 local QUICK_BUTTON_STROKE_THICKNESS = 2
 local QUICK_BUTTON_STROKE_TRANSPARENCY = 0
 local QUICK_BUTTON_MIN_SCALE = 60
@@ -2568,7 +2568,7 @@ function UI.CreateMovableCardButton(
 	button.Name = cleanName
 	button.Size = UDim2.fromScale(1,1)
 	button.Position = UDim2.fromScale(0,0)
-	button.BackgroundColor3 = Color3.fromRGB(14,16,22)
+	button.BackgroundColor3 = Color3.fromRGB(20,19,23)
 	button.BackgroundTransparency = QUICK_BUTTON_BG_TRANSPARENCY
 	button.BorderSizePixel = 0
 	button.Text = ""
@@ -2582,8 +2582,8 @@ function UI.CreateMovableCardButton(
 	corner.Parent = button
 
 	local QUICK_BUTTON_OUTLINE_COLORS = {
-		red = Color3.fromRGB(244,63,82),
-		danger = Color3.fromRGB(244,63,82),
+		red = Color3.fromRGB(245,65,75),
+		danger = Color3.fromRGB(245,65,75),
 		blue = Color3.fromRGB(57,137,232),
 		orange = Color3.fromRGB(245,157,54),
 	}
