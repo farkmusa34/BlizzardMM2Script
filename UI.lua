@@ -2276,7 +2276,7 @@ function UI.CreateSlider(
 	step
 )
 
-	return CreateMappedSlider(
+	local slider = CreateMappedSlider(
 		page,
 		labelText,
 		description,
@@ -2286,6 +2286,12 @@ function UI.CreateSlider(
 		maxValue,
 		step
 	)
+	-- Misc.lua loads saved config after Combat creates this slider.
+	-- Keep a reference so SetQuickButtonScale can restore its visible value.
+	if page == UI.CombatPage and labelText == "Button Size" then
+		UI.QuickButtonScaleSlider = slider
+	end
+	return slider
 end
 
 function UI.CreateValueControl(
@@ -2331,7 +2337,7 @@ UI.QuickButtons = UI.FloatingCardRegistry
 local QUICK_BUTTON_BASE_SIZE = 74
 -- Reference-inspired floating card visuals; sizing and persistence unchanged.
 local QUICK_BUTTON_BG_TRANSPARENCY = 0.15
-local QUICK_BUTTON_STROKE_THICKNESS = 2
+local QUICK_BUTTON_STROKE_THICKNESS = 1.5
 local QUICK_BUTTON_STROKE_TRANSPARENCY = 0
 local QUICK_BUTTON_MIN_SCALE = 60
 local QUICK_BUTTON_MAX_SCALE = 140
@@ -2416,17 +2422,36 @@ function UI.SetQuickButtonsLocked(value)
 	return Flags.QuickButtonsLocked
 end
 
+local SyncingQuickButtonScaleSlider = false
 function UI.SetQuickButtonScale(value)
-	Flags.QuickButtonScale = math.clamp(
+	local newScale = math.clamp(
 		tonumber(value) or 100,
 		QUICK_BUTTON_MIN_SCALE,
 		QUICK_BUTTON_MAX_SCALE
 	)
+	Flags.QuickButtonScale = newScale
 
 	for _,entry in pairs(UI.FloatingCardRegistry) do
 		ApplyQuickButtonScaleToEntry(entry)
 	end
 
+	-- Restore the WindUI slider thumb/label when Misc loads a saved scale.
+	-- The guard prevents recursive updates if slider:Set invokes its callback.
+	if not SyncingQuickButtonScaleSlider then
+		local slider = UI.QuickButtonScaleSlider
+		if slider then
+			SyncingQuickButtonScaleSlider = true
+			local ok,err = pcall(function()
+				if slider.Set then
+					slider:Set(newScale)
+				elseif slider.SetValue then
+					slider:SetValue(newScale)
+				end
+			end)
+			SyncingQuickButtonScaleSlider = false
+			if not ok then warn("[Blizzard UI] Button Size slider sync:",err) end
+		end
+	end
 	return Flags.QuickButtonScale
 end
 
