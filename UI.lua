@@ -2329,6 +2329,10 @@ UI.FloatingCardRegistry = UI.FloatingCardRegistry or {}
 UI.QuickButtons = UI.FloatingCardRegistry
 
 local QUICK_BUTTON_BASE_SIZE = 74
+-- Reference-inspired floating card visuals; sizing and persistence unchanged.
+local QUICK_BUTTON_BG_TRANSPARENCY = 0.33
+local QUICK_BUTTON_STROKE_THICKNESS = 2.8
+local QUICK_BUTTON_STROKE_TRANSPARENCY = 0.02
 local QUICK_BUTTON_MIN_SCALE = 60
 local QUICK_BUTTON_MAX_SCALE = 140
 
@@ -2522,9 +2526,9 @@ local function FlashQuickButton(entry)
 			return
 		end
 
-		button.BackgroundTransparency = 0.10
-		stroke.Transparency = 0.05
-		stroke.Thickness = 2.0
+		button.BackgroundTransparency = QUICK_BUTTON_BG_TRANSPARENCY
+		stroke.Transparency = QUICK_BUTTON_STROKE_TRANSPARENCY
+		stroke.Thickness = QUICK_BUTTON_STROKE_THICKNESS
 
 		if entry.Icon then
 			pcall(function()
@@ -2565,7 +2569,7 @@ function UI.CreateMovableCardButton(
 	button.Size = UDim2.fromScale(1,1)
 	button.Position = UDim2.fromScale(0,0)
 	button.BackgroundColor3 = Color3.fromRGB(14,16,22)
-	button.BackgroundTransparency = 0.10
+	button.BackgroundTransparency = QUICK_BUTTON_BG_TRANSPARENCY
 	button.BorderSizePixel = 0
 	button.Text = ""
 	button.AutoButtonColor = false
@@ -2574,14 +2578,14 @@ function UI.CreateMovableCardButton(
 	button.Parent = holder
 
 	local corner = Instance.new("UICorner")
-	corner.CornerRadius = UDim.new(0,14)
+	corner.CornerRadius = UDim.new(0,12)
 	corner.Parent = button
 
 	local QUICK_BUTTON_OUTLINE_COLORS = {
-		red = Color3.fromRGB(220,42,55),
-		danger = Color3.fromRGB(220,42,55),
-		blue = Color3.fromRGB(55,145,255),
-		orange = Color3.fromRGB(240,150,45),
+		red = Color3.fromRGB(245,65,75),
+		danger = Color3.fromRGB(245,65,75),
+		blue = Color3.fromRGB(65,145,235),
+		orange = Color3.fromRGB(245,157,54),
 	}
 	local fixedStrokeColor = QUICK_BUTTON_OUTLINE_COLORS[string.lower(tostring(style or ""))]
 	-- Fixed semantic colors are independent from the selected menu appearance/theme.
@@ -2605,8 +2609,8 @@ function UI.CreateMovableCardButton(
 	stroke.Name = "ThemeStroke"
 	stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
 	stroke.Color = fixedStrokeColor or UI.CurrentThemeAccent or DEFAULT_BLIZZARD_BLUE
-	stroke.Thickness = 2.0
-	stroke.Transparency = 0.05
+	stroke.Thickness = QUICK_BUTTON_STROKE_THICKNESS
+	stroke.Transparency = QUICK_BUTTON_STROKE_TRANSPARENCY
 	stroke.Parent = button
 
 	local iconImage,rectSize,rectOffset = ResolveWindUIIcon(icon)
@@ -2616,8 +2620,8 @@ function UI.CreateMovableCardButton(
 		local image = Instance.new("ImageLabel")
 		image.Name = "Icon"
 		image.AnchorPoint = Vector2.new(0.5,0)
-		image.Position = UDim2.new(0.5,0,0,9)
-		image.Size = UDim2.fromOffset(26,26)
+		image.Position = UDim2.new(0.5,0,0,8)
+		image.Size = UDim2.fromOffset(25,25)
 		image.BackgroundTransparency = 1
 		image.Image = iconImage
 		image.ImageColor3 = Color3.fromRGB(255,255,255)
@@ -2636,7 +2640,7 @@ function UI.CreateMovableCardButton(
 		fallback.Name = "IconFallback"
 		fallback.AnchorPoint = Vector2.new(0.5,0)
 		fallback.Position = UDim2.new(0.5,0,0,7)
-		fallback.Size = UDim2.fromOffset(29,29)
+		fallback.Size = UDim2.fromOffset(27,27)
 		fallback.BackgroundTransparency = 1
 		fallback.Text = tostring(icon or "")
 		fallback.TextColor3 = Color3.fromRGB(255,255,255)
@@ -2650,14 +2654,16 @@ function UI.CreateMovableCardButton(
 	local label = Instance.new("TextLabel")
 	label.Name = "Label"
 	label.AnchorPoint = Vector2.new(0.5,0)
-	label.Position = UDim2.new(0.5,0,0,40)
-	label.Size = UDim2.new(1,-8,0,27)
+	label.Position = UDim2.new(0.5,0,0,36)
+	label.Size = UDim2.new(1,-6,0,30)
 	label.BackgroundTransparency = 1
 	label.Text = string.upper(tostring(labelText or ""))
 	label.TextColor3 = Color3.fromRGB(255,255,255)
-	label.TextSize = 9
+	label.TextSize = 10
 	label.Font = Enum.Font.GothamBold
 	label.TextWrapped = true
+	label.TextStrokeTransparency = 1
+	label.LineHeight = 0.88
 	label.TextXAlignment = Enum.TextXAlignment.Center
 	label.TextYAlignment = Enum.TextYAlignment.Center
 	label.ZIndex = 252
