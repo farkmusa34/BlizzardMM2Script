@@ -1,0 +1,1072 @@
+--============================================================
+-- Blizzard MM2 v1.85.4 - Misc.lua
+-- WindUI-compatible Misc module.
+--
+-- Sections:
+--   Appearance
+--   Server
+--   Config
+--   UI
+--
+-- Theme system:
+--   * Blizzard Mono is the factory/default theme.
+--   * Crimson and all existing themes remain available.
+--   * Old "Summer Event" configs migrate to Blizzard Mono.
+--   * Latest Update tag can follow the selected theme.
+--============================================================
+
+local MM2 =
+	getgenv
+	and getgenv().MM2_V85_SPLIT
+	or _G.MM2_V85_SPLIT
+
+assert(
+	MM2
+	and MM2.UI
+	and MM2.UI.MiscPage,
+	"Load Shared.lua + the WindUI UI.lua first"
+)
+
+--============================================================
+-- SERVICES
+--============================================================
+
+local LocalPlayer = MM2.LocalPlayer
+local UI = MM2.UI
+local Flags = MM2.Flags
+local Track = MM2.Track
+
+local HttpService =
+	game:GetService("HttpService")
+
+local TeleportService =
+	game:GetService("TeleportService")
+
+local VirtualUser =
+	game:GetService("VirtualUser")
+
+--============================================================
+-- DEFAULT FLAGS
+--============================================================
+
+-- Migrate the old factory theme.
+if Flags.Theme == "Summer Event" or Flags.Theme == "Blizzard Mono" then
+    Flags.Theme = "Classic Mono"
+elseif Flags.Theme == "Blizzard Blue" then
+    Flags.Theme = "Electric Blue"
+end
+
+Flags.Theme =
+	typeof(Flags.Theme) == "string"
+	and Flags.Theme
+	or "Classic Mono"
+
+Flags.AntiAFK =
+	Flags.AntiAFK == true
+
+if Flags.AutoSaveConfig == nil then
+	Flags.AutoSaveConfig = true
+else
+	Flags.AutoSaveConfig = Flags.AutoSaveConfig == true
+end
+
+-- Quick Buttons defaults.
+Flags.QuickButtonsLocked =
+	Flags.QuickButtonsLocked == true
+
+Flags.QuickButtonScale =
+	math.clamp(
+		tonumber(Flags.QuickButtonScale) or 100,
+		60,
+		140
+	)
+
+--============================================================
+-- CONFIG
+--============================================================
+
+local CONFIG_FOLDER =
+	"BlizzardMenu"
+
+local CONFIG_FILE =
+	CONFIG_FOLDER .. "/config.json"
+
+local ConfigBusy =
+	false
+
+local LastConfigSnapshot =
+	nil
+
+--============================================================
+-- HELPERS
+--============================================================
+
+local function CopyTable(source)
+
+	local result = {}
+
+	for key,value in pairs(source) do
+
+		if type(value) == "table" then
+
+			result[key] =
+				CopyTable(value)
+
+		else
+
+			result[key] =
+				value
+
+		end
+	end
+
+	return result
+end
+
+local DefaultFlags =
+	CopyTable(Flags)
+
+local DefaultPlayerSettings =
+	CopyTable(
+		MM2.PlayerSettings
+		or {}
+	)
+
+--============================================================
+-- THEMES
+--============================================================
+
+local ThemeOrder = {
+	"Classic Mono",
+	"Electric Blue",
+	"Crimson",
+	"Dark",
+	"Ocean Blue",
+	"Midnight Purple",
+	"Emerald",
+	"Rose Pink",
+	"Cyber Neon",
+	"Arctic",
+	"Sunset",
+}
+
+local WindThemeMap = {
+
+	["Classic Mono"] =
+		"Classic Mono",
+
+	["Electric Blue"] =
+		"Sky",
+
+	["Crimson"] =
+		"Crimson",
+
+	["Dark"] =
+		"Dark",
+
+	["Ocean Blue"] =
+		"Sky",
+
+	["Midnight Purple"] =
+		"Violet",
+
+	["Emerald"] =
+		"Emerald",
+
+	["Rose Pink"] =
+		"Rose",
+
+	["Cyber Neon"] =
+		"Cyber Neon",
+
+	["Arctic"] =
+		"Light",
+
+	["Sunset"] =
+		"Amber",
+}
+
+--============================================================
+-- THEME ACCENT COLORS
+--============================================================
+
+local ThemeAccentColors = {
+
+	["Classic Mono"] =
+		Color3.fromRGB(245,245,245),
+
+	["Electric Blue"] =
+		Color3.fromRGB(55,145,255),
+
+	["Crimson"] =
+		Color3.fromRGB(220,42,55),
+
+	["Dark"] =
+		Color3.fromRGB(95,100,115),
+
+	["Ocean Blue"] =
+		Color3.fromRGB(40,175,255),
+
+	["Midnight Purple"] =
+		Color3.fromRGB(135,85,240),
+
+	["Emerald"] =
+		Color3.fromRGB(45,190,115),
+
+	["Rose Pink"] =
+		Color3.fromRGB(225,75,145),
+
+	["Cyber Neon"] =
+		Color3.fromRGB(0,240,255),
+
+	["Arctic"] =
+		Color3.fromRGB(120,195,255),
+
+	["Sunset"] =
+		Color3.fromRGB(240,150,45),
+}
+
+--============================================================
+-- CUSTOM CYBER NEON THEME
+--============================================================
+
+if UI.WindUI
+	and UI.WindUI.AddTheme
+then
+
+	pcall(function()
+
+		UI.WindUI:AddTheme({
+			Name = "Cyber Neon",
+			Accent = "#00F0FF",
+			Dialog = "#13051F",
+			Outline = "#00F0FF",
+			Text = "#F6F4FF",
+			Placeholder = "#B58ACF",
+			Background = "#07070D",
+			Button = "#FF0080",
+			Icon = "#B000FF",
+		})
+
+	end)
+end
+
+--============================================================
+-- THEME CONTROL
+--============================================================
+
+local ThemeDropdown =
+	nil
+
+local ApplyingTheme =
+	false
+
+local function UpdateLatestUpdateAccent(themeName)
+
+	local color =
+		ThemeAccentColors[themeName]
+		or ThemeAccentColors["Classic Mono"]
+
+	if UI.SetLatestUpdateTheme then
+		pcall(function()
+			UI.SetLatestUpdateTheme(color)
+		end)
+	end
+
+	UI.CurrentThemeAccent = color
+end
+
+local function MigrateThemeName(themeName)
+    if themeName == "Summer Event" or themeName == "Blizzard Mono" then
+        return "Classic Mono"
+    elseif themeName == "Blizzard Blue" then
+        return "Electric Blue"
+    end
+    return themeName
+end
+
+local function ApplyTheme(themeName)
+
+	themeName = MigrateThemeName(themeName)
+
+	if typeof(themeName) ~= "string"
+		or not WindThemeMap[themeName]
+	then
+		themeName = "Classic Mono"
+	end
+
+	Flags.Theme = themeName
+
+	local windTheme =
+		WindThemeMap[themeName]
+		or "Classic Mono"
+
+	if UI.WindUI
+		and UI.WindUI.SetTheme
+	then
+
+		local success,err =
+			pcall(function()
+				UI.WindUI:SetTheme(windTheme)
+			end)
+
+		if not success then
+			warn(
+				"[Blizzard Misc] Theme failed:",
+				themeName,
+				windTheme,
+				err
+			)
+			return false
+		end
+	end
+
+	UpdateLatestUpdateAccent(themeName)
+    if UI.RefreshCheckboxTheme then
+        task.defer(UI.RefreshCheckboxTheme)
+        task.delay(0.15, UI.RefreshCheckboxTheme)
+    end
+	return true
+end
+
+MM2.Functions.ApplyTheme = ApplyTheme
+
+--============================================================
+-- APPEARANCE
+--============================================================
+
+UI.AddSection(
+	UI.MiscPage,
+	"Appearance",
+	"Changes menu colors."
+)
+
+ThemeDropdown =
+	UI.CreateDropdown(
+		UI.MiscPage,
+		"Theme",
+		"Changes the menu color.",
+		ThemeOrder,
+		Flags.Theme,
+		function(value)
+
+			if ApplyingTheme then
+				return
+			end
+
+			if typeof(value) == "string" then
+				ApplyTheme(value)
+			end
+		end
+	)
+
+--============================================================
+-- SERVER
+--============================================================
+
+UI.AddSection(
+	UI.MiscPage,
+	"Server",
+	"Session and server utilities"
+)
+
+--============================================================
+-- ANTI-AFK
+--============================================================
+
+local AntiAFKConnection = nil
+
+local function SetAntiAFK(on)
+
+	if AntiAFKConnection then
+		AntiAFKConnection:Disconnect()
+		AntiAFKConnection = nil
+	end
+
+	if not on then
+		return
+	end
+
+	AntiAFKConnection =
+		LocalPlayer.Idled:Connect(function()
+
+			if not Flags.AntiAFK then
+				return
+			end
+
+			pcall(function()
+				VirtualUser:CaptureController()
+				VirtualUser:ClickButton2(Vector2.new(0,0))
+			end)
+		end)
+
+	Track(AntiAFKConnection)
+end
+
+UI.CreateToggle(
+	UI.MiscPage,
+	"Anti-AFK",
+	"Stops Roblox from kicking you for being idle during long farms.",
+	"AntiAFK",
+	SetAntiAFK
+)
+
+--============================================================
+-- ANTI DISCONNECT / REJOIN
+--============================================================
+
+local ReconnectBusy = false
+
+local function RejoinCurrentPlace()
+
+	if ReconnectBusy then
+		return false
+	end
+
+	ReconnectBusy = true
+
+	local success =
+		pcall(function()
+
+			if game.JobId and game.JobId ~= "" then
+				TeleportService:TeleportToPlaceInstance(
+					game.PlaceId,
+					game.JobId,
+					LocalPlayer
+				)
+			else
+				TeleportService:Teleport(game.PlaceId,LocalPlayer)
+			end
+		end)
+
+	task.delay(5,function()
+		ReconnectBusy = false
+	end)
+
+	return success
+end
+
+MM2.Functions.RejoinServer = RejoinCurrentPlace
+
+UI.CreateActionFeature(
+	UI.MiscPage,
+	"Rejoin Server",
+	"Reconnects to the current server.",
+	function()
+		RejoinCurrentPlace()
+	end,
+	"log-in"
+)
+
+--============================================================
+-- SERVER HOP
+--============================================================
+
+local ServerHopBusy = false
+
+local function GetServerList(cursor)
+
+	local url =
+		"https://games.roblox.com/v1/games/"
+		.. tostring(game.PlaceId)
+		.. "/servers/Public?sortOrder=Asc&limit=100"
+
+	if cursor and cursor ~= "" then
+		url = url .. "&cursor=" .. HttpService:UrlEncode(cursor)
+	end
+
+	local body = nil
+
+	local ok =
+		pcall(function()
+			if game.HttpGet then
+				body = game:HttpGet(url)
+			else
+				body = HttpService:GetAsync(url)
+			end
+		end)
+
+	if not ok or not body then
+		return nil
+	end
+
+	local decoded = nil
+
+	local decodeOK =
+		pcall(function()
+			decoded = HttpService:JSONDecode(body)
+		end)
+
+	if not decodeOK then
+		return nil
+	end
+
+	return decoded
+end
+
+local function FindHopServer()
+
+	local cursor = nil
+	local pagesChecked = 0
+
+	repeat
+		local response = GetServerList(cursor)
+
+		if not response then
+			return nil
+		end
+
+		for _,server in ipairs(response.data or {}) do
+			if server.id ~= game.JobId
+				and tonumber(server.playing)
+				and tonumber(server.maxPlayers)
+				and server.playing < server.maxPlayers
+			then
+				return server.id
+			end
+		end
+
+		cursor = response.nextPageCursor
+		pagesChecked += 1
+
+	until not cursor or pagesChecked >= 5
+
+	return nil
+end
+
+local function ServerHop()
+
+	if ServerHopBusy then
+		return false
+	end
+
+	ServerHopBusy = true
+
+	task.spawn(function()
+		local serverId = FindHopServer()
+
+		if serverId then
+			pcall(function()
+				TeleportService:TeleportToPlaceInstance(
+					game.PlaceId,
+					serverId,
+					LocalPlayer
+				)
+			end)
+		else
+			pcall(function()
+				TeleportService:Teleport(game.PlaceId,LocalPlayer)
+			end)
+		end
+
+		task.delay(5,function()
+			ServerHopBusy = false
+		end)
+	end)
+
+	return true
+end
+
+MM2.Functions.ServerHop = ServerHop
+
+UI.CreateActionFeature(
+	UI.MiscPage,
+	"Server Hop",
+	"Joins another public server.",
+	function()
+		ServerHop()
+	end,
+	"shuffle"
+)
+
+--============================================================
+-- CONFIG
+--============================================================
+
+UI.AddSection(
+	UI.MiscPage,
+	"Config",
+	"Save and restore menu settings"
+)
+
+local function ConfigValueSupported(value)
+	local valueType = typeof(value)
+	return valueType == "boolean"
+		or valueType == "number"
+		or valueType == "string"
+end
+
+local function BuildConfig()
+
+	local config = {
+		Version = "1.85.4",
+		Flags = {},
+		PlayerSettings = {},
+		QuickButtonPositions = {},
+	}
+
+	for key,value in pairs(Flags) do
+		if ConfigValueSupported(value) then
+			config.Flags[key] = value
+		end
+	end
+
+	if UI.GetQuickButtonPositions then
+		config.QuickButtonPositions = UI.GetQuickButtonPositions()
+	end
+
+	if MM2.PlayerSettings then
+		for key,value in pairs(MM2.PlayerSettings) do
+			if ConfigValueSupported(value) then
+				config.PlayerSettings[key] = value
+			end
+		end
+	end
+
+	return config
+end
+
+local function EnsureConfigFolder()
+
+	if not makefolder or not isfolder then
+		return
+	end
+
+	if not isfolder(CONFIG_FOLDER) then
+		pcall(makefolder,CONFIG_FOLDER)
+	end
+end
+
+local function SaveConfig()
+
+	if ConfigBusy then
+		return false
+	end
+
+	if not writefile then
+		return false
+	end
+
+	ConfigBusy = true
+	EnsureConfigFolder()
+
+	local config = BuildConfig()
+
+	local success =
+		pcall(function()
+			local encoded = HttpService:JSONEncode(config)
+			writefile(CONFIG_FILE,encoded)
+			LastConfigSnapshot = encoded
+		end)
+
+	ConfigBusy = false
+	return success
+end
+
+MM2.Functions.SaveConfig = SaveConfig
+
+--============================================================
+-- LOAD CONFIG
+--============================================================
+
+local function LoadConfig()
+
+	local loadedQuickButtonPositions = nil
+
+	if not isfile
+		or not readfile
+		or not isfile(CONFIG_FILE)
+	then
+		return false
+	end
+
+	local success =
+		pcall(function()
+			local raw = readfile(CONFIG_FILE)
+			local data = HttpService:JSONDecode(raw)
+
+			if type(data.Flags) == "table" then
+				for key,value in pairs(data.Flags) do
+					if key ~= "AntiDisconnect" and ConfigValueSupported(value) then
+						if key == "Theme" then
+                            value = MigrateThemeName(value)
+                        end
+						Flags[key] = value
+					end
+				end
+			end
+
+			if type(data.QuickButtonPositions) == "table" then
+				loadedQuickButtonPositions = data.QuickButtonPositions
+			end
+
+			if type(data.PlayerSettings) == "table"
+				and MM2.PlayerSettings
+			then
+				for key,value in pairs(data.PlayerSettings) do
+					if ConfigValueSupported(value) then
+						MM2.PlayerSettings[key] = value
+					end
+				end
+			end
+		end)
+
+	if success then
+
+		Flags.Theme = MigrateThemeName(Flags.Theme)
+
+		Flags.QuickButtonsLocked = Flags.QuickButtonsLocked == true
+		Flags.QuickButtonScale = math.clamp(
+			tonumber(Flags.QuickButtonScale) or 100,
+			60,
+			140
+		)
+
+		ApplyTheme(Flags.Theme or "Classic Mono")
+
+		if UI.SetToggleState then
+			for key,value in pairs(Flags) do
+				if typeof(value) == "boolean" then
+					pcall(UI.SetToggleState,key,value,true)
+				end
+			end
+		end
+
+		-- Restore the visual slider thumb after loading saved Flags.FillStrength.
+		Flags.FillStrength = math.clamp(tonumber(Flags.FillStrength) or 100, 0, 100)
+		if UI.FillStrengthSlider and UI.FillStrengthSlider.Set then
+			pcall(function() UI.FillStrengthSlider:Set(Flags.FillStrength) end)
+		end
+
+		if UI.SetQuickButtonsLocked then
+			UI.SetQuickButtonsLocked(Flags.QuickButtonsLocked)
+		end
+
+		if UI.SetQuickButtonScale then
+			UI.SetQuickButtonScale(Flags.QuickButtonScale)
+		end
+
+		if UI.ApplyQuickButtonPositions and loadedQuickButtonPositions then
+			UI.ApplyQuickButtonPositions(loadedQuickButtonPositions)
+		end
+
+		SetAntiAFK(Flags.AntiAFK)
+
+		if ThemeDropdown then
+			ApplyingTheme = true
+
+			pcall(function()
+				if ThemeDropdown.Select then
+					ThemeDropdown:Select(Flags.Theme or "Classic Mono")
+				elseif ThemeDropdown.Set then
+					ThemeDropdown:Set(Flags.Theme or "Classic Mono")
+				end
+			end)
+
+			ApplyingTheme = false
+		end
+	end
+
+	return success
+end
+
+MM2.Functions.LoadConfig = LoadConfig
+
+--============================================================
+-- RESET CONFIG
+--============================================================
+
+local function ResetConfig()
+
+	if ConfigBusy then
+		return false
+	end
+
+	ConfigBusy = true
+	Flags.AutoSaveConfig = false
+
+	if delfile
+		and isfile
+		and isfile(CONFIG_FILE)
+	then
+		pcall(delfile,CONFIG_FILE)
+	end
+
+	for key,value in pairs(DefaultFlags) do
+		Flags[key] = value
+	end
+
+	if MM2.PlayerSettings then
+		for key,value in pairs(DefaultPlayerSettings) do
+			MM2.PlayerSettings[key] = value
+		end
+	end
+
+	if UI.SetToggleState then
+		for key,value in pairs(DefaultFlags) do
+			if typeof(value) == "boolean" then
+				pcall(UI.SetToggleState,key,value,true)
+			end
+		end
+	end
+
+	if UI.FillStrengthSlider and UI.FillStrengthSlider.Set then
+		pcall(function() UI.FillStrengthSlider:Set(Flags.FillStrength) end)
+	end
+
+	if UI.SetQuickButtonsLocked then
+		UI.SetQuickButtonsLocked(Flags.QuickButtonsLocked)
+	end
+
+	if UI.SetQuickButtonScale then
+		UI.SetQuickButtonScale(Flags.QuickButtonScale)
+	end
+
+	if UI.ResetQuickButtonPositions then
+		UI.ResetQuickButtonPositions()
+	end
+
+	local character = LocalPlayer.Character
+	local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+
+	if humanoid then
+		if DefaultPlayerSettings.WalkSpeed then
+			humanoid.WalkSpeed = DefaultPlayerSettings.WalkSpeed
+		end
+
+		if DefaultPlayerSettings.JumpPower then
+			humanoid.JumpPower = DefaultPlayerSettings.JumpPower
+		end
+	end
+
+	SetAntiAFK(false)
+
+	Flags.Theme = "Classic Mono"
+	ApplyTheme("Classic Mono")
+
+	if ThemeDropdown then
+		ApplyingTheme = true
+
+		pcall(function()
+			if ThemeDropdown.Select then
+				ThemeDropdown:Select("Classic Mono")
+			elseif ThemeDropdown.Set then
+				ThemeDropdown:Set("Classic Mono")
+			end
+		end)
+
+		ApplyingTheme = false
+	end
+
+	LastConfigSnapshot = nil
+	ConfigBusy = false
+	return true
+end
+
+MM2.Functions.ResetConfig = ResetConfig
+
+--============================================================
+-- CONFIG UI
+--============================================================
+
+UI.CreateToggle(
+	UI.MiscPage,
+	"Auto Save Config",
+	"Saves settings after every change.",
+	"AutoSaveConfig"
+)
+
+UI.CreateActionFeature(
+	UI.MiscPage,
+	"Save Current Config",
+	"Saves your current settings.",
+	function()
+		SaveConfig()
+	end,
+	"save"
+)
+
+UI.CreateActionFeature(
+	UI.MiscPage,
+	"Reset Config",
+	"Restores the default settings.",
+	function()
+		ResetConfig()
+	end,
+	"rotate-ccw"
+)
+
+--============================================================
+-- AUTO SAVE WATCHER
+--============================================================
+
+task.spawn(function()
+
+	while MM2.Running do
+		task.wait(1)
+
+		if Flags.AutoSaveConfig and writefile then
+			local currentConfig = BuildConfig()
+			local encoded = nil
+
+			local ok =
+				pcall(function()
+					encoded = HttpService:JSONEncode(currentConfig)
+				end)
+
+			if ok
+				and encoded
+				and encoded ~= LastConfigSnapshot
+			then
+				SaveConfig()
+			end
+		end
+	end
+end)
+
+--============================================================
+-- UI
+--============================================================
+
+UI.AddSection(
+	UI.MiscPage,
+	"UI",
+	"Menu controls"
+)
+
+local function HideMenu()
+
+	local window = UI.Window or UI.MainFrame
+
+	if not window then
+		return false
+	end
+
+	local success =
+		pcall(function()
+			if window.Toggle then
+				window:Toggle()
+			elseif window.Close then
+				window:Close()
+			end
+		end)
+
+	return success
+end
+
+MM2.Functions.HideMenu = HideMenu
+
+UI.CreateActionFeature(
+	UI.MiscPage,
+	"Hide Menu",
+	"Hides the main menu.",
+	function()
+		HideMenu()
+	end,
+	"eye-off"
+)
+
+--============================================================
+-- UNLOAD
+--============================================================
+
+local function UnloadMenu()
+
+	MM2.Running = false
+
+	if MM2.Functions.StopAutoFarm then
+		pcall(MM2.Functions.StopAutoFarm)
+	end
+
+	if MM2.Functions.StopFly then
+		pcall(MM2.Functions.StopFly)
+	end
+
+	if MM2.Functions.StopPlayerNoclip then
+		pcall(MM2.Functions.StopPlayerNoclip)
+	end
+
+	if Flags.AutoSaveConfig then
+		pcall(SaveConfig)
+	end
+
+	if MM2.Functions.Unload then
+		pcall(MM2.Functions.Unload)
+		return
+	end
+
+	if UI.Window then
+		pcall(function()
+			UI.Window:Destroy()
+		end)
+	end
+
+	for _,gui in ipairs({
+		UI.ScreenGui,
+		UI.OverlayGui,
+		UI.TracerGui,
+		UI.Gui,
+	}) do
+		if typeof(gui) == "Instance"
+			and gui.Parent
+		then
+			pcall(function()
+				gui:Destroy()
+			end)
+		end
+	end
+end
+
+MM2.Functions.UnloadMenu = UnloadMenu
+
+UI.CreateActionFeature(
+	UI.MiscPage,
+	"Close (Unload)",
+	"",
+	function()
+		UnloadMenu()
+	end,
+	"power",
+	"danger"
+)
+
+--============================================================
+-- INITIALIZE
+--============================================================
+
+local loadedConfig = LoadConfig()
+
+if not loadedConfig then
+	ApplyTheme(Flags.Theme or "Classic Mono")
+end
+
+if UI.SetQuickButtonsLocked then
+	UI.SetQuickButtonsLocked(Flags.QuickButtonsLocked)
+end
+
+if UI.SetQuickButtonScale then
+	UI.SetQuickButtonScale(Flags.QuickButtonScale)
+end
+
+if ThemeDropdown then
+	ApplyingTheme = true
+
+	pcall(function()
+		if ThemeDropdown.Select then
+			ThemeDropdown:Select(Flags.Theme or "Classic Mono")
+		elseif ThemeDropdown.Set then
+			ThemeDropdown:Set(Flags.Theme or "Classic Mono")
+		end
+	end)
+
+	ApplyingTheme = false
+end
+
+if Flags.AntiAFK then
+	SetAntiAFK(true)
+end
+
+-- Startup is complete: manual OFF toggles should notify normally.
+UI.StartupLoading = false
+
+return MM2
