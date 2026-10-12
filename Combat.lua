@@ -1140,8 +1140,7 @@ local function UpdateCombatFeatures()
 	end
 	if Flags.AimLock
 		and IsAimLockAllowed()
-		and IsCombatLocalParticipant()
-		and not MM2.IsPreRoundActive() then
+		and IsCombatLocalParticipant() then
 		local _,targetPart = GetBestCombatTarget()
 		if targetPart then
 			camera.CFrame = CFrame.new(camera.CFrame.Position,targetPart.Position)
