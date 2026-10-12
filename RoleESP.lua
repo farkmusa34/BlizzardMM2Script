@@ -14,7 +14,7 @@ local RoleTab = UI.WindTabs.RoleESP
 
 -- Keep previous highlighting defaults off, with fill enabled by default.
 if Flags.CharacterFill == nil then Flags.CharacterFill = true end
-if type(Flags.FillStrength) ~= "number" then Flags.FillStrength = 50 end
+if type(Flags.FillStrength) ~= "number" then Flags.FillStrength = 100 end
 
 UI.AddSection(UI.RoleESPPage, "Appearance")
 UI.CreateToggle(UI.RoleESPPage, "Character Fill",
@@ -22,7 +22,7 @@ UI.CreateToggle(UI.RoleESPPage, "Character Fill",
         if MM2.Functions.UpdatePlayerESP then MM2.Functions.UpdatePlayerESP() end
     end, "palette")
 local sliderOK, sliderError = pcall(function()
-    RoleTab:Slider({
+    UI.FillStrengthSlider = RoleTab:Slider({
         Title = "Fill Strength",
         Desc = "Controls character highlight opacity (0–100%).",
         Value = {Min=0, Max=100, Default=Flags.FillStrength, Step=5},
@@ -37,7 +37,7 @@ end)
 if not sliderOK then warn("[Blizzard Role ESP] Fill Strength slider:", sliderError) end
 
 UI.AddSection(UI.RoleESPPage, "Players")
-UI.CreateToggle(UI.RoleESPPage, "Nametags", "", "NameTags", function()
+UI.CreateToggle(UI.RoleESPPage, "Nametags", "Shows names above heads.", "NameTags", function()
     if MM2.Functions.UpdatePlayerESP then MM2.Functions.UpdatePlayerESP() end
 end, "badge")
 for _,role in ipairs({"Murderer", "Sheriff", "Innocent", "Hero"}) do
@@ -142,7 +142,7 @@ MM2.Functions.UpdatePlayerESP=function()
             h.FillColor=color
             h.OutlineColor=color
             h.OutlineTransparency=0
-            h.FillTransparency=(Flags.CharacterFill and (1-math.clamp(Flags.FillStrength or 50,0,100)/100)) or 1
+            h.FillTransparency=(Flags.CharacterFill and (1-math.clamp(Flags.FillStrength or 100,0,100)/100)) or 1
         elseif h then h:Destroy() end
         if Flags.NameTags then
             if not tag then
