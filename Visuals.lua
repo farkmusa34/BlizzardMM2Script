@@ -44,6 +44,7 @@ local function CreateNativeToggle(title, desc, flagName, callback)
 		return VisualsTab:Toggle({
 			Title = title,
 			Desc = desc,
+			Type = "Checkbox",
 			Value = Flags[flagName],
 			Callback = function(value)
 				value = value == true
