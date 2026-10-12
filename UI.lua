@@ -360,6 +360,102 @@ task.defer(function()
     end
 end)
 
+--============================================================
+-- TEMPORARY WALLPAPER DIAGNOSTIC (does not change game features)
+-- Shows the uploaded asset independently of WindUI.
+-- Close using the X in the diagnostic panel.
+--============================================================
+task.defer(function()
+    local asset = "rbxassetid://71522230935715"
+    local old = PlayerGui:FindFirstChild("Blizzard_Wallpaper_Diagnostic")
+    if old then old:Destroy() end
+
+    local diagnosticGui = Instance.new("ScreenGui")
+    diagnosticGui.Name = "Blizzard_Wallpaper_Diagnostic"
+    diagnosticGui.ResetOnSpawn = false
+    diagnosticGui.IgnoreGuiInset = true
+    diagnosticGui.DisplayOrder = 10000
+    diagnosticGui.Parent = PlayerGui
+
+    local panel = Instance.new("Frame")
+    panel.Name = "TestPanel"
+    panel.AnchorPoint = Vector2.new(1, 0)
+    panel.Position = UDim2.new(1, -12, 0, 70)
+    panel.Size = UDim2.fromOffset(270, 205)
+    panel.BackgroundColor3 = Color3.fromRGB(14, 15, 20)
+    panel.BorderSizePixel = 0
+    panel.Parent = diagnosticGui
+    Instance.new("UICorner", panel).CornerRadius = UDim.new(0, 12)
+
+    local heading = Instance.new("TextLabel")
+    heading.Size = UDim2.new(1, -48, 0, 30)
+    heading.Position = UDim2.fromOffset(10, 4)
+    heading.BackgroundTransparency = 1
+    heading.Text = "Blizzard wallpaper test"
+    heading.TextColor3 = Color3.new(1, 1, 1)
+    heading.Font = Enum.Font.GothamBold
+    heading.TextSize = 13
+    heading.TextXAlignment = Enum.TextXAlignment.Left
+    heading.Parent = panel
+
+    local close = Instance.new("TextButton")
+    close.Position = UDim2.new(1, -35, 0, 5)
+    close.Size = UDim2.fromOffset(28, 26)
+    close.BackgroundColor3 = Color3.fromRGB(45, 45, 51)
+    close.TextColor3 = Color3.new(1, 1, 1)
+    close.Font = Enum.Font.GothamBold
+    close.Text = "X"
+    close.TextSize = 13
+    close.Parent = panel
+    Instance.new("UICorner", close).CornerRadius = UDim.new(0, 6)
+    close.MouseButton1Click:Connect(function() diagnosticGui:Destroy() end)
+
+    local preview = Instance.new("ImageLabel")
+    preview.Name = "AssetPreview"
+    preview.Position = UDim2.fromOffset(10, 37)
+    preview.Size = UDim2.new(1, -20, 0, 123)
+    preview.BackgroundColor3 = Color3.fromRGB(33, 34, 40)
+    preview.BorderSizePixel = 0
+    preview.ScaleType = Enum.ScaleType.Crop
+    preview.Image = asset
+    preview.Parent = panel
+    Instance.new("UICorner", preview).CornerRadius = UDim.new(0, 7)
+
+    local status = Instance.new("TextLabel")
+    status.Position = UDim2.fromOffset(10, 166)
+    status.Size = UDim2.new(1, -20, 0, 31)
+    status.BackgroundTransparency = 1
+    status.TextColor3 = Color3.fromRGB(255, 210, 110)
+    status.Font = Enum.Font.Gotham
+    status.TextSize = 11
+    status.TextWrapped = true
+    status.TextXAlignment = Enum.TextXAlignment.Left
+    status.Text = "Loading image 71522230935715..."
+    status.Parent = panel
+
+    local function reportLoaded()
+        if preview.IsLoaded and status.Parent then
+            status.Text = "IMAGE LOADED: WindUI layering/API is likely the issue."
+            status.TextColor3 = Color3.fromRGB(115, 235, 150)
+            return true
+        end
+        return false
+    end
+    if not reportLoaded() then
+        local conn
+        conn = preview:GetPropertyChangedSignal("IsLoaded"):Connect(function()
+            if reportLoaded() and conn then conn:Disconnect() end
+        end)
+        task.delay(12, function()
+            if status.Parent and not preview.IsLoaded then
+                status.Text = "NOT LOADED after 12s: check asset access or loading."
+                status.TextColor3 = Color3.fromRGB(255, 130, 130)
+            end
+            if conn then conn:Disconnect() end
+        end)
+    end
+end)
+
 -- Reinforce WindUI's own opener after window creation. This is the
 -- same native floating "Blizzard MM2" controller, not a custom fallback.
 pcall(function()
