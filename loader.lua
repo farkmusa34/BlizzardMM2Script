@@ -328,9 +328,15 @@ if MM2
 	and MM2.Running
 then
 
-    -- Copy the invite only once per successful loader execution.
-    if type(setclipboard) == "function" then
-        pcall(setclipboard, "discord.gg/v9ea72U6E")
+    -- Copy once per successful launch; clipboard APIs vary by environment.
+    local copy = setclipboard or toclipboard
+    if type(copy) == "function" then
+        local copied, copyError = pcall(copy, "discord.gg/v9ea72U6E")
+        if not copied then
+            warn("[MM2 LOADER] Clipboard copy failed:", copyError)
+        end
+    else
+        warn("[MM2 LOADER] Clipboard function unavailable in this environment.")
     end
 
 	print(
