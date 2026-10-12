@@ -279,13 +279,13 @@ UI.WindUI = WindUI
 --============================================================
 -- BLIZZARD MONO THEME
 -- Black / charcoal surfaces with white controls and icons.
--- Existing WindUI toggle geometry is preserved, so toggles stay pill-shaped.
+-- Use WindUI checkbox geometry for compact square toggles.
 --============================================================
 
 pcall(function()
 	if WindUI.AddTheme then
 		WindUI:AddTheme({
-			Name = "Blizzard Mono",
+			Name = "Classic Mono",
 			Accent = "#FFFFFF",
 			-- Dark smoked-glass palette: near-black rather than washed gray.
 			-- Window stays Transparent=true below, so the game remains visible through it.
@@ -311,7 +311,7 @@ local Window =
 		Icon = "gamepad-2",
 
 		-- Black / gray / white factory appearance.
-		Theme = "Blizzard Mono",
+		Theme = "Classic Mono",
 
 		Size =
 			UDim2.fromOffset(
@@ -1736,6 +1736,7 @@ function UI.CreateToggle(
 		pcall(function()
 
 			return parent:Toggle({
+                Type = "Checkbox",
 				Title =
 					tostring(
 						titleText or ""
@@ -1940,6 +1941,15 @@ function UI.CreateActionFeature(
 	}
 
 	local fill = ACTION_COLORS[style]
+    if page == UI.FlingPage then
+        if titleText == "Fling Murderer" then
+            fill = Color3.fromRGB(220,42,55)
+        elseif titleText == "Fling Sheriff / Hero" then
+            fill = Color3.fromRGB(55,145,255)
+        elseif titleText == "Fling Selected Player" then
+            fill = Color3.fromRGB(145,75,235)
+        end
+    end
 	local control
 
 	local ok,result =
