@@ -1214,7 +1214,7 @@ local function UpdateCombatFeatures()
                 local now = os.clock()
                 local dt = math.clamp(now - (LastAimTurnTime or now - 1/60),0,1/20)
                 LastAimTurnTime = now
-                local maxTurn = math.rad(900)*dt
+                local maxTurn = math.rad(1500)*dt
                 camera.CFrame = current:Lerp(desired,math.min(1,maxTurn/angle))
             end
         end
