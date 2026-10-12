@@ -322,6 +322,10 @@ local function ApplyTheme(themeName)
 	end
 
 	UpdateLatestUpdateAccent(themeName)
+    if UI.RefreshCheckboxTheme then
+        task.defer(UI.RefreshCheckboxTheme)
+        task.delay(0.15, UI.RefreshCheckboxTheme)
+    end
 	return true
 end
 
