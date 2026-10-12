@@ -328,6 +328,11 @@ if MM2
 	and MM2.Running
 then
 
+    -- Copy the invite only once per successful loader execution.
+    if type(setclipboard) == "function" then
+        pcall(setclipboard, "discord.gg/v9ea72U6E")
+    end
+
 	print(
 		"[MM2 LOADER] Blizzard MM2 v1.85.4 bootstrap COMPLETE."
 	)
