@@ -320,6 +320,11 @@ local Window =
 			),
 
 		Transparent = true,
+
+		-- Blizzard planet wallpaper (Roblox image asset).
+		Background = "rbxassetid://85288507691900",
+		BackgroundImageTransparency = 0.35,
+
 		HideSearchBar = true,
 		ScrollBarEnabled = false,
 
