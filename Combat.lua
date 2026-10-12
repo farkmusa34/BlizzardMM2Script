@@ -53,21 +53,19 @@ local function CombatNotify(title,content,icon,duration)
 end
 
 local function NormalizeShootMessage(message)
-	if message == "No Murderer"
-		or message == "No Gun"
-		or message == "No Target"
-	then
-		return "No Gun or Murderer"
+	if message == "No Gun" or message == "No Gun or Murderer" then
+		return "Sheriff Gun Required"
 	end
 	return message
 end
 
-local function NotifyShootResult(success,message)
+local function NotifyShootResult(success,message,mode)
 	message = NormalizeShootMessage(message)
+	local title = mode == "LEGIT" and "Shoot Murderer (LEGIT)" or "Shoot Murderer (Rage)"
 	if success then
-		CombatNotify("Shoot Murderer",message or "Shot Fired","check",1.8)
+		CombatNotify(title,message or "Shot Fired","check",1.8)
 	elseif message and message ~= "Cooldown" and message ~= "Busy" then
-		CombatNotify("Shoot Murderer",message,"circle-x",2.5)
+		CombatNotify(title,message,"circle-x",2.5)
 	end
 end
 
@@ -106,11 +104,11 @@ UI.CreateSlider(
 )
 
 AddCompactCombatSection("Aim")
-UI.CreateToggle(UI.CombatPage, "TriggerBot", "Automatically shoots the Murderer when your crosshair is on them", "TriggerBot")
+UI.CreateToggle(UI.CombatPage, "Triggerbot", "Automatically shoots the Murderer when your crosshair is on them", "TriggerBot")
 Flags.TriggerBotDelay = math.clamp(tonumber(Flags.TriggerBotDelay) or 0.05,0,0.60)
 UI.CreateSlider(
 	UI.CombatPage,
-	"TriggerBot Delay",
+	"Triggerbot Delay",
 	"Sets the delay before it fires (seconds).",
 	function() return Flags.TriggerBotDelay end,
 	function(value)
@@ -118,7 +116,7 @@ UI.CreateSlider(
 	end,
 	0,0.60,0.01
 )
-UI.CreateToggle(UI.CombatPage, "Aim Lock", "Tracks the Murderer while Shift Lock is enabled", "AimLock")
+UI.CreateToggle(UI.CombatPage, "Aim Lock", "Instantly snaps to the Murderer in Shift Lock or first person", "AimLock")
 Flags.SilentAim = Flags.SilentAim == true
 UI.CreateToggle(UI.CombatPage, "Silent Aim", "Redirects your manual shots toward the enemy’s head.", "SilentAim")
 
@@ -141,38 +139,10 @@ end)
 AddCompactCombatSection("Dropped Sheriff Gun")
 UI.CreateToggle(UI.CombatPage, "Auto Grab Gun", "Auto picks up the dropped gun without moving you.", "AutoGrab")
 
-AddCompactCombatSection("Murderer")
-Flags.LegitThrow = Flags.LegitThrow == true
-Flags.RageThrow = false
-Flags.WallThrow = false
-Flags.ShowThrowAimbotButton = Flags.ShowThrowAimbotButton == true
-
-UI.CreateToggle(UI.CombatPage, "Auto Throw Knife (RAGE)", "Automatically throws your knife at the closest visible player", "LegitThrow")
-UI.CreateToggle(UI.CombatPage, "Throw Aimbot Button", "Shows the Throw Knife button.", "ShowThrowAimbotButton", function(on)
-	if MM2.UI.FloatingThrowAimbotHolder then MM2.UI.FloatingThrowAimbotHolder.Visible = on end
-end)
-
 local KNIFE_RANGE_MIN = 5
 local KNIFE_RANGE_MAX = 200
 local KILL_ALL_RANGE = 10000
 Flags.KnifeRange = math.clamp(tonumber(Flags.KnifeRange) or 10,KNIFE_RANGE_MIN,KNIFE_RANGE_MAX)
-
-Flags.ShowKillAllButton = Flags.ShowKillAllButton == true
-UI.CreateToggle(UI.CombatPage, "Kill All Button", "Shows the floating Kill All button", "ShowKillAllButton", function(on)
-	if MM2.UI.FloatingKillAllHolder then MM2.UI.FloatingKillAllHolder.Visible = on end
-end)
-
-UI.CreateActionFeature(UI.CombatPage, "Kill All", "Stabs every player as murderer", function()
-	if MM2.Functions.KillAllOnce then
-		local ok,success,message = pcall(MM2.Functions.KillAllOnce)
-		if not ok then
-			warn("[MM2 KILL ALL ACTION]",success)
-			CombatNotify("Kill All","Kill All error","circle-x",2)
-		else
-			NotifyKillAllResult(success,message)
-		end
-	end
-end, CombatFeatureIcon("KillAll","skull"))
 
 --============================================================
 -- KNIFE AURA
@@ -193,6 +163,39 @@ UI.CreateSlider(
 	end,
 	KNIFE_RANGE_MIN,KNIFE_RANGE_MAX,5
 )
+
+AddCompactCombatSection("Murderer")
+Flags.LegitThrow = Flags.LegitThrow == true
+Flags.RageThrow = false
+Flags.WallThrow = false
+Flags.ShowThrowAimbotButton = Flags.ShowThrowAimbotButton == true
+
+UI.CreateToggle(UI.CombatPage, "Auto Throw Knife (RAGE)", "Automatically throws your knife at the closest visible player", "LegitThrow")
+-- Visual placeholder only. No throw behavior is attached.
+Flags.SilentThrow = false
+UI.CreateToggle(UI.CombatPage, "Silent Throw", "Coming soon (does not do anything yet).", "SilentThrow", function()
+	Flags.SilentThrow = false
+end)
+UI.CreateToggle(UI.CombatPage, "Throw Aimbot Button", "Shows the Throw Knife button.", "ShowThrowAimbotButton", function(on)
+	if MM2.UI.FloatingThrowAimbotHolder then MM2.UI.FloatingThrowAimbotHolder.Visible = on end
+end)
+
+Flags.ShowKillAllButton = Flags.ShowKillAllButton == true
+UI.CreateToggle(UI.CombatPage, "Kill All Button", "Shows the floating Kill All button", "ShowKillAllButton", function(on)
+	if MM2.UI.FloatingKillAllHolder then MM2.UI.FloatingKillAllHolder.Visible = on end
+end)
+
+UI.CreateActionFeature(UI.CombatPage, "Kill All", "Stabs every player as murderer", function()
+	if MM2.Functions.KillAllOnce then
+		local ok,success,message = pcall(MM2.Functions.KillAllOnce)
+		if not ok then
+			warn("[MM2 KILL ALL ACTION]",success)
+			CombatNotify("Kill All","Kill All error","circle-x",2)
+		else
+			NotifyKillAllResult(success,message)
+		end
+	end
+end, CombatFeatureIcon("KillAll","skull"))
 
 local AIMLOCK_FOV = 150
 local COMBAT_MAX_DISTANCE = 2000
@@ -289,30 +292,12 @@ local function IsAimLockAllowed()
 end
 
 local function GetBestCombatTarget()
-	local camera = workspace.CurrentCamera
-	if not camera then return nil,nil end
-	local viewport = camera.ViewportSize
-	local center = Vector2.new(viewport.X/2,viewport.Y/2)
-	local bestPlayer,bestPart,bestDistance = nil,nil,AIMLOCK_FOV
-	for _,player in ipairs(Players:GetPlayers()) do
-		if IsMurderer(player) then
-			local character = player.Character
-			local humanoid = character and character:FindFirstChildOfClass("Humanoid")
-			local torso = GetCombatTorso(character)
-			if humanoid and humanoid.Health > 0 and torso
-				and MM2.IsPositionWithinESPDistance(torso.Position)
-			then
-				local screenPosition,onScreen = camera:WorldToViewportPoint(torso.Position)
-				if onScreen and screenPosition.Z > 0 then
-					local d = (Vector2.new(screenPosition.X,screenPosition.Y)-center).Magnitude
-					if d < bestDistance then
-						bestDistance,bestPlayer,bestPart = d,player,torso
-					end
-				end
-			end
-		end
-	end
-	return bestPlayer,bestPart
+	-- No crosshair/FOV gate: acquire the identified live Murderer directly.
+	local murderer = FindLiveMurderer()
+	if not murderer then return nil,nil end
+	local torso = GetCombatTorso(murderer.Character)
+	if not torso then return nil,nil end
+	return murderer,torso
 end
 
 local function GetCombatCrosshairHit()
@@ -587,15 +572,15 @@ MM2.Functions.ShootMurdererLegit = function()
 	ShootBusy = true
 	local ok,success,message = pcall(function()
 		local murderer = FindLiveMurderer()
-		if not murderer then return false,"No Gun or Murderer" end
+		if not murderer then return false,"No Murderer" end
 		local torso = GetCombatTorso(murderer.Character)
-		if not torso then return false,"No Gun or Murderer" end
+		if not torso then return false,"No Murderer" end
 		if not HasClearLineOfSight(torso) then return false,"Murderer Behind Wall" end
 		local gun = EnsureCombatGun()
-		if not gun then return false,"No Gun or Murderer" end
-		if not IsLivePlayer(murderer) then return false,"No Gun or Murderer" end
+		if not gun then return false,"Sheriff Gun Required" end
+		if not IsLivePlayer(murderer) then return false,"No Murderer" end
 		torso = GetCombatTorso(murderer.Character)
-		if not torso then return false,"No Gun or Murderer" end
+		if not torso then return false,"No Murderer" end
 		if not HasClearLineOfSight(torso) then return false,"Murderer Behind Wall" end
 
 		local targetPosition = GetProductionShootTargetPosition(torso)
@@ -1136,11 +1121,11 @@ local FloatingLegitShootButton,FloatingLegitShootHolder =
 
 				if not ok then
 					warn("[MM2 LEGIT SHOOT BUTTON]",success)
-					CombatNotify("Shoot Murderer","Error","circle-x",2)
+					CombatNotify("Shoot Murderer (LEGIT)","Error","circle-x",2)
 					return
 				end
 
-				NotifyShootResult(success,message)
+				NotifyShootResult(success,message,"LEGIT")
 			end)
 		end
 	)
@@ -1164,11 +1149,11 @@ local FloatingShootButton,FloatingShootHolder =
 
 				if not ok then
 					warn("[MM2 V8.6.2 SHOOT] BUTTON CALL ERROR:",success)
-					CombatNotify("Shoot Murderer","Error","circle-x",2)
+					CombatNotify("Shoot Murderer (Rage)","Error","circle-x",2)
 					return
 				end
 
-				NotifyShootResult(success,message)
+				NotifyShootResult(success,message,"Rage")
 			end)
 		end
 	)
