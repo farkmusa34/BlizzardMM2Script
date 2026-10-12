@@ -1934,9 +1934,9 @@ function UI.CreateActionFeature(
 	-- WindUI Button supports Color directly.  Pass the fill when the
 	-- button is CREATED instead of trying to recolor its internal GUI later.
 	local ACTION_COLORS = {
-		danger = Color3.fromRGB(150,45,52),
-		blue = Color3.fromRGB(45,88,155),
-		purple = Color3.fromRGB(105,65,155),
+		danger = Color3.fromRGB(220,42,55),
+		blue = Color3.fromRGB(55,145,255),
+		purple = Color3.fromRGB(145,75,235),
 		orange = Color3.fromRGB(170,92,38),
 	}
 
