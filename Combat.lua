@@ -1058,7 +1058,10 @@ local function UpdateCombatFeatures()
 	if not active then
 		return
 	end
-	if Flags.AimLock and IsAimLockAllowed() and MM2.State and MM2.State.RoleRoundActive == true then
+	if Flags.AimLock
+		and IsAimLockAllowed()
+		and MM2.State and MM2.State.RoleRoundActive == true
+		and not (MM2.IsPreRoundActive and MM2.IsPreRoundActive()) then
 		local _,targetPart = GetBestCombatTarget()
 		if targetPart then
 			camera.CFrame = CFrame.new(camera.CFrame.Position,targetPart.Position)
