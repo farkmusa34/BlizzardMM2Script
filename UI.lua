@@ -1581,9 +1581,37 @@ UI.SetToggle = UI.SetToggleState
 -- Keep WindUI's original/native toggle rendering.
 -- No custom square skin is applied here.
 --============================================================
+-- Hide only the checkbox tick in Classic Mono, never the checkbox itself.
+-- Keep original visibility so other themes can restore WindUI's icon.
+local CheckboxTickVisibility = setmetatable({}, {__mode = "k"})
+local function StyleCheckboxTick(control)
+    if not control then return end
+    local root = control.ElementFrame or control.Frame or control.Root
+    if typeof(root) ~= "Instance" then return end
+    local mono = Flags.Theme == "Classic Mono" or Flags.Theme == "Blizzard Mono"
+    for _,obj in ipairs(root:GetDescendants()) do
+        local name = string.lower(obj.Name)
+        -- Only target explicitly named checkmark glyphs, not feature icons.
+        if (obj:IsA("ImageLabel") or obj:IsA("ImageButton") or obj:IsA("TextLabel"))
+            and (name == "check" or name == "checkmark" or name == "checkicon" or name == "tick") then
+            if CheckboxTickVisibility[obj] == nil then
+                CheckboxTickVisibility[obj] = obj.Visible
+            end
+            obj.Visible = mono and false or CheckboxTickVisibility[obj]
+        end
+    end
+end
+
+function UI.RefreshCheckboxTheme()
+    for _,entry in pairs(UI.ToggleRegistry) do
+        if entry and entry.Control then
+            StyleCheckboxTick(entry.Control)
+        end
+    end
+end
+
 local function ApplyReferenceToggleSkin(control,isOn)
-	-- Intentionally left as a no-op for compatibility with older call sites.
-	-- WindUI owns the toggle shape, colours, knob, and state animation.
+    StyleCheckboxTick(control)
 end
 
 --============================================================
