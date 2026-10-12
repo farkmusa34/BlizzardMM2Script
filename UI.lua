@@ -1461,7 +1461,7 @@ function UI.CreateInfo(
 			danger = Color3.fromRGB(150,45,52),
 			blue = Color3.fromRGB(45,88,155),
 			purple = Color3.fromRGB(105,65,155),
-			orange = Color3.fromRGB(170,92,38),
+			orange = Color3.fromRGB(255,149,0),
 		}
 
 		local fill = ACTION_COLORS[style]
@@ -1590,14 +1590,30 @@ local function StyleCheckboxTick(control)
     if typeof(root) ~= "Instance" then return end
     local mono = Flags.Theme == "Classic Mono" or Flags.Theme == "Blizzard Mono"
     for _,obj in ipairs(root:GetDescendants()) do
-        local name = string.lower(obj.Name)
-        -- Only target explicitly named checkmark glyphs, not feature icons.
-        if (obj:IsA("ImageLabel") or obj:IsA("ImageButton") or obj:IsA("TextLabel"))
-            and (name == "check" or name == "checkmark" or name == "checkicon" or name == "tick") then
-            if CheckboxTickVisibility[obj] == nil then
-                CheckboxTickVisibility[obj] = obj.Visible
+        if obj:IsA("ImageLabel") or obj:IsA("ImageButton") or obj:IsA("TextLabel") then
+            local name = string.lower(obj.Name)
+            local namedTick = name == "check" or name == "checkmark"
+                or name == "checkicon" or name == "tick"
+            -- WindUI often calls the tick "Icon". Only match an Icon
+            -- nested inside the checkbox/indicator, not the feature icon.
+            local insideCheckbox = false
+            local ancestor = obj.Parent
+            while ancestor and ancestor ~= root do
+                local ancestorName = string.lower(ancestor.Name)
+                if ancestorName:find("checkbox",1,true)
+                    or ancestorName:find("indicator",1,true)
+                    or ancestorName:find("togglebar",1,true) then
+                    insideCheckbox = true
+                    break
+                end
+                ancestor = ancestor.Parent
             end
-            obj.Visible = mono and false or CheckboxTickVisibility[obj]
+            if namedTick or (insideCheckbox and name == "icon") then
+                if CheckboxTickVisibility[obj] == nil then
+                    CheckboxTickVisibility[obj] = obj.Visible
+                end
+                obj.Visible = not mono and CheckboxTickVisibility[obj] or false
+            end
         end
     end
 end
@@ -1851,7 +1867,7 @@ function UI.CreateToggle(
 			danger = Color3.fromRGB(150,45,52),
 			blue = Color3.fromRGB(45,88,155),
 			purple = Color3.fromRGB(105,65,155),
-			orange = Color3.fromRGB(170,92,38),
+			orange = Color3.fromRGB(255,149,0),
 		}
 		local fill = ACTION_COLORS[style]
 		if fill and control then
@@ -1965,7 +1981,7 @@ function UI.CreateActionFeature(
 		danger = Color3.fromRGB(220,42,55),
 		blue = Color3.fromRGB(55,145,255),
 		purple = Color3.fromRGB(145,75,235),
-		orange = Color3.fromRGB(170,92,38),
+		orange = Color3.fromRGB(255,149,0),
 	}
 
 	local fill = ACTION_COLORS[style]
@@ -2004,7 +2020,23 @@ function UI.CreateActionFeature(
 				config.Color = fill
 			end
 
-			return parent:Button(config)
+            local button = parent:Button(config)
+            if style == "orange" and page == UI.PlayerPage then
+                local function ApplyOrangeText()
+                    local frame = button and (button.ElementFrame or button.Frame or button.Root)
+                    if typeof(frame) ~= "Instance" then return end
+                    for _,child in ipairs(frame:GetDescendants()) do
+                        if child:IsA("TextLabel") or child:IsA("TextButton") then
+                            child.TextColor3 = Color3.new(0,0,0)
+                        elseif child:IsA("ImageLabel") or child:IsA("ImageButton") then
+                            child.ImageColor3 = Color3.new(0,0,0)
+                        end
+                    end
+                end
+                task.defer(ApplyOrangeText)
+                task.delay(0.25,ApplyOrangeText)
+            end
+            return button
 		end)
 
 	if ok then
