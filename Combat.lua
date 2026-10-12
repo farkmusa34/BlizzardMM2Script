@@ -1046,28 +1046,96 @@ task.spawn(function()
 	DisconnectKnifeRangeActivation()
 end)
 
--- Shared.lua owns gameplay confirmation. Fail closed until an event arrives.
-function MM2.IsPreRoundActive()
-    return not (MM2.State
-        and MM2.State.GameplayRoundActive == true
-        and MM2.State.RoleRoundActive == true
-        and not MM2.State.SuppressStaleRoles)
+-- Original Shared.lua has no GameplayRoundActive flag.
+-- Observe the official countdown ending before enabling local round features.
+-- This deliberately fails closed if the script is loaded mid-round.
+local CombatRound = {
+    CountdownSeen = false,
+    Confirmed = false,
+    LocalRole = nil,
+    LocalDead = true,
+    LastRemoteCheck = 0,
+    RemoteBusy = false,
+}
+
+local function UpdateCombatRoundState()
+    local state = MM2.State
+    if not state or state.RoleRoundActive ~= true or state.SuppressStaleRoles then
+        CombatRound.CountdownSeen = false
+        CombatRound.Confirmed = false
+        CombatRound.LocalRole = nil
+        CombatRound.LocalDead = true
+        return
+    end
+
+    local countdown = MM2.IsCountdownActive and MM2.IsCountdownActive() or false
+    if countdown then
+        CombatRound.CountdownSeen = true
+        CombatRound.Confirmed = false
+    elseif CombatRound.CountdownSeen then
+        CombatRound.CountdownSeen = false
+        CombatRound.Confirmed = true
+    end
+
+    if not CombatRound.RemoteBusy and os.clock() - CombatRound.LastRemoteCheck >= 0.5 then
+        CombatRound.LastRemoteCheck = os.clock()
+        CombatRound.RemoteBusy = true
+        task.spawn(function()
+            local remote = state.GetPlayerDataRemote
+            local ok, roles = false, nil
+            if remote and remote:IsA("RemoteFunction") then
+                ok, roles = pcall(function() return remote:InvokeServer() end)
+            end
+            if ok and type(roles) == "table" then
+                local entry = roles[LocalPlayer.Name]
+                CombatRound.LocalRole = type(entry) == "table" and entry.Role or nil
+                CombatRound.LocalDead = type(entry) ~= "table"
+                    or entry.Dead == true or entry.Killed == true
+            else
+                CombatRound.LocalRole = nil
+                CombatRound.LocalDead = true
+            end
+            CombatRound.RemoteBusy = false
+        end)
+    end
 end
+
+local function IsCombatLocalParticipant()
+    if not CombatRound.Confirmed or CombatRound.LocalDead then return false end
+    local role = CombatRound.LocalRole
+    if role ~= "Innocent" and role ~= "Sheriff" and role ~= "Hero" then return false end
+    if MM2.GetSpectatedPlayer and MM2.GetSpectatedPlayer() then return false end
+    local character = LocalPlayer.Character
+    local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+    local root = character and character:FindFirstChild("HumanoidRootPart")
+    return humanoid ~= nil and humanoid.Health > 0 and root ~= nil
+end
+
+function MM2.IsPreRoundActive()
+    return not (MM2.State and MM2.State.RoleRoundActive == true
+        and not MM2.State.SuppressStaleRoles
+        and CombatRound.Confirmed)
+end
+
+task.spawn(function()
+    while MM2.Running do
+        UpdateCombatRoundState()
+        task.wait(0.15)
+    end
+end)
 
 local TriggerBotBusy = false
 
 local function UpdateCombatFeatures()
 	local camera = workspace.CurrentCamera
 	if not camera then return end
-
 	local active = Flags.TriggerBot or Flags.AimLock
 	if not active then
 		return
 	end
 	if Flags.AimLock
 		and IsAimLockAllowed()
-		and MM2.State and MM2.State.RoleRoundActive == true
-		and MM2.State.GameplayRoundActive == true
+		and IsCombatLocalParticipant()
 		and not MM2.IsPreRoundActive() then
 		local _,targetPart = GetBestCombatTarget()
 		if targetPart then
