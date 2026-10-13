@@ -150,7 +150,7 @@ end)
 AddCompactCombatSection("Dropped Sheriff Gun")
 UI.CreateToggle(UI.CombatPage, "Auto Grab Dropped Gun", "Automatically picks up the dropped gun without moving you.", "AutoGrab")
 
-local KNIFE_RANGE_MIN = 5
+local KNIFE_RANGE_MIN = 10
 local KNIFE_RANGE_MAX = 200
 -- Kill All has no distance restriction; Knife Aura retains its own radius.
 Flags.KnifeRange = math.clamp(tonumber(Flags.KnifeRange) or 10,KNIFE_RANGE_MIN,KNIFE_RANGE_MAX)
