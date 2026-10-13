@@ -521,7 +521,7 @@ UI.CreateSlider(
 	"Sets how fast you fly",
 	function() return Settings.FlySpeed end,
 	function(value) Settings.FlySpeed = value end,
-	10,200,5
+	10,200,1
 )
 
 UI.CreateToggle(
