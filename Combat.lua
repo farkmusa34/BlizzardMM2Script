@@ -172,7 +172,7 @@ UI.CreateSlider(
 	function(value)
 		Flags.KnifeRange = math.clamp(tonumber(value) or 10,KNIFE_RANGE_MIN,KNIFE_RANGE_MAX)
 	end,
-	KNIFE_RANGE_MIN,KNIFE_RANGE_MAX,5
+	KNIFE_RANGE_MIN,KNIFE_RANGE_MAX,1
 )
 
 AddCompactCombatSection("Murderer")
