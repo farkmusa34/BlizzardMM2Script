@@ -182,11 +182,8 @@ Flags.WallThrow = false
 Flags.ShowThrowAimbotButton = Flags.ShowThrowAimbotButton == true
 
 UI.CreateToggle(UI.CombatPage, "Auto Throw Knife (RAGE)", "Throws your knife at the closest player.", "LegitThrow")
--- Visual placeholder only. No throw behavior is attached.
-Flags.SilentThrow = false
-UI.CreateToggle(UI.CombatPage, "Silent Throw", "Coming soon (does not do anything yet).", "SilentThrow", function()
-	Flags.SilentThrow = false
-end)
+Flags.SilentThrow = Flags.SilentThrow == true
+UI.CreateToggle(UI.CombatPage, "Silent Throw", "Redirects your manual knife throws toward the closest visible player.", "SilentThrow")
 UI.CreateToggle(UI.CombatPage, "Throw Aimbot Button", "Shows the Throw Knife button.", "ShowThrowAimbotButton", function(on)
 	if MM2.UI.FloatingThrowAimbotHolder then MM2.UI.FloatingThrowAimbotHolder.Visible = on end
 end)
@@ -463,6 +460,44 @@ end
 local SilentAimHookInstalled = false
 local SilentAimOldNamecall = nil
 local SilentAimCachedTargetPosition = nil
+local SilentThrowCachedTargetPosition = nil
+
+-- Cache a visible knife target outside the namecall hook to avoid re-entrant
+-- Roblox API calls during a normal manual throw.
+local function UpdateSilentThrowCache()
+	SilentThrowCachedTargetPosition = nil
+	if not Flags.SilentThrow then return end
+	local character = LocalPlayer.Character
+	local root = character and character:FindFirstChild("HumanoidRootPart")
+	local knife = character and character:FindFirstChild("Knife")
+	if not root or not knife or not knife:IsA("Tool") then return end
+	local bestDistance = math.huge
+	for _,player in ipairs(Players:GetPlayers()) do
+		if IsLivePlayer(player) then
+			local part = GetCombatTorso(player.Character)
+			if part and HasClearLineOfSight(part) then
+				local distance = (part.Position-root.Position).Magnitude
+				if distance < bestDistance then
+					bestDistance = distance
+					SilentThrowCachedTargetPosition = part.Position
+				end
+			end
+		end
+	end
+end
+
+Track(RunService.RenderStepped:Connect(UpdateSilentThrowCache))
+
+local function IsLocalKnifeThrownRemoteNoNamecalls(instance)
+	if typeof(instance) ~= "Instance" or instance.Name ~= "KnifeThrown" then return false end
+	local events = instance.Parent
+	local knife = events and events.Parent
+	local character = LocalPlayer.Character
+	return events ~= nil and events.Name == "Events"
+		and knife ~= nil and knife.Name == "Knife"
+		and character ~= nil and knife.Parent == character
+end
+
 
 local function GetSilentAimTargetPart(character)
 	if not character then return nil end
@@ -524,6 +559,27 @@ local function InstallSilentAimHook()
 
 				if originPosition and (targetPosition-originPosition).Magnitude > 0.1 then
 					args[1] = CFrame.new(originPosition,targetPosition)
+					args[2] = CFrame.new(targetPosition)
+					return oldNamecall(self,table.unpack(args))
+				end
+			end
+		end
+
+		-- Only modify an existing manual KnifeThrown call; never initiate a throw.
+		if Flags.SilentThrow
+			and method == "FireServer"
+			and IsLocalKnifeThrownRemoteNoNamecalls(self)
+			and (not checkcaller or not checkcaller())
+		then
+			local targetPosition = SilentThrowCachedTargetPosition
+			if targetPosition then
+				local args = {...}
+				local originalOrigin = args[1]
+				if typeof(originalOrigin) == "CFrame"
+					and typeof(args[2]) == "CFrame"
+					and (targetPosition-originalOrigin.Position).Magnitude > 0.1
+				then
+					args[1] = CFrame.new(originalOrigin.Position,targetPosition)
 					args[2] = CFrame.new(targetPosition)
 					return oldNamecall(self,table.unpack(args))
 				end
