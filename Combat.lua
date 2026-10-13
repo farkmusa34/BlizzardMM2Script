@@ -107,7 +107,7 @@ UI.CreateSlider(
 		Flags.QuickButtonScale = value
 		if UI.SetQuickButtonScale then UI.SetQuickButtonScale(value) end
 	end,
-	60,140,5
+	60,140,1
 )
 
 AddCompactCombatSection("Aim")
