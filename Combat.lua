@@ -183,7 +183,7 @@ Flags.ShowThrowAimbotButton = Flags.ShowThrowAimbotButton == true
 
 UI.CreateToggle(UI.CombatPage, "Auto Throw Knife (RAGE)", "Throws your knife at the closest player.", "LegitThrow")
 Flags.SilentThrow = Flags.SilentThrow == true
-UI.CreateToggle(UI.CombatPage, "Silent Throw", "Redirects your manual knife throws toward the closest visible player.", "SilentThrow")
+UI.CreateToggle(UI.CombatPage, "Silent Throw", "Whenever you throw manually, knife targets the nearest player.", "SilentThrow")
 UI.CreateToggle(UI.CombatPage, "Throw Aimbot Button", "Shows the Throw Knife button.", "ShowThrowAimbotButton", function(on)
 	if MM2.UI.FloatingThrowAimbotHolder then MM2.UI.FloatingThrowAimbotHolder.Visible = on end
 end)
