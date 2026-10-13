@@ -508,7 +508,7 @@ UI.AddSection(UI.PlayerPage,"Movement","Movement and mobility controls")
 UI.CreateToggle(
 	UI.PlayerPage,
 	"Fly",
-	"Fly using your movement controls",
+	"Allows you to fly freely anywhere you want",
 	"Fly",
 	function(on)
 		if on then StartFly() else StopFly() end
@@ -527,7 +527,7 @@ UI.CreateSlider(
 UI.CreateToggle(
 	UI.PlayerPage,
 	"Noclip",
-	"Walk through walls with free fall protection",
+	"Walk through walls without falling off the map",
 	"Noclip",
 	function(on)
 		if on then StartPlayerNoclip() else StopPlayerNoclip() end
@@ -549,7 +549,7 @@ local WalkSpeedSlider = UI.CreateSlider(
 		)
 		ApplyWalkSpeed()
 	end,
-	16,120,4
+	16,120,1
 )
 
 StartWalkSpeedEnforcer()
