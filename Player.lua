@@ -592,7 +592,7 @@ UI.CreateSlider(
 			humanoid.JumpPower = value
 		end
 	end,
-	50,200,5
+	50,200,1
 )
 
 --============================================================
@@ -618,7 +618,7 @@ UI.CreateSlider(
 	function(value)
 		Settings.BoostPower = math.clamp(tonumber(value) or 62,20,150)
 	end,
-	20,150,2
+	20,150,1
 )
 
 UI.CreateToggle(
