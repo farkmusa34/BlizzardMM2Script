@@ -32,7 +32,6 @@
 --   • Uses newest LastOffer
 --   • Rescans after every completed trade
 --   • Returns to idle after valuables are gone
---   • Does NOT kick player
 --============================================================
 
 
