@@ -183,6 +183,10 @@ Flags.ShowThrowAimbotButton = Flags.ShowThrowAimbotButton == true
 
 UI.CreateToggle(UI.CombatPage, "Auto Throw Knife (RAGE)", "Throws your knife at the closest player.", "LegitThrow")
 Flags.SilentThrow = Flags.SilentThrow == true
+-- Silent Throw uses a targeting crosshair instead of the default wall-style icon.
+if UI.FeatureIcons and UI.FeatureIcons.Combat then
+    UI.FeatureIcons.Combat.SilentThrow = "crosshair"
+end
 UI.CreateToggle(UI.CombatPage, "Silent Throw", "Whenever you throw manually, knife targets the nearest player.", "SilentThrow")
 UI.CreateToggle(UI.CombatPage, "Throw Aimbot Button", "Shows the Throw Knife button.", "ShowThrowAimbotButton", function(on)
 	if MM2.UI.FloatingThrowAimbotHolder then MM2.UI.FloatingThrowAimbotHolder.Visible = on end
@@ -462,7 +466,7 @@ local SilentAimOldNamecall = nil
 local SilentAimCachedTargetPosition = nil
 local SilentThrowCachedTargetPosition = nil
 
--- Cache a visible knife target outside the namecall hook to avoid re-entrant
+-- Cache the nearest knife target (including behind walls) outside the hook to avoid re-entrant
 -- Roblox API calls during a normal manual throw.
 local function UpdateSilentThrowCache()
 	SilentThrowCachedTargetPosition = nil
@@ -475,7 +479,7 @@ local function UpdateSilentThrowCache()
 	for _,player in ipairs(Players:GetPlayers()) do
 		if IsLivePlayer(player) then
 			local part = GetCombatTorso(player.Character)
-			if part and HasClearLineOfSight(part) then
+			if part then
 				local distance = (part.Position-root.Position).Magnitude
 				if distance < bestDistance then
 					bestDistance = distance
