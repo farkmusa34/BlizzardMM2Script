@@ -2015,7 +2015,7 @@ task.spawn(function()
 			local coinsPerMinute = FarmStatsCoins / (elapsed / 60)
 			SetCoinRateText(string.format("%.1f coins/min", coinsPerMinute))
 		end
-		task.wait(0.75)
+		task.wait((not FarmStatsStartedAt or FarmStatsCoins <= 0) and 2.0 or 0.75)
 	end
 end)
 

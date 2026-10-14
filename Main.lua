@@ -27,7 +27,7 @@ task.spawn(function()
 
 		MM2.UpdateServerRoles()
 
-		task.wait(0.2)
+		task.wait(0.35)
 	end
 end)
 
@@ -39,7 +39,7 @@ task.spawn(function()
 
 	while MM2.Running do
 
-		task.wait(0.08)
+		task.wait(0.10)
 
 		MM2.UpdateRoundReset()
 
@@ -57,12 +57,14 @@ task.spawn(function()
 		--
 		-- Keeping a single authority prevents Main.lua from
 		-- destroying Role ESP during a short transient state.
-		if MM2.Functions.UpdatePlayerESP then
-
+		-- Player ESP is refreshed here only; RoleESP does not spawn a second poller.
+		if MM2.Functions.UpdatePlayerESP
+			and (Flags.InnocentESP or Flags.MurdererESP or Flags.SheriffESP or Flags.HeroESP or Flags.NameTags
+				or next(MM2.State.MatchESPLastValid or {})) then
 			MM2.Functions.UpdatePlayerESP()
 		end
 
-		if MM2.Functions.UpdateGunESP then
+		if Flags.GunESP and MM2.Functions.UpdateGunESP then
 
 			MM2.Functions.UpdateGunESP()
 		end

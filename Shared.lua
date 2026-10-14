@@ -676,7 +676,15 @@ MM2.Track(
 	)
 )
 
+local countdownCacheAt = -math.huge
+local countdownCacheValue = false
 function MM2.IsCountdownActive()
+	local now = os.clock()
+	if now - countdownCacheAt < 0.40 then
+		return countdownCacheValue
+	end
+	countdownCacheAt = now
+	countdownCacheValue = false
 	for _,obj in ipairs(MM2.PlayerGui:GetDescendants()) do
 		if obj:IsA("TextLabel")
 			or obj:IsA("TextButton")
@@ -695,6 +703,7 @@ function MM2.IsCountdownActive()
 			)
 				and MM2.IsActuallyVisible(obj)
 			then
+				countdownCacheValue = true
 				return true
 			end
 		end

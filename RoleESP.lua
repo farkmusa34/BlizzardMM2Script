@@ -169,17 +169,6 @@ MM2.Functions.UpdatePlayerESP=function()
     end
 end
 
--- Independent update loop: Nametags must still work when Role ESP is OFF.
--- Shared.lua may also call UpdatePlayerESP; updates reuse existing instances.
-task.spawn(function()
-    while MM2.Running do
-        if Flags.InnocentESP or Flags.MurdererESP or Flags.SheriffESP or Flags.HeroESP or Flags.NameTags then
-            MM2.Functions.UpdatePlayerESP()
-        elseif next(MM2.State.MatchESPLastValid) then
-            MM2.Functions.ClearPlayerESP()
-        end
-        task.wait(0.15)
-    end
-    MM2.Functions.ClearPlayerESP()
-end)
-
+-- Performance V1: Main.lua is the single periodic ESP updater.
+-- Toggle callbacks above still refresh ESP immediately.
+-- Cleanup is owned by Main.lua.

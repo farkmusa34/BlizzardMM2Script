@@ -213,8 +213,21 @@ CreateNativeToggle("Round Timer", "Shows the remaining time in the current round
 end)
 
 AddHeading("Tracers")
+local tracerRenderConnection = nil
+local function SyncTracerRendering()
+    if Flags.EnableTracers and not tracerRenderConnection and MM2.Functions.UpdateTracers then
+        tracerRenderConnection = RunService.RenderStepped:Connect(function()
+            if MM2.Running then MM2.Functions.UpdateTracers() end
+        end)
+        Track(tracerRenderConnection)
+    elseif not Flags.EnableTracers and tracerRenderConnection then
+        tracerRenderConnection:Disconnect()
+        tracerRenderConnection = nil
+    end
+end
 CreateNativeToggle("Enable Tracers", "Shows role-colored lines pointing toward players.", "EnableTracers", function(on)
     if not on and MM2.Functions.ClearTracers then MM2.Functions.ClearTracers() end
+    SyncTracerRendering()
 end)
 CreateVisualDropdown("Tracer Origin", "Sets where tracers start on your screen.", "TracerOrigin", {"Bottom Center","Center","Top Center"}, "Bottom Center")
 Flags.TracerThickness = 1 -- Fixed 1-pixel tracer width; no UI slider.
@@ -373,7 +386,7 @@ task.spawn(function()
 			MM2.Functions.ClearCoinESP()
 		end
 
-		task.wait(0.15)
+		task.wait(Flags.CoinESP and 0.20 or 1.0)
 	end
 
 	MM2.Functions.ClearCoinESP()
@@ -1621,8 +1634,9 @@ task.spawn(function()
 
 	while MM2.Running do
 
+		-- Hidden timer needs only a slow state check; enabled timer stays responsive.
 		local hasRoundWeapon =
-			AnyLivePlayerHasRoundWeapon()
+			Flags.RoundTimer and AnyLivePlayerHasRoundWeapon() or false
 
 		if hasRoundWeapon then
 
@@ -1688,7 +1702,7 @@ task.spawn(function()
 		hadRoundWeapon =
 			hasRoundWeapon
 
-		task.wait(0.10)
+		task.wait(Flags.RoundTimer and 0.10 or 1.0)
 	end
 
 	StopRoundTimer()
@@ -1697,12 +1711,7 @@ end)
 --============================================================
 -- RENDER CONNECTIONS
 --============================================================
-Track(
-	RunService.RenderStepped:
-	Connect(
-		MM2.Functions.UpdateTracers
-	)
-)
+SyncTracerRendering()
 
 print(
 	"[Blizzard MM2 Visuals] v1.85.5 updated loaded"
