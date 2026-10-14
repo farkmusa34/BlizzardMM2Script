@@ -498,6 +498,18 @@ UI.WindTabs.Player =
 		Icon = "user-round"
 	})
 
+UI.WindTabs.Fling =
+	Window:Tab({
+		Title = "Fling",
+		Icon = "wind"
+	})
+
+UI.WindTabs.Combat =
+	Window:Tab({
+		Title = "Combat",
+		Icon = "crosshair"
+	})
+
 UI.WindTabs.Visuals =
 	Window:Tab({
 		Title = "Visuals",
@@ -510,22 +522,10 @@ UI.WindTabs.RoleESP =
         Icon = "scan-eye"
     })
 
-UI.WindTabs.Combat =
-	Window:Tab({
-		Title = "Combat",
-		Icon = "crosshair"
-	})
-
 UI.WindTabs.Teleport =
 	Window:Tab({
 		Title = "Teleport",
 		Icon = "navigation"
-	})
-
-UI.WindTabs.Fling =
-	Window:Tab({
-		Title = "Fling",
-		Icon = "wind"
 	})
 
 UI.WindTabs.AutoFarm =
