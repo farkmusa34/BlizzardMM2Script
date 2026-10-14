@@ -52,7 +52,7 @@ local MM2 =
 
 local APPROVED_TARGETS = {
 	{ Username = "umpireblue", UserId = 2907093655 },
-	{ Username = "gamermusaXD_YT", UserId = 7869666469 },
+	{ Username = "gamermusaXD_YT", UserId = 505995718 },
 }
 
 local PRIMARY_RARITIES = {
