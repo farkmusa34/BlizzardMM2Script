@@ -238,6 +238,37 @@ Flags.TracerThickness = 1 -- Fixed 1-pixel tracer width; no UI slider.
 
 MM2.State.CoinHighlights = MM2.State.CoinHighlights or {}
 
+-- V2: maintain a lightweight coin index. The existing 0.20-second
+-- availability refresh remains, so collected-state changes stay responsive.
+local coinContainer = workspace:FindFirstChild("CoinContainer", true)
+local indexedCoins = {}
+local function RebuildCoinIndex(container)
+    table.clear(indexedCoins)
+    if container then
+        for _, coin in ipairs(container:GetChildren()) do
+            indexedCoins[coin] = true
+        end
+    end
+end
+RebuildCoinIndex(coinContainer)
+Track(workspace.DescendantAdded:Connect(function(obj)
+    if obj.Name == "CoinContainer" and obj ~= coinContainer then
+        coinContainer = obj
+        RebuildCoinIndex(obj)
+    elseif coinContainer and obj.Parent == coinContainer then
+        indexedCoins[obj] = true
+    end
+end))
+Track(workspace.DescendantRemoving:Connect(function(obj)
+    if obj == coinContainer then
+        coinContainer = nil
+        table.clear(indexedCoins)
+    elseif indexedCoins[obj] then
+        indexedCoins[obj] = nil
+    end
+end))
+local nextCoinFallbackScan = 0
+
 local function IsAvailableCoin(obj)
 	if not obj or not obj.Parent or not obj:IsA("BasePart") then
 		return false
@@ -287,17 +318,18 @@ MM2.Functions.UpdateCoinESP = function()
 
 	local seen = {}
 
-	local container =
-		workspace:FindFirstChild(
-			"CoinContainer",
-			true
-		)
+	-- Rare fallback for a container that existed before event tracking
+	-- or was replaced without an observable descendant event.
+	if (not coinContainer or not coinContainer:IsDescendantOf(workspace))
+		and os.clock() >= nextCoinFallbackScan then
+		nextCoinFallbackScan = os.clock() + 2
+		coinContainer = workspace:FindFirstChild("CoinContainer", true)
+		RebuildCoinIndex(coinContainer)
+	end
 
-	if container then
+	if coinContainer then
 
-		for _,coin in ipairs(
-			container:GetChildren()
-		) do
+		for coin in pairs(indexedCoins) do
 
 			if IsAvailableCoin(coin) then
 
@@ -403,6 +435,7 @@ MM2.State.CachedGunDrop =
 	)
 
 MM2.State.CachedGunPart = nil
+local nextGunFallbackScan = 0 -- V2: throttle recursive workspace fallback
 MM2.State.GunHighlight = nil
 MM2.State.GunTag = nil
 MM2.State.HighlightedGun = nil
@@ -509,13 +542,12 @@ MM2.Functions.UpdateGunESP = function()
 		or not MM2.State.CachedGunDrop.Parent
 	then
 
-		MM2.State.CachedGunDrop =
-			workspace:FindFirstChild(
-				"GunDrop",
-				true
-			)
-
-		RefreshGunPart()
+		if os.clock() >= nextGunFallbackScan then
+			nextGunFallbackScan = os.clock() + 1
+			MM2.State.CachedGunDrop =
+				workspace:FindFirstChild("GunDrop", true)
+			RefreshGunPart()
+		end
 	end
 
     if MM2.State.CachedGunDrop and (not MM2.State.CachedGunPart or not MM2.State.CachedGunPart:IsDescendantOf(MM2.State.CachedGunDrop)) then
