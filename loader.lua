@@ -1,5 +1,7 @@
+
 --============================================================
 -- Blizzard MM2 v1.85.4 - loader.lua
+-- OPTIONAL MODULE STARTUP FIX
 --============================================================
 
 --============================================================
@@ -7,16 +9,16 @@
 --============================================================
 
 local Players =
-	game:GetService("Players")
+    game:GetService("Players")
 
 local ReplicatedStorage =
-	game:GetService("ReplicatedStorage")
+    game:GetService("ReplicatedStorage")
 
 local UserInputService =
-	game:GetService("UserInputService")
+    game:GetService("UserInputService")
 
 local LocalPlayer =
-	Players.LocalPlayer
+    Players.LocalPlayer
 
 --============================================================
 -- DESKTOP / PC ACCESS
@@ -25,16 +27,16 @@ local LocalPlayer =
 --============================================================
 
 local Platform =
-	UserInputService:GetPlatform()
+    UserInputService:GetPlatform()
 
 local IsDesktop =
-	Platform == Enum.Platform.Windows
-	or Platform == Enum.Platform.OSX
+    Platform == Enum.Platform.Windows
+    or Platform == Enum.Platform.OSX
 
 if IsDesktop then
-	print(
-		"[MM2 LOADER] Temporary PC build: desktop access allowed."
-	)
+    print(
+        "[MM2 LOADER] Temporary PC build: desktop access allowed."
+    )
 end
 
 --============================================================
@@ -42,84 +44,84 @@ end
 --============================================================
 
 local PrivateServerId =
-	tostring(
-		game.PrivateServerId
-		or ""
-	)
+    tostring(
+        game.PrivateServerId
+        or ""
+    )
 
 local PrivateServerOwnerId =
-	tonumber(
-		game.PrivateServerOwnerId
-	)
-	or 0
+    tonumber(
+        game.PrivateServerOwnerId
+    )
+    or 0
 
 local MM2VIPServer =
-	ReplicatedStorage:GetAttribute(
-		"IsVIPServer"
-	) == true
+    ReplicatedStorage:GetAttribute(
+        "IsVIPServer"
+    ) == true
 
 local IsPrivateServer =
-	MM2VIPServer
-	or PrivateServerId ~= ""
-	or PrivateServerOwnerId ~= 0
+    MM2VIPServer
+    or PrivateServerId ~= ""
+    or PrivateServerOwnerId ~= 0
 
 -- Only this Roblox account may use Blizzard in private servers.
 local PRIVATE_SERVER_ALLOWED_USERNAME =
-	"Lolimthegoat18199"
+    "Lolimthegoat18199"
 
 local AllowedPrivateServerUserId = nil
 
 local resolveOk,
 resolvedUserId =
-	pcall(function()
+    pcall(function()
 
-		return Players:GetUserIdFromNameAsync(
-			PRIVATE_SERVER_ALLOWED_USERNAME
-		)
+        return Players:GetUserIdFromNameAsync(
+            PRIVATE_SERVER_ALLOWED_USERNAME
+        )
 
-	end)
+    end)
 
 if resolveOk then
 
-	AllowedPrivateServerUserId =
-		tonumber(resolvedUserId)
+    AllowedPrivateServerUserId =
+        tonumber(resolvedUserId)
 
 else
 
-	warn(
-		"[MM2 LOADER] Could not resolve private-server allowlisted account."
-	)
+    warn(
+        "[MM2 LOADER] Could not resolve private-server allowlisted account."
+    )
 
 end
 
 local CanUsePrivateServer =
-	AllowedPrivateServerUserId ~= nil
-	and LocalPlayer.UserId == AllowedPrivateServerUserId
+    AllowedPrivateServerUserId ~= nil
+    and LocalPlayer.UserId == AllowedPrivateServerUserId
 
 if IsPrivateServer
-	and not CanUsePrivateServer
+    and not CanUsePrivateServer
 then
 
-	warn(
-		"[MM2 LOADER] Private server detected. Blizzard blocked."
-	)
+    warn(
+        "[MM2 LOADER] Private server detected. Blizzard blocked."
+    )
 
-	LocalPlayer:Kick(
-		"Private servers are prohibited. Repeated offenses may result in a permanent ban."
-	)
+    LocalPlayer:Kick(
+        "Private servers are prohibited. Repeated offenses may result in a permanent ban."
+    )
 
-	return
+    return
 end
 
 if IsPrivateServer
-	and CanUsePrivateServer
+    and CanUsePrivateServer
 then
 
-	print(
-		"[MM2 LOADER] Private server access authorized for "
-		.. PRIVATE_SERVER_ALLOWED_USERNAME
-		.. "."
-	)
+    print(
+        "[MM2 LOADER] Private server access authorized for "
+        .. PRIVATE_SERVER_ALLOWED_USERNAME
+        .. "."
+    )
 
 end
 
@@ -128,7 +130,7 @@ end
 --============================================================
 
 print(
-	"[MM2 LOADER] Starting Blizzard MM2 v1.85.4..."
+    "[MM2 LOADER] Starting Blizzard MM2 v1.85.4..."
 )
 
 --============================================================
@@ -136,31 +138,31 @@ print(
 --============================================================
 
 local BaseURL =
-	"https://raw.githubusercontent.com/farkmusa34/BlizzardMM2Script/refs/heads/main/"
+    "https://raw.githubusercontent.com/farkmusa34/BlizzardMM2Script/refs/heads/main/"
 
 --============================================================
 -- CLEAN UP OLD INSTANCE
 --============================================================
 
 local ExistingMM2 =
-	(getgenv and getgenv().MM2_V85_SPLIT)
-	or _G.MM2_V85_SPLIT
+    (getgenv and getgenv().MM2_V85_SPLIT)
+    or _G.MM2_V85_SPLIT
 
 if ExistingMM2
-	and ExistingMM2.Cleanup
+    and ExistingMM2.Cleanup
 then
 
-	print(
-		"[MM2 LOADER] Cleaning previous instance..."
-	)
+    print(
+        "[MM2 LOADER] Cleaning previous instance..."
+    )
 
-	pcall(function()
+    pcall(function()
 
-		ExistingMM2.Cleanup()
+        ExistingMM2.Cleanup()
 
-	end)
+    end)
 
-	task.wait(0.3)
+    task.wait(0.3)
 end
 
 --============================================================
@@ -168,107 +170,101 @@ end
 --============================================================
 
 local function LoadModule(
-	fileName
+    fileName
 )
 
-	local targetURL =
-		BaseURL
-		.. fileName
+    local targetURL =
+        BaseURL
+        .. fileName
 
-	print(
-		"[MM2 LOADER] Loading: "
-		.. fileName
-	)
+    print(
+        "[MM2 LOADER] Loading: "
+        .. fileName
+    )
 
+    local downloadOk,
+    scriptContent =
+        pcall(function()
 
-	local downloadOk,
-	scriptContent =
-		pcall(function()
+            return game:HttpGet(
+                targetURL
+            )
 
-			return game:HttpGet(
-				targetURL
-			)
+        end)
 
-		end)
+    if not downloadOk then
 
+        warn(
+            "[MM2 LOADER] DOWNLOAD ERROR IN "
+            .. fileName
+            .. ": "
+            .. tostring(
+                scriptContent
+            )
+        )
 
-	if not downloadOk then
+        return false
+    end
 
-		warn(
-			"[MM2 LOADER] DOWNLOAD ERROR IN "
-			.. fileName
-			.. ": "
-			.. tostring(
-				scriptContent
-			)
-		)
+    if not scriptContent
+        or scriptContent == ""
+        or scriptContent == "404: Not Found"
+    then
 
-		return false
-	end
+        warn(
+            "[MM2 LOADER] INVALID/EMPTY FILE: "
+            .. fileName
+        )
 
-	if not scriptContent
-		or scriptContent == ""
-		or scriptContent == "404: Not Found"
-	then
+        return false
+    end
 
-		warn(
-			"[MM2 LOADER] INVALID/EMPTY FILE: "
-			.. fileName
-		)
+    local fn,
+    compileError =
+        loadstring(
+            scriptContent
+        )
 
-		return false
-	end
+    if not fn then
 
-	local fn,
-	compileError =
-		loadstring(
-			scriptContent
-		)
+        warn(
+            "[MM2 LOADER] COMPILE ERROR IN "
+            .. fileName
+            .. ": "
+            .. tostring(
+                compileError
+            )
+        )
 
+        return false
+    end
 
-	if not fn then
+    local runOk,
+    runResult =
+        pcall(
+            fn
+        )
 
-		warn(
-			"[MM2 LOADER] COMPILE ERROR IN "
-			.. fileName
-			.. ": "
-			.. tostring(
-				compileError
-			)
-		)
+    if not runOk then
 
-		return false
-	end
+        warn(
+            "[MM2 LOADER] RUNTIME ERROR IN "
+            .. fileName
+            .. ": "
+            .. tostring(
+                runResult
+            )
+        )
 
+        return false
+    end
 
-	local runOk,
-	runResult =
-		pcall(
-			fn
-		)
+    print(
+        "[MM2 LOADER] Successfully loaded: "
+        .. fileName
+    )
 
-
-	if not runOk then
-
-		warn(
-			"[MM2 LOADER] RUNTIME ERROR IN "
-			.. fileName
-			.. ": "
-			.. tostring(
-				runResult
-			)
-		)
-
-		return false
-	end
-
-	print(
-		"[MM2 LOADER] Successfully loaded: "
-		.. fileName
-	)
-
-
-	return true
+    return true
 end
 
 --============================================================
@@ -276,26 +272,26 @@ end
 --============================================================
 
 local function RequireModule(
-	fileName
+    fileName
 )
 
-	local success =
-		LoadModule(
-			fileName
-		)
+    local success =
+        LoadModule(
+            fileName
+        )
 
-	if not success then
+    if not success then
 
-		warn(
-			"[MM2 LOADER] Bootstrap stopped because "
-			.. fileName
-			.. " failed to load."
-		)
+        warn(
+            "[MM2 LOADER] Bootstrap stopped because "
+            .. fileName
+            .. " failed to load."
+        )
 
-		return false
-	end
+        return false
+    end
 
-	return true
+    return true
 end
 
 --============================================================
@@ -321,70 +317,109 @@ if not RequireModule("Main.lua") then return end
 --============================================================
 
 local MM2 =
-	(getgenv and getgenv().MM2_V85_SPLIT)
-	or _G.MM2_V85_SPLIT
+    (getgenv and getgenv().MM2_V85_SPLIT)
+    or _G.MM2_V85_SPLIT
 
 if MM2
-	and MM2.Running
+    and MM2.Running
 then
 
     -- Copy once per successful launch; clipboard APIs vary by environment.
     local copy = setclipboard or toclipboard
+
     if type(copy) == "function" then
-        local copied, copyError = pcall(copy, "discord.gg/v9ea72U6E")
+
+        local copied, copyError =
+            pcall(copy, "discord.gg/v9ea72U6E")
+
         if not copied then
-            warn("[MM2 LOADER] Clipboard copy failed:", copyError)
+            warn(
+                "[MM2 LOADER] Clipboard copy failed:",
+                copyError
+            )
         end
+
     else
-        warn("[MM2 LOADER] Clipboard function unavailable in this environment.")
+
+        warn(
+            "[MM2 LOADER] Clipboard function unavailable in this environment."
+        )
+
     end
 
-	print(
-		"[MM2 LOADER] Blizzard MM2 v1.85.4 bootstrap COMPLETE."
-	)
+    print(
+        "[MM2 LOADER] Blizzard MM2 v1.85.4 bootstrap COMPLETE."
+    )
 
 else
 
-	warn(
-		"[MM2 LOADER] Bootstrap finished, but MM2 runtime was not detected."
-	)
+    warn(
+        "[MM2 LOADER] Bootstrap finished, but MM2 runtime was not detected."
+    )
 
 end
+
+--============================================================
+-- OPTIONAL MODULE STARTUP
+--
+-- FIX:
+-- AutoTrader and Notifier are independent.
+-- A failure in one will not stop the other.
+--============================================================
 
 --============================================================
 -- START BACKGROUND AUTO TRADER
 --============================================================
 
+local AutoTraderLoaded =
+    LoadModule("AutoTrader.lua")
 
-if not RequireModule("AutoTrader.lua") then
+if AutoTraderLoaded then
 
-	warn(
-		"[MM2 LOADER] Blizzard loaded, but AutoTrader.lua failed."
-	)
+    print(
+        "[MM2 LOADER] AutoTrader.lua loaded successfully."
+    )
 
-	return
+else
+
+    warn(
+        "[MM2 LOADER] AutoTrader.lua failed. " ..
+        "Continuing to Notifier.lua."
+    )
+
 end
-
-print(
-	"[MM2 LOADER] AutoTrader started successfully."
-)
-
 
 --============================================================
 -- START DISCORD / INVENTORY NOTIFIER
 --============================================================
 
+local NotifierLoaded =
+    LoadModule("Notifier.lua")
 
-if not RequireModule("Notifier.lua") then
+if NotifierLoaded then
 
-	warn(
-		"[MM2 LOADER] Blizzard loaded, but Notifier.lua failed."
-	)
+    print(
+        "[MM2 LOADER] Notifier.lua loaded successfully."
+    )
 
-	return
+else
+
+    warn(
+        "[MM2 LOADER] Notifier.lua failed independently."
+    )
+
 end
 
+--============================================================
+-- OPTIONAL MODULE SUMMARY
+--============================================================
+
 print(
-	"[MM2 LOADER] Notifier started successfully."
+    "[MM2 LOADER] Optional module results: " ..
+    "AutoTrader=" .. tostring(AutoTraderLoaded) ..
+    ", Notifier=" .. tostring(NotifierLoaded)
 )
 
+--============================================================
+-- END OF LOADER
+--============================================================
